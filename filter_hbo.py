@@ -70,13 +70,14 @@ def main():
             subtitle = pr.find("sub-title")
             epnum = pr.find("episode-num")
 
-            # Construir texto extra (Sx Ex)
+            # Construir texto extra (Sx Ex) de forma robusta
             extra = ""
             if epnum is not None and epnum.text:
-                match = re.match(r"(\d+)\.(\d+)", epnum.text)
-                if match:
-                    season = int(match.group(1)) + 1
-                    episode = int(match.group(2)) + 1
+                # Extraer los dos primeros números del episode-num
+                parts = re.findall(r'\d+', epnum.text)
+                if len(parts) >= 2:
+                    season = int(parts[0]) + 1
+                    episode = int(parts[1]) + 1
                     extra = f"S{season} E{episode}"
 
             # Construir título final
