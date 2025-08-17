@@ -1,6 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<tv generator-info-name="none" generator-info-url="none">
-  <channel id="Canal.HBO.(México).mx">
+<tv generator-info-name="none" generator-info-url="none"><channel id="Canal.HBO.(México).mx">
     <display-name lang="es">Canal HBO (México)</display-name>
     <icon src="https://imagenes.gatotv.com/logos/canales/oscuros/hbo_latinoamerica-mediano.png" />
     <icon src="https://imagenes.gatotv.com/logos/canales/oscuros/hbo_latinoamerica-mediano.png" />
@@ -44,43 +43,33 @@
   </channel>
   <programme start="20250816010800 -0500" stop="20250816033100 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">PECADORES</title>
-    <desc>PECADORES</desc>
   </programme>
   <programme start="20250816033100 -0500" stop="20250816052100 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Serpientes a bordo</title>
-    <desc>Serpientes a bordo</desc>
   </programme>
   <programme start="20250816052100 -0500" stop="20250816070000 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Crank 2 Alto voltaje</title>
-    <desc>Crank 2 Alto voltaje</desc>
   </programme>
   <programme start="20250816070000 -0500" stop="20250816080400 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Ramy Youssef: más sentimientos</title>
-    <desc>Ramy Youssef: más sentimientos</desc>
   </programme>
   <programme start="20250816080400 -0500" stop="20250816095700 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Pokémon Detective Pikachu</title>
-    <desc>Pokémon Detective Pikachu</desc>
   </programme>
   <programme start="20250816095700 -0500" stop="20250816125000 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Wicked</title>
-    <desc>Wicked</desc>
   </programme>
   <programme start="20250816125000 -0500" stop="20250816145900 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Tornados</title>
-    <desc>Tornados</desc>
   </programme>
   <programme start="20250816145900 -0500" stop="20250816153700 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Rome Making of</title>
-    <desc>Rome Making of</desc>
   </programme>
   <programme start="20250816153700 -0500" stop="20250816180100 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">It (Eso)</title>
-    <desc>It (Eso)</desc>
   </programme>
   <programme start="20250816180100 -0500" stop="20250816204800 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Wicked</title>
-    <desc>Wicked</desc>
   </programme>
   <programme start="20250816204800 -0500" stop="20250816230000 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Aquaman y el Reino Perdido (2023)</title>
@@ -112,7 +101,6 @@
   </programme>
   <programme start="20250816230000 -0500" stop="20250817011800 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Nosferatu</title>
-    <desc>Nosferatu</desc>
   </programme>
   <programme start="20250817011800 -0500" stop="20250817032000 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Godzilla y Kong: El Nuevo Imperio (2024)</title>
@@ -231,7 +219,6 @@
   </programme>
   <programme start="20250817090200 -0500" stop="20250817105300 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Rápido y furioso: Reto Tokio</title>
-    <desc>Rápido y furioso: Reto Tokio</desc>
   </programme>
   <programme start="20250817105300 -0500" stop="20250817124100 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Una Película de Minecraft (2025)</title>
@@ -298,7 +285,6 @@
   </programme>
   <programme start="20250817151200 -0500" stop="20250817171400 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Jurado Nº 2</title>
-    <desc>Jurado Nº 2</desc>
   </programme>
   <programme start="20250817171400 -0500" stop="20250817191200 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Five Nights at Freddy's (2023)</title>
@@ -363,7 +349,7 @@
     </star-rating>
   </programme>
   <programme start="20250817210000 -0500" stop="20250817213500 -0500" channel="Canal.HBO.(México).mx">
-    <title lang="es">Twisted Metal (&lt;b&gt;T3 E3&lt;/b&gt;) "DOLF4C3"</title>
+    <title lang="es">Twisted Metal (T3 E3) "DOLF4C3"</title>
     <sub-title lang="es">DOLF4C3</sub-title>
     <desc lang="es">Twisted Metal, una serie de televisión de acción en vivo de media hora basada en la clásica serie de juegos de PlayStation, es una comedia de acción de alto octanaje, basada en una toma original de Rhett Reese y Paul Wernick y escrita por Michael Jonathan Smith, acerca de un forastero con boca de motor al que se le ofrece la oportunidad de una vida mejor, pero solo si puede entregar con éxito un paquete misterioso a través de un terreno baldío postapocalíptico. Con la ayuda de un ladrón de autos que empuña un hacha, se enfrentará a merodeadores salvajes que conducen vehículos de destrucción y otros peligrosos de la carretera, incluido un payaso trastornado que conduce un camión de helados demasiado familiar.</desc>
     <credits>
@@ -394,10 +380,9 @@
   </programme>
   <programme start="20250817213500 -0500" stop="20250818000000 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">PECADORES</title>
-    <desc>PECADORES</desc>
   </programme>
   <programme start="20250818000000 -0500" stop="20250818003500 -0500" channel="Canal.HBO.(México).mx">
-    <title lang="es">Twisted Metal (&lt;b&gt;T3 E3&lt;/b&gt;) "DOLF4C3"</title>
+    <title lang="es">Twisted Metal (T3 E3) "DOLF4C3"</title>
     <sub-title lang="es">DOLF4C3</sub-title>
     <desc lang="es">Twisted Metal, una serie de televisión de acción en vivo de media hora basada en la clásica serie de juegos de PlayStation, es una comedia de acción de alto octanaje, basada en una toma original de Rhett Reese y Paul Wernick y escrita por Michael Jonathan Smith, acerca de un forastero con boca de motor al que se le ofrece la oportunidad de una vida mejor, pero solo si puede entregar con éxito un paquete misterioso a través de un terreno baldío postapocalíptico. Con la ayuda de un ladrón de autos que empuña un hacha, se enfrentará a merodeadores salvajes que conducen vehículos de destrucción y otros peligrosos de la carretera, incluido un payaso trastornado que conduce un camión de helados demasiado familiar.</desc>
     <credits>
@@ -427,29 +412,23 @@
     </star-rating>
   </programme>
   <programme start="20250818003500 -0500" stop="20250818013500 -0500" channel="Canal.HBO.(México).mx">
-    <title lang="es">Los asesinatos de la tienda de yogur (&lt;b&gt;T2 E4&lt;/b&gt;)</title>
+    <title lang="es">Los asesinatos de la tienda de yogur (T2 E4)</title>
     <episode-num system="onscreen">S1 E3</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E4&lt;/b&gt; de Los asesinatos de la tienda de yogur</desc>
   </programme>
   <programme start="20250818013500 -0500" stop="20250818032900 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Abigail</title>
-    <desc>Abigail</desc>
   </programme>
   <programme start="20250818032900 -0500" stop="20250818050900 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Destino final</title>
-    <desc>Destino final</desc>
   </programme>
   <programme start="20250818050900 -0500" stop="20250818070000 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">El camino de regreso</title>
-    <desc>El camino de regreso</desc>
   </programme>
   <programme start="20250818070000 -0500" stop="20250818085400 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Muy parecido al amor</title>
-    <desc>Muy parecido al amor</desc>
   </programme>
   <programme start="20250818085400 -0500" stop="20250818103500 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Chica conoce Chico</title>
-    <desc>Chica conoce Chico</desc>
   </programme>
   <programme start="20250818103500 -0500" stop="20250818121600 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Harold y su Crayón Mágico (2024)</title>
@@ -484,15 +463,12 @@
   </programme>
   <programme start="20250818121600 -0500" stop="20250818143800 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">El señor de los anillos: La guerra de los Rohirrim</title>
-    <desc>El señor de los anillos: La guerra de los Rohirrim</desc>
   </programme>
   <programme start="20250818143800 -0500" stop="20250818165500 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">El justiciero</title>
-    <desc>El justiciero</desc>
   </programme>
   <programme start="20250818165500 -0500" stop="20250818190300 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Everest</title>
-    <desc>Everest</desc>
   </programme>
   <programme start="20250818190300 -0500" stop="20250818205300 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Until Dawn: Noche de Terror (2025)</title>
@@ -524,12 +500,10 @@
   </programme>
   <programme start="20250818205300 -0500" stop="20250818222900 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">No descansarás</title>
-    <desc>No descansarás</desc>
   </programme>
   <programme start="20250818222900 -0500" stop="20250818230500 -0500" channel="Canal.HBO.(México).mx">
-    <title lang="es">Estado de fúria (&lt;b&gt;T2 E8&lt;/b&gt;)</title>
+    <title lang="es">Estado de fúria (T2 E8)</title>
     <episode-num system="onscreen">S1 E7</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E8&lt;/b&gt; de Estado de fúria</desc>
   </programme>
   <programme start="20250818230500 -0500" stop="20250819004900 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Compañera Perfecta (2025)</title>
@@ -558,21 +532,17 @@
     </star-rating>
   </programme>
   <programme start="20250819004900 -0500" stop="20250819013500 -0500" channel="Canal.HBO.(México).mx">
-    <title lang="es">Last Week Tonight With John Oliver (&lt;b&gt;T13 E22&lt;/b&gt;)</title>
+    <title lang="es">Last Week Tonight With John Oliver (T13 E22)</title>
     <episode-num system="onscreen">S12 E21</episode-num>
-    <desc>Episodio &lt;b&gt;T13 E22&lt;/b&gt; de Last Week Tonight With John Oliver</desc>
   </programme>
   <programme start="20250819013500 -0500" stop="20250819032700 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">La trampa</title>
-    <desc>La trampa</desc>
   </programme>
   <programme start="20250819032700 -0500" stop="20250819051300 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Intrusos</title>
-    <desc>Intrusos</desc>
   </programme>
   <programme start="20250819051300 -0500" stop="20250819070000 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Agente Salt</title>
-    <desc>Agente Salt</desc>
   </programme>
   <programme start="20250819070000 -0500" stop="20250819084200 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Mi Villano Favorito 4 (2024)</title>
@@ -638,9 +608,8 @@
     </star-rating>
   </programme>
   <programme start="20250819102900 -0500" stop="20250819111400 -0500" channel="Canal.HBO.(México).mx">
-    <title lang="es">Last Week Tonight With John Oliver (&lt;b&gt;T13 E22&lt;/b&gt;)</title>
+    <title lang="es">Last Week Tonight With John Oliver (T13 E22)</title>
     <episode-num system="onscreen">S12 E21</episode-num>
-    <desc>Episodio &lt;b&gt;T13 E22&lt;/b&gt; de Last Week Tonight With John Oliver</desc>
   </programme>
   <programme start="20250819111400 -0500" stop="20250819133000 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Blue Beetle (2023)</title>
@@ -739,29 +708,23 @@
   </programme>
   <programme start="20250819171700 -0500" stop="20250819192400 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">Escape bajo fuego</title>
-    <desc>Escape bajo fuego</desc>
   </programme>
   <programme start="20250819192400 -0500" stop="20250819220000 -0500" channel="Canal.HBO.(México).mx">
     <title lang="es">El Código Da Vinci</title>
-    <desc>El Código Da Vinci</desc>
   </programme>
   <programme start="20250819220000 -0500" stop="20250819230000 -0500" channel="Canal.HBO.(México).mx">
-    <title lang="es">Marcial Maciel: El Lobo de Dios (&lt;b&gt;T2 E2&lt;/b&gt;)</title>
+    <title lang="es">Marcial Maciel: El Lobo de Dios (T2 E2)</title>
     <episode-num system="onscreen">S1 E1</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E2&lt;/b&gt; de Marcial Maciel: El Lobo de Dios</desc>
   </programme>
   <programme start="20250819230000 -0500" stop="20250820000000 -0500" channel="Canal.HBO.(México).mx">
-    <title lang="es">Marcial Maciel: El Lobo de Dios (&lt;b&gt;T2 E3&lt;/b&gt;)</title>
+    <title lang="es">Marcial Maciel: El Lobo de Dios (T2 E3)</title>
     <episode-num system="onscreen">S1 E2</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E3&lt;/b&gt; de Marcial Maciel: El Lobo de Dios</desc>
   </programme>
   <programme start="20250816011000 -0500" stop="20250816032200 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Atracción peligrosa</title>
-    <desc>Atracción peligrosa</desc>
   </programme>
   <programme start="20250816032200 -0500" stop="20250816050700 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">El maestro del dinero</title>
-    <desc>El maestro del dinero</desc>
   </programme>
   <programme start="20250816050700 -0500" stop="20250816070000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Cry Macho (2021)</title>
@@ -795,11 +758,9 @@
   </programme>
   <programme start="20250816070000 -0500" stop="20250816083200 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Todas menos tú</title>
-    <desc>Todas menos tú</desc>
   </programme>
   <programme start="20250816083200 -0500" stop="20250816105400 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">La Guerra de los Rohirrim</title>
-    <desc>La Guerra de los Rohirrim</desc>
   </programme>
   <programme start="20250816105400 -0500" stop="20250816125700 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Bad Boys: Ride or Die (2024)</title>
@@ -834,7 +795,7 @@
     </star-rating>
   </programme>
   <programme start="20250816125700 -0500" stop="20250816133200 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
-    <title lang="es">Twisted Metal (&lt;b&gt;T3 E2&lt;/b&gt;)</title>
+    <title lang="es">Twisted Metal (T3 E2)</title>
     <desc lang="es">Twisted Metal, una serie de televisión de acción en vivo de media hora basada en la clásica serie de juegos de PlayStation, es una comedia de acción de alto octanaje, basada en una toma original de Rhett Reese y Paul Wernick y escrita por Michael Jonathan Smith, acerca de un forastero con boca de motor al que se le ofrece la oportunidad de una vida mejor, pero solo si puede entregar con éxito un paquete misterioso a través de un terreno baldío postapocalíptico. Con la ayuda de un ladrón de autos que empuña un hacha, se enfrentará a merodeadores salvajes que conducen vehículos de destrucción y otros peligrosos de la carretera, incluido un payaso trastornado que conduce un camión de helados demasiado familiar.</desc>
     <credits>
       <actor>Anthony Mackie</actor>
@@ -864,11 +825,9 @@
   </programme>
   <programme start="20250816133200 -0500" stop="20250816155000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Moonfall</title>
-    <desc>Moonfall</desc>
   </programme>
   <programme start="20250816155000 -0500" stop="20250816181500 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">PECADORES</title>
-    <desc>PECADORES</desc>
   </programme>
   <programme start="20250816181500 -0500" stop="20250816200800 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Beekeeper: Sentencia de Muerte (2024)</title>
@@ -901,7 +860,6 @@
   </programme>
   <programme start="20250816200800 -0500" stop="20250816230000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Batman el caballero asciende</title>
-    <desc>Batman el caballero asciende</desc>
   </programme>
   <programme start="20250816230000 -0500" stop="20250817010400 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Bad Boys: Ride or Die (2024)</title>
@@ -968,23 +926,18 @@
   </programme>
   <programme start="20250817033400 -0500" stop="20250817053600 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Bourne El ultimátum</title>
-    <desc>Bourne El ultimátum</desc>
   </programme>
   <programme start="20250817053600 -0500" stop="20250817070000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Destino final 4</title>
-    <desc>Destino final 4</desc>
   </programme>
   <programme start="20250817070000 -0500" stop="20250817085200 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Muy parecido al amor</title>
-    <desc>Muy parecido al amor</desc>
   </programme>
   <programme start="20250817085200 -0500" stop="20250817105700 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Misántropo</title>
-    <desc>Misántropo</desc>
   </programme>
   <programme start="20250817105700 -0500" stop="20250817130300 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Everest</title>
-    <desc>Everest</desc>
   </programme>
   <programme start="20250817130300 -0500" stop="20250817150700 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">La Habitación (2015) (2015)</title>
@@ -1067,11 +1020,9 @@
   </programme>
   <programme start="20250817184000 -0500" stop="20250817210000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Nosferatu</title>
-    <desc>Nosferatu</desc>
   </programme>
   <programme start="20250817210000 -0500" stop="20250817224500 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Annabelle</title>
-    <desc>Annabelle</desc>
   </programme>
   <programme start="20250817224500 -0500" stop="20250818003800 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Annabelle 3: Viene a Casa (2019)</title>
@@ -1154,11 +1105,9 @@
   </programme>
   <programme start="20250818045800 -0500" stop="20250818070000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Triple 9</title>
-    <desc>Triple 9</desc>
   </programme>
   <programme start="20250818070000 -0500" stop="20250818085100 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Amor a distancia</title>
-    <desc>Amor a distancia</desc>
   </programme>
   <programme start="20250818085100 -0500" stop="20250818112000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">El Primer Hombre en la Luna (2018)</title>
@@ -1220,14 +1169,12 @@
   </programme>
   <programme start="20250818133200 -0500" stop="20250818153400 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Godzilla y Kong Nuevo Imperio</title>
-    <desc>Godzilla y Kong Nuevo Imperio</desc>
   </programme>
   <programme start="20250818153400 -0500" stop="20250818181000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">El Código Da Vinci</title>
-    <desc>El Código Da Vinci</desc>
   </programme>
   <programme start="20250818181000 -0500" stop="20250818184500 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
-    <title lang="es">Twisted Metal (&lt;b&gt;T3 E3&lt;/b&gt;)</title>
+    <title lang="es">Twisted Metal (T3 E3)</title>
     <desc lang="es">Twisted Metal, una serie de televisión de acción en vivo de media hora basada en la clásica serie de juegos de PlayStation, es una comedia de acción de alto octanaje, basada en una toma original de Rhett Reese y Paul Wernick y escrita por Michael Jonathan Smith, acerca de un forastero con boca de motor al que se le ofrece la oportunidad de una vida mejor, pero solo si puede entregar con éxito un paquete misterioso a través de un terreno baldío postapocalíptico. Con la ayuda de un ladrón de autos que empuña un hacha, se enfrentará a merodeadores salvajes que conducen vehículos de destrucción y otros peligrosos de la carretera, incluido un payaso trastornado que conduce un camión de helados demasiado familiar.</desc>
     <credits>
       <actor>Anthony Mackie</actor>
@@ -1392,7 +1339,6 @@
   </programme>
   <programme start="20250819053500 -0500" stop="20250819070000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Destino final 4</title>
-    <desc>Destino final 4</desc>
   </programme>
   <programme start="20250819070000 -0500" stop="20250819085100 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">300: El Nacimiento de un Imperio (2014)</title>
@@ -1518,15 +1464,12 @@
   </programme>
   <programme start="20250819142500 -0500" stop="20250819165000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">PECADORES</title>
-    <desc>PECADORES</desc>
   </programme>
   <programme start="20250819165000 -0500" stop="20250819190000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Tornados</title>
-    <desc>Tornados</desc>
   </programme>
   <programme start="20250819190000 -0500" stop="20250819210800 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Monkey Man El despertar</title>
-    <desc>Monkey Man El despertar</desc>
   </programme>
   <programme start="20250819210800 -0500" stop="20250819230000 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">Beekeeper: Sentencia de Muerte (2024)</title>
@@ -1558,7 +1501,7 @@
     </star-rating>
   </programme>
   <programme start="20250819230000 -0500" stop="20250819233500 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
-    <title lang="es">Twisted Metal (&lt;b&gt;T3 E3&lt;/b&gt;)</title>
+    <title lang="es">Twisted Metal (T3 E3)</title>
     <desc lang="es">Twisted Metal, una serie de televisión de acción en vivo de media hora basada en la clásica serie de juegos de PlayStation, es una comedia de acción de alto octanaje, basada en una toma original de Rhett Reese y Paul Wernick y escrita por Michael Jonathan Smith, acerca de un forastero con boca de motor al que se le ofrece la oportunidad de una vida mejor, pero solo si puede entregar con éxito un paquete misterioso a través de un terreno baldío postapocalíptico. Con la ayuda de un ladrón de autos que empuña un hacha, se enfrentará a merodeadores salvajes que conducen vehículos de destrucción y otros peligrosos de la carretera, incluido un payaso trastornado que conduce un camión de helados demasiado familiar.</desc>
     <credits>
       <actor>Anthony Mackie</actor>
@@ -1588,30 +1531,24 @@
   </programme>
   <programme start="20250819233500 -0500" stop="20250820012500 -0500" channel="Canal.HBO.2.Latinoamérica.mx">
     <title lang="es">La trampa</title>
-    <desc>La trampa</desc>
   </programme>
   <programme start="20250816015500 -0500" stop="20250816040000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Life of Crime 1984-2020</title>
-    <desc>Life of Crime 1984-2020</desc>
   </programme>
   <programme start="20250816040000 -0500" stop="20250816054500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Fuiste mi primer amor</title>
-    <desc>Fuiste mi primer amor</desc>
   </programme>
   <programme start="20250816054500 -0500" stop="20250816074000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Love to Love You, Donna Summer</title>
-    <desc>Love to Love You, Donna Summer</desc>
   </programme>
   <programme start="20250816074000 -0500" stop="20250816092000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">De la escuela a la prisión</title>
-    <desc>De la escuela a la prisión</desc>
   </programme>
   <programme start="20250816092000 -0500" stop="20250816112600 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Mary Tyler Moore La dama</title>
-    <desc>Mary Tyler Moore La dama</desc>
   </programme>
   <programme start="20250816112600 -0500" stop="20250816122100 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T7 E2&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T7 E2)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1636,7 +1573,7 @@
     </star-rating>
   </programme>
   <programme start="20250816122100 -0500" stop="20250816131500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T7 E3&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T7 E3)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1661,7 +1598,7 @@
     </star-rating>
   </programme>
   <programme start="20250816131500 -0500" stop="20250816141500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T7 E4&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T7 E4)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1686,7 +1623,7 @@
     </star-rating>
   </programme>
   <programme start="20250816141500 -0500" stop="20250816151300 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T7 E5&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T7 E5)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1711,7 +1648,7 @@
     </star-rating>
   </programme>
   <programme start="20250816151300 -0500" stop="20250816161100 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T7 E6&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T7 E6)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1736,7 +1673,7 @@
     </star-rating>
   </programme>
   <programme start="20250816161100 -0500" stop="20250816170900 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T7 E7&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T7 E7)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1761,7 +1698,7 @@
     </star-rating>
   </programme>
   <programme start="20250816170900 -0500" stop="20250816180900 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T7 E8&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T7 E8)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1786,7 +1723,7 @@
     </star-rating>
   </programme>
   <programme start="20250816180900 -0500" stop="20250816190900 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T7 E9&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T7 E9)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1811,7 +1748,7 @@
     </star-rating>
   </programme>
   <programme start="20250816190900 -0500" stop="20250816200500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T7 E10&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T7 E10)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1836,7 +1773,7 @@
     </star-rating>
   </programme>
   <programme start="20250816200500 -0500" stop="20250816210000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T7 E11&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T7 E11)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1861,7 +1798,7 @@
     </star-rating>
   </programme>
   <programme start="20250816210000 -0500" stop="20250816220000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">The Gilded Age (&lt;b&gt;T4 E9&lt;/b&gt;)</title>
+    <title lang="es">The Gilded Age (T4 E9)</title>
     <desc lang="es">La Edad Dorada estadounidense fue un período de inmensos cambios económicos, de gran conflicto entre las viejas costumbres y los nuevos sistemas, y de enormes fortunas ganadas y perdidas. En el contexto de esta transformación, "La Edad Dorada" de HBO comienza en 1882 con la joven Marian Brook (Louisa Jacobson) que se muda de la zona rural de Pensilvania a la ciudad de Nueva York después de la muerte de su padre para vivir con sus viejas tías adineradas Agnes van Rhijn (Christine Baranski) y Ada Brook (Cynthia Nixon).Acompañada por Peggy Scott (Denée Benton), una aspirante a escritora que busca un nuevo comienzo, Marian sin darse cuenta se ve envuelta en una guerra social entre una de sus tías, una descendiente del antiguo grupo de dinero, y sus vecinos tremendamente ricos, un magnate ferroviario despiadado y su ambiciosa esposa, George (Morgan Spector) y Bertha Russel (Carrie Coon). Expuesta a un mundo al borde de la era moderna, ¿seguirá Marian las reglas establecidas por la sociedad o forjará su propio camino?</desc>
     <credits>
       <director>Michael Engler</director>
@@ -1890,38 +1827,30 @@
   </programme>
   <programme start="20250816220000 -0500" stop="20250816230000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">HBO Movies</title>
-    <desc>HBO Movies</desc>
   </programme>
   <programme start="20250816230000 -0500" stop="20250817010500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Desangrando a Silicon Valley</title>
-    <desc>Desangrando a Silicon Valley</desc>
   </programme>
   <programme start="20250817010500 -0500" stop="20250817023500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">El arma perfecta</title>
-    <desc>El arma perfecta</desc>
   </programme>
   <programme start="20250817023500 -0500" stop="20250817040000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Music Box DMX</title>
-    <desc>Music Box DMX</desc>
   </programme>
   <programme start="20250817040000 -0500" stop="20250817055000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">La sombra del comandante</title>
-    <desc>La sombra del comandante</desc>
   </programme>
   <programme start="20250817055000 -0500" stop="20250817072500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">David Holmes El niño que</title>
-    <desc>David Holmes El niño que</desc>
   </programme>
   <programme start="20250817072500 -0500" stop="20250817083000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Nikki Glasser Algún día</title>
-    <desc>Nikki Glasser Algún día</desc>
   </programme>
   <programme start="20250817083000 -0500" stop="20250817100900 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">La vida inmortal de Henrietta</title>
-    <desc>La vida inmortal de Henrietta</desc>
   </programme>
   <programme start="20250817100900 -0500" stop="20250817110200 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T8 E2&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T8 E2)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1946,7 +1875,7 @@
     </star-rating>
   </programme>
   <programme start="20250817110200 -0500" stop="20250817115600 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T8 E3&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T8 E3)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1971,7 +1900,7 @@
     </star-rating>
   </programme>
   <programme start="20250817115600 -0500" stop="20250817125500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T8 E4&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T8 E4)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -1996,7 +1925,7 @@
     </star-rating>
   </programme>
   <programme start="20250817125500 -0500" stop="20250817135200 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T8 E5&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T8 E5)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -2021,7 +1950,7 @@
     </star-rating>
   </programme>
   <programme start="20250817135200 -0500" stop="20250817145400 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T8 E6&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T8 E6)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -2046,7 +1975,7 @@
     </star-rating>
   </programme>
   <programme start="20250817145400 -0500" stop="20250817155400 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T8 E7&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T8 E7)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -2071,7 +2000,7 @@
     </star-rating>
   </programme>
   <programme start="20250817155400 -0500" stop="20250817165600 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T8 E8&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T8 E8)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -2096,7 +2025,7 @@
     </star-rating>
   </programme>
   <programme start="20250817165600 -0500" stop="20250817175200 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T8 E9&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T8 E9)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -2121,7 +2050,7 @@
     </star-rating>
   </programme>
   <programme start="20250817175200 -0500" stop="20250817185200 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T8 E10&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T8 E10)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -2146,7 +2075,7 @@
     </star-rating>
   </programme>
   <programme start="20250817185200 -0500" stop="20250817200000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">True Blood (&lt;b&gt;T8 E11&lt;/b&gt;)</title>
+    <title lang="es">True Blood (T8 E11)</title>
     <desc lang="es">Gracias a la invención de la sangre sintética creada por los científicos Japoneses, los vampiros han progresado de su legendaria monstruosidad a ciudadanos respetables en un abrir y cerrar de ojos. Y mientras los humanos han dejado de formar parte de su dieta, algunos vampiros aún no se han decidido a “salir del ataúd”. Líderes importantes del mundo han escogido de qué lado están pero un pequeño pueblo de Luisiana aún cuenta de estas antiguas historias.Una mesera local, Sookie Stackhouse (Anna Paquin), sabe lo que se sienten ellos. Sookie posee la “maldición” de poder leer el pensamiento de las personas, ella está a favor de la integración de los vampiros, especialmente cuando se trata de Bill Compton (Stephen Moyer), un apuesto vampiro de 173 años que vive en las carreteras. Pero al servicio de los menos virtuosos vampiros del grupo de Bill, Sookie es inmersa en una serie de catástrofes que pondrán a prueba su amor.</desc>
     <credits>
       <actor>Anna Paquin</actor>
@@ -2172,124 +2101,97 @@
   </programme>
   <programme start="20250817200000 -0500" stop="20250817220500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Oslo</title>
-    <desc>Oslo</desc>
   </programme>
   <programme start="20250817220500 -0500" stop="20250817235500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">El niño de mamá</title>
-    <desc>El niño de mamá</desc>
   </programme>
   <programme start="20250817235500 -0500" stop="20250818021500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Jane Fonda en cinco actos</title>
-    <desc>Jane Fonda en cinco actos</desc>
   </programme>
   <programme start="20250818021500 -0500" stop="20250818040000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Di su nombre La vida y muerte</title>
-    <desc>Di su nombre La vida y muerte</desc>
   </programme>
   <programme start="20250818040000 -0500" stop="20250818063000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Spielberg</title>
-    <desc>Spielberg</desc>
   </programme>
   <programme start="20250818063000 -0500" stop="20250818082500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Confirmación</title>
-    <desc>Confirmación</desc>
   </programme>
   <programme start="20250818082500 -0500" stop="20250818102800 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">La conspiración</title>
-    <desc>La conspiración</desc>
   </programme>
   <programme start="20250818102800 -0500" stop="20250818124300 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">El Mago De Las Mentiras</title>
-    <desc>El Mago De Las Mentiras</desc>
   </programme>
   <programme start="20250818124300 -0500" stop="20250818134300 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">El Visitante (&lt;b&gt;T2 E2&lt;/b&gt;)</title>
+    <title lang="es">El Visitante (T2 E2)</title>
     <episode-num system="onscreen">S1 E1</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E2&lt;/b&gt; de El Visitante</desc>
   </programme>
   <programme start="20250818134300 -0500" stop="20250818144300 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">El Visitante (&lt;b&gt;T2 E3&lt;/b&gt;)</title>
+    <title lang="es">El Visitante (T2 E3)</title>
     <episode-num system="onscreen">S1 E2</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E3&lt;/b&gt; de El Visitante</desc>
   </programme>
   <programme start="20250818144300 -0500" stop="20250818154300 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">El Visitante (&lt;b&gt;T2 E4&lt;/b&gt;)</title>
+    <title lang="es">El Visitante (T2 E4)</title>
     <episode-num system="onscreen">S1 E3</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E4&lt;/b&gt; de El Visitante</desc>
   </programme>
   <programme start="20250818154300 -0500" stop="20250818164300 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">El Visitante (&lt;b&gt;T2 E5&lt;/b&gt;)</title>
+    <title lang="es">El Visitante (T2 E5)</title>
     <episode-num system="onscreen">S1 E4</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E5&lt;/b&gt; de El Visitante</desc>
   </programme>
   <programme start="20250818164300 -0500" stop="20250818173800 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">El Visitante (&lt;b&gt;T2 E6&lt;/b&gt;)</title>
+    <title lang="es">El Visitante (T2 E6)</title>
     <episode-num system="onscreen">S1 E5</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E6&lt;/b&gt; de El Visitante</desc>
   </programme>
   <programme start="20250818173800 -0500" stop="20250818183800 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">El Visitante (&lt;b&gt;T2 E7&lt;/b&gt;)</title>
+    <title lang="es">El Visitante (T2 E7)</title>
     <episode-num system="onscreen">S1 E6</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E7&lt;/b&gt; de El Visitante</desc>
   </programme>
   <programme start="20250818183800 -0500" stop="20250818192800 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">El Visitante (&lt;b&gt;T2 E8&lt;/b&gt;)</title>
+    <title lang="es">El Visitante (T2 E8)</title>
     <episode-num system="onscreen">S1 E7</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E8&lt;/b&gt; de El Visitante</desc>
   </programme>
   <programme start="20250818192800 -0500" stop="20250818202800 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">El Visitante (&lt;b&gt;T2 E9&lt;/b&gt;)</title>
+    <title lang="es">El Visitante (T2 E9)</title>
     <episode-num system="onscreen">S1 E8</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E9&lt;/b&gt; de El Visitante</desc>
   </programme>
   <programme start="20250818202800 -0500" stop="20250818212000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">El Visitante (&lt;b&gt;T2 E10&lt;/b&gt;)</title>
+    <title lang="es">El Visitante (T2 E10)</title>
     <episode-num system="onscreen">S1 E9</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E10&lt;/b&gt; de El Visitante</desc>
   </programme>
   <programme start="20250818212000 -0500" stop="20250818221500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">El Visitante (&lt;b&gt;T2 E11&lt;/b&gt;)</title>
+    <title lang="es">El Visitante (T2 E11)</title>
     <episode-num system="onscreen">S1 E10</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E11&lt;/b&gt; de El Visitante</desc>
   </programme>
   <programme start="20250818221500 -0500" stop="20250819001000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">O.G</title>
-    <desc>O.G</desc>
   </programme>
   <programme start="20250819001000 -0500" stop="20250819020000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Paterno</title>
-    <desc>Paterno</desc>
   </programme>
   <programme start="20250819020000 -0500" stop="20250819040000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Foster Adoptados por</title>
-    <desc>Foster Adoptados por</desc>
   </programme>
   <programme start="20250819040000 -0500" stop="20250819060000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">El Pantano</title>
-    <desc>El Pantano</desc>
   </programme>
   <programme start="20250819060000 -0500" stop="20250819073000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">El arma perfecta</title>
-    <desc>El arma perfecta</desc>
   </programme>
   <programme start="20250819073000 -0500" stop="20250819092000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Hijo nativo</title>
-    <desc>Hijo nativo</desc>
   </programme>
   <programme start="20250819092000 -0500" stop="20250819110000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Patios radioactivos</title>
-    <desc>Patios radioactivos</desc>
   </programme>
   <programme start="20250819110000 -0500" stop="20250819131000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Gia</title>
-    <desc>Gia</desc>
   </programme>
   <programme start="20250819131000 -0500" stop="20250819150000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Tell them you love me</title>
-    <desc>Tell them you love me</desc>
   </programme>
   <programme start="20250819150000 -0500" stop="20250819161000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">Duna: La Profecía (&lt;b&gt;T2 E2&lt;/b&gt;)</title>
+    <title lang="es">Duna: La Profecía (T2 E2)</title>
     <desc lang="es">Esta historia tiene lugar 10.000 años antes de la saga de Paul Atreides y la liberación de Arrakis. Buscando ganar cada vez más influencia en toda la galaxia, las hermanas Valya (Emily Watson) y Tula Harkonnen (Olivia Williams) deciden crear la Bene Gesserit, una orden formada únicamente por mujeres.Utilizando ingeniería genética, conspiraciones políticas y misticismo, planean utilizar sus habilidades para salvar a la humanidad del apocalipsis. Pero su deseo de poder comienza a guiar sus decisiones.</desc>
     <credits>
       <actor>Emily Watson</actor>
@@ -2319,7 +2221,7 @@
     </star-rating>
   </programme>
   <programme start="20250819161000 -0500" stop="20250819171500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">Duna: La Profecía (&lt;b&gt;T2 E3&lt;/b&gt;)</title>
+    <title lang="es">Duna: La Profecía (T2 E3)</title>
     <desc lang="es">Esta historia tiene lugar 10.000 años antes de la saga de Paul Atreides y la liberación de Arrakis. Buscando ganar cada vez más influencia en toda la galaxia, las hermanas Valya (Emily Watson) y Tula Harkonnen (Olivia Williams) deciden crear la Bene Gesserit, una orden formada únicamente por mujeres.Utilizando ingeniería genética, conspiraciones políticas y misticismo, planean utilizar sus habilidades para salvar a la humanidad del apocalipsis. Pero su deseo de poder comienza a guiar sus decisiones.</desc>
     <credits>
       <actor>Emily Watson</actor>
@@ -2349,7 +2251,7 @@
     </star-rating>
   </programme>
   <programme start="20250819171500 -0500" stop="20250819182000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">Duna: La Profecía (&lt;b&gt;T2 E4&lt;/b&gt;)</title>
+    <title lang="es">Duna: La Profecía (T2 E4)</title>
     <desc lang="es">Esta historia tiene lugar 10.000 años antes de la saga de Paul Atreides y la liberación de Arrakis. Buscando ganar cada vez más influencia en toda la galaxia, las hermanas Valya (Emily Watson) y Tula Harkonnen (Olivia Williams) deciden crear la Bene Gesserit, una orden formada únicamente por mujeres.Utilizando ingeniería genética, conspiraciones políticas y misticismo, planean utilizar sus habilidades para salvar a la humanidad del apocalipsis. Pero su deseo de poder comienza a guiar sus decisiones.</desc>
     <credits>
       <actor>Emily Watson</actor>
@@ -2379,7 +2281,7 @@
     </star-rating>
   </programme>
   <programme start="20250819182000 -0500" stop="20250819192500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">Duna: La Profecía (&lt;b&gt;T2 E5&lt;/b&gt;)</title>
+    <title lang="es">Duna: La Profecía (T2 E5)</title>
     <desc lang="es">Esta historia tiene lugar 10.000 años antes de la saga de Paul Atreides y la liberación de Arrakis. Buscando ganar cada vez más influencia en toda la galaxia, las hermanas Valya (Emily Watson) y Tula Harkonnen (Olivia Williams) deciden crear la Bene Gesserit, una orden formada únicamente por mujeres.Utilizando ingeniería genética, conspiraciones políticas y misticismo, planean utilizar sus habilidades para salvar a la humanidad del apocalipsis. Pero su deseo de poder comienza a guiar sus decisiones.</desc>
     <credits>
       <actor>Emily Watson</actor>
@@ -2409,7 +2311,7 @@
     </star-rating>
   </programme>
   <programme start="20250819192500 -0500" stop="20250819202500 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">Duna: La Profecía (&lt;b&gt;T2 E6&lt;/b&gt;)</title>
+    <title lang="es">Duna: La Profecía (T2 E6)</title>
     <desc lang="es">Esta historia tiene lugar 10.000 años antes de la saga de Paul Atreides y la liberación de Arrakis. Buscando ganar cada vez más influencia en toda la galaxia, las hermanas Valya (Emily Watson) y Tula Harkonnen (Olivia Williams) deciden crear la Bene Gesserit, una orden formada únicamente por mujeres.Utilizando ingeniería genética, conspiraciones políticas y misticismo, planean utilizar sus habilidades para salvar a la humanidad del apocalipsis. Pero su deseo de poder comienza a guiar sus decisiones.</desc>
     <credits>
       <actor>Emily Watson</actor>
@@ -2439,7 +2341,7 @@
     </star-rating>
   </programme>
   <programme start="20250819202500 -0500" stop="20250819215000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
-    <title lang="es">Duna: La Profecía (&lt;b&gt;T2 E7&lt;/b&gt;)</title>
+    <title lang="es">Duna: La Profecía (T2 E7)</title>
     <desc lang="es">Esta historia tiene lugar 10.000 años antes de la saga de Paul Atreides y la liberación de Arrakis. Buscando ganar cada vez más influencia en toda la galaxia, las hermanas Valya (Emily Watson) y Tula Harkonnen (Olivia Williams) deciden crear la Bene Gesserit, una orden formada únicamente por mujeres.Utilizando ingeniería genética, conspiraciones políticas y misticismo, planean utilizar sus habilidades para salvar a la humanidad del apocalipsis. Pero su deseo de poder comienza a guiar sus decisiones.</desc>
     <credits>
       <actor>Emily Watson</actor>
@@ -2497,15 +2399,12 @@
   </programme>
   <programme start="20250819234500 -0500" stop="20250820015000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Loco, no demente</title>
-    <desc>Loco, no demente</desc>
   </programme>
   <programme start="20250816012300 -0500" stop="20250816032400 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Annie</title>
-    <desc>Annie</desc>
   </programme>
   <programme start="20250816032400 -0500" stop="20250816051500 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">10.000 A.C</title>
-    <desc>10.000 A.C</desc>
   </programme>
   <programme start="20250816051500 -0500" stop="20250816070000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Cómo Entrenar a tu Dragón 2 (2014)</title>
@@ -2559,11 +2458,9 @@
   </programme>
   <programme start="20250816083400 -0500" stop="20250816101400 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Angry Birds La Película</title>
-    <desc>Angry Birds La Película</desc>
   </programme>
   <programme start="20250816101400 -0500" stop="20250816115300 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Ga'Hoole La leyenda de los</title>
-    <desc>Ga'Hoole La leyenda de los</desc>
   </programme>
   <programme start="20250816115300 -0500" stop="20250816135200 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Wonka (2023)</title>
@@ -2599,7 +2496,6 @@
   </programme>
   <programme start="20250816135200 -0500" stop="20250816152300 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Las Aventuras del Capitán</title>
-    <desc>Las Aventuras del Capitán</desc>
   </programme>
   <programme start="20250816152300 -0500" stop="20250816165400 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Las Momias y el Anillo Perdido (2023)</title>
@@ -2631,31 +2527,24 @@
   </programme>
   <programme start="20250816165400 -0500" stop="20250816182000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">¡Patos!</title>
-    <desc>¡Patos!</desc>
   </programme>
   <programme start="20250816182000 -0500" stop="20250816200000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Angry Birds La Película</title>
-    <desc>Angry Birds La Película</desc>
   </programme>
   <programme start="20250816200000 -0500" stop="20250816214900 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Paddington Aventura en</title>
-    <desc>Paddington Aventura en</desc>
   </programme>
   <programme start="20250816214900 -0500" stop="20250817001600 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Flash</title>
-    <desc>Flash</desc>
   </programme>
   <programme start="20250817001600 -0500" stop="20250817020100 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Son como niños</title>
-    <desc>Son como niños</desc>
   </programme>
   <programme start="20250817020100 -0500" stop="20250817035600 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Karate Kid 2</title>
-    <desc>Karate Kid 2</desc>
   </programme>
   <programme start="20250817035600 -0500" stop="20250817052900 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Héroe de centro comercial</title>
-    <desc>Héroe de centro comercial</desc>
   </programme>
   <programme start="20250817052900 -0500" stop="20250817070000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Las Momias y el Anillo Perdido (2023)</title>
@@ -2746,11 +2635,9 @@
   </programme>
   <programme start="20250817102200 -0500" stop="20250817130100 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">H. Potter y el cáliz de fuego</title>
-    <desc>H. Potter y el cáliz de fuego</desc>
   </programme>
   <programme start="20250817130100 -0500" stop="20250817145800 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Barbie</title>
-    <desc>Barbie</desc>
   </programme>
   <programme start="20250817145800 -0500" stop="20250817164300 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Cómo Entrenar a tu Dragón 2 (2014)</title>
@@ -2935,11 +2822,9 @@
   </programme>
   <programme start="20250818013000 -0500" stop="20250818034700 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Meteoro</title>
-    <desc>Meteoro</desc>
   </programme>
   <programme start="20250818034700 -0500" stop="20250818052000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">El club del tesoro</title>
-    <desc>El club del tesoro</desc>
   </programme>
   <programme start="20250818052000 -0500" stop="20250818070000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Los Croods (2013)</title>
@@ -2972,19 +2857,15 @@
   </programme>
   <programme start="20250818070000 -0500" stop="20250818083200 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Madagascar 2Escape de África</title>
-    <desc>Madagascar 2Escape de África</desc>
   </programme>
   <programme start="20250818083200 -0500" stop="20250818100000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">La vida secreta</title>
-    <desc>La vida secreta</desc>
   </programme>
   <programme start="20250818100000 -0500" stop="20250818112900 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Amigos salvajes</title>
-    <desc>Amigos salvajes</desc>
   </programme>
   <programme start="20250818112900 -0500" stop="20250818135400 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Animales Fantásticos 3</title>
-    <desc>Animales Fantásticos 3</desc>
   </programme>
   <programme start="20250818135400 -0500" stop="20250818152500 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Las Momias y el Anillo Perdido (2023)</title>
@@ -3016,15 +2897,12 @@
   </programme>
   <programme start="20250818152500 -0500" stop="20250818165800 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Madagascar 2Escape de África</title>
-    <desc>Madagascar 2Escape de África</desc>
   </programme>
   <programme start="20250818165800 -0500" stop="20250818183200 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Shrek</title>
-    <desc>Shrek</desc>
   </programme>
   <programme start="20250818183200 -0500" stop="20250818200000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">El Grinch</title>
-    <desc>El Grinch</desc>
   </programme>
   <programme start="20250818200000 -0500" stop="20250818213400 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Kung Fu Panda (2008)</title>
@@ -3060,51 +2938,39 @@
   </programme>
   <programme start="20250818213400 -0500" stop="20250818231800 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Son como niños</title>
-    <desc>Son como niños</desc>
   </programme>
   <programme start="20250818231800 -0500" stop="20250819012700 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Blanca Nieves y El Cazador</title>
-    <desc>Blanca Nieves y El Cazador</desc>
   </programme>
   <programme start="20250819012700 -0500" stop="20250819032500 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">El hermano de Santa</title>
-    <desc>El hermano de Santa</desc>
   </programme>
   <programme start="20250819032500 -0500" stop="20250819053300 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Karate kid</title>
-    <desc>Karate kid</desc>
   </programme>
   <programme start="20250819053300 -0500" stop="20250819070000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">El Grinch</title>
-    <desc>El Grinch</desc>
   </programme>
   <programme start="20250819070000 -0500" stop="20250819082800 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Amigos salvajes</title>
-    <desc>Amigos salvajes</desc>
   </programme>
   <programme start="20250819082800 -0500" stop="20250819095400 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">¡Patos!</title>
-    <desc>¡Patos!</desc>
   </programme>
   <programme start="20250819095400 -0500" stop="20250819111300 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Amigos salvajes 2</title>
-    <desc>Amigos salvajes 2</desc>
   </programme>
   <programme start="20250819111300 -0500" stop="20250819124000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">El Grinch</title>
-    <desc>El Grinch</desc>
   </programme>
   <programme start="20250819124000 -0500" stop="20250819150600 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Flash</title>
-    <desc>Flash</desc>
   </programme>
   <programme start="20250819150600 -0500" stop="20250819163800 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">El espanta tiburones</title>
-    <desc>El espanta tiburones</desc>
   </programme>
   <programme start="20250819163800 -0500" stop="20250819182600 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Paddington Aventura en</title>
-    <desc>Paddington Aventura en</desc>
   </programme>
   <programme start="20250819182600 -0500" stop="20250819200000 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">Los Pingüinos de Madagascar (2014)</title>
@@ -3130,32 +2996,25 @@
   </programme>
   <programme start="20250819200000 -0500" stop="20250819212600 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">¡Patos!</title>
-    <desc>¡Patos!</desc>
   </programme>
   <programme start="20250819212600 -0500" stop="20250820000200 -0500" channel="Canal.HBO.Family.Latinoamérica.mx">
     <title lang="es">H. Potter y el misterio del</title>
-    <desc>H. Potter y el misterio del</desc>
   </programme>
   <programme start="20250816003000 -0500" stop="20250816010000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">HBO Movies</title>
-    <desc>HBO Movies</desc>
   </programme>
   <programme start="20250816010000 -0500" stop="20250816012500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Universal Basic Guys</title>
     <sub-title lang="es">Sheet Shock</sub-title>
-    <desc>Universal Basic Guys</desc>
   </programme>
   <programme start="20250816012500 -0500" stop="20250816022500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Host ten cuidado a quien llamas</title>
-    <desc>Host ten cuidado a quien llamas</desc>
   </programme>
   <programme start="20250816022500 -0500" stop="20250816040000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Semi-Pro el amateur</title>
-    <desc>Semi-Pro el amateur</desc>
   </programme>
   <programme start="20250816040000 -0500" stop="20250816054000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">El Número 23</title>
-    <desc>El Número 23</desc>
   </programme>
   <programme start="20250816054000 -0500" stop="20250816071500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Cuando un Extraño Llama (2006)</title>
@@ -3214,15 +3073,12 @@
   </programme>
   <programme start="20250816093000 -0500" stop="20250816113000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">El exorcista El comienzo</title>
-    <desc>El exorcista El comienzo</desc>
   </programme>
   <programme start="20250816113000 -0500" stop="20250816130500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Distant</title>
-    <desc>Distant</desc>
   </programme>
   <programme start="20250816130500 -0500" stop="20250816144000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">No respires</title>
-    <desc>No respires</desc>
   </programme>
   <programme start="20250816144000 -0500" stop="20250816163500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Venom: The Last Dance (2024)</title>
@@ -3257,16 +3113,13 @@
   <programme start="20250816163500 -0500" stop="20250816172500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Peacemaker</title>
     <sub-title lang="es">Es vaca o nunca</sub-title>
-    <desc>Peacemaker</desc>
   </programme>
   <programme start="20250816172500 -0500" stop="20250816175000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Universal Basic Guys</title>
     <sub-title lang="es">Sheet Shock</sub-title>
-    <desc>Universal Basic Guys</desc>
   </programme>
   <programme start="20250816175000 -0500" stop="20250816194500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Elysium</title>
-    <desc>Elysium</desc>
   </programme>
   <programme start="20250816194500 -0500" stop="20250816220000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Shazam! Fury of the Gods (2023)</title>
@@ -3302,7 +3155,6 @@
   </programme>
   <programme start="20250816220000 -0500" stop="20250816223000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">HBO Movies</title>
-    <desc>HBO Movies</desc>
   </programme>
   <programme start="20250816223000 -0500" stop="20250817004000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Black Adam (2022)</title>
@@ -3335,7 +3187,6 @@
   </programme>
   <programme start="20250817004000 -0500" stop="20250817021500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">La masacre de Texas El inicio</title>
-    <desc>La masacre de Texas El inicio</desc>
   </programme>
   <programme start="20250817021500 -0500" stop="20250817040000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">El Séptimo Hijo (2014)</title>
@@ -3364,7 +3215,6 @@
   </programme>
   <programme start="20250817040000 -0500" stop="20250817052000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Mortal Kombat Legends Cage Match</title>
-    <desc>Mortal Kombat Legends Cage Match</desc>
   </programme>
   <programme start="20250817052000 -0500" stop="20250817072000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Madame Web (2024)</title>
@@ -3395,7 +3245,6 @@
   </programme>
   <programme start="20250817072000 -0500" stop="20250817090000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Amanecer de los muertos</title>
-    <desc>Amanecer de los muertos</desc>
   </programme>
   <programme start="20250817090000 -0500" stop="20250817104500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Orphan: First Kill (2022)</title>
@@ -3430,23 +3279,18 @@
   </programme>
   <programme start="20250817104500 -0500" stop="20250817122500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Crisis on Infinite Earths - Part 2</title>
-    <desc>Crisis on Infinite Earths - Part 2</desc>
   </programme>
   <programme start="20250817122500 -0500" stop="20250817141500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">La noche del demonio Capítulo 2</title>
-    <desc>La noche del demonio Capítulo 2</desc>
   </programme>
   <programme start="20250817141500 -0500" stop="20250817163000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">El hombre araña 2</title>
-    <desc>El hombre araña 2</desc>
   </programme>
   <programme start="20250817163000 -0500" stop="20250817190000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">El sorprendente Hombre Araña 2 La venganza de Electro</title>
-    <desc>El sorprendente Hombre Araña 2 La venganza de Electro</desc>
   </programme>
   <programme start="20250817190000 -0500" stop="20250817193000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">HBO Movies</title>
-    <desc>HBO Movies</desc>
   </programme>
   <programme start="20250817193000 -0500" stop="20250817213000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Madame Web (2024)</title>
@@ -3477,11 +3321,9 @@
   </programme>
   <programme start="20250817213000 -0500" stop="20250817232500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Speak No Evil</title>
-    <desc>Speak No Evil</desc>
   </programme>
   <programme start="20250817232500 -0500" stop="20250818005000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">La Horca</title>
-    <desc>La Horca</desc>
   </programme>
   <programme start="20250818005000 -0500" stop="20250818022500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Ultravioleta (2006)</title>
@@ -3510,7 +3352,6 @@
   </programme>
   <programme start="20250818022500 -0500" stop="20250818060000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Space Oddity</title>
-    <desc>Space Oddity</desc>
   </programme>
   <programme start="20250818060000 -0500" stop="20250818080000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Resident Evil: El Huésped Maldito (2002)</title>
@@ -3542,11 +3383,9 @@
   </programme>
   <programme start="20250818080000 -0500" stop="20250818100000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Robando vidas</title>
-    <desc>Robando vidas</desc>
   </programme>
   <programme start="20250818100000 -0500" stop="20250818120000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Distant</title>
-    <desc>Distant</desc>
   </programme>
   <programme start="20250818120000 -0500" stop="20250818140000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">Dune: Part Two (2024)</title>
@@ -3581,31 +3420,24 @@
   </programme>
   <programme start="20250818140000 -0500" stop="20250818160000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">It Feeds</title>
-    <desc>It Feeds</desc>
   </programme>
   <programme start="20250818160000 -0500" stop="20250818180000 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">HBO Movies</title>
-    <desc>HBO Movies</desc>
   </programme>
   <programme start="20250818180000 -0500" stop="20250818194500 -0500" channel="Canal.HBO.Plus.mx">
     <title lang="es">The King Tide</title>
-    <desc>The King Tide</desc>
   </programme>
   <programme start="20250816003000 -0500" stop="20250816023000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Rear Window</title>
-    <desc>Rear Window</desc>
   </programme>
   <programme start="20250816023000 -0500" stop="20250816040000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Out of Darkness</title>
-    <desc>Out of Darkness</desc>
   </programme>
   <programme start="20250816040000 -0500" stop="20250816072500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Espartaco</title>
-    <desc>Espartaco</desc>
   </programme>
   <programme start="20250816072500 -0500" stop="20250816090500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Beetlejuice</title>
-    <desc>Beetlejuice</desc>
   </programme>
   <programme start="20250816090500 -0500" stop="20250816113000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Mickey 17 (2025)</title>
@@ -3639,27 +3471,21 @@
   </programme>
   <programme start="20250816113000 -0500" stop="20250816131500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Maggie's Plan</title>
-    <desc>Maggie's Plan</desc>
   </programme>
   <programme start="20250816131500 -0500" stop="20250816150000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Demolición</title>
-    <desc>Demolición</desc>
   </programme>
   <programme start="20250816150000 -0500" stop="20250816174000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Bastardos sin gloria</title>
-    <desc>Bastardos sin gloria</desc>
   </programme>
   <programme start="20250816174000 -0500" stop="20250816191500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Waltz with bashir</title>
-    <desc>Waltz with bashir</desc>
   </programme>
   <programme start="20250816191500 -0500" stop="20250816210000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">The Settlers</title>
-    <desc>The Settlers</desc>
   </programme>
   <programme start="20250816210000 -0500" stop="20250816224500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">The Last Rifleman</title>
-    <desc>The Last Rifleman</desc>
   </programme>
   <programme start="20250816224500 -0500" stop="20250817011000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Mickey 17 (2025)</title>
@@ -3723,22 +3549,18 @@
   </programme>
   <programme start="20250817031000 -0500" stop="20250817040000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">7 Days in Hell</title>
-    <desc>7 Days in Hell</desc>
   </programme>
   <programme start="20250817040000 -0500" stop="20250817050000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Mis formas favoritas</title>
-    <desc>Mis formas favoritas</desc>
   </programme>
   <programme start="20250817050000 -0500" stop="20250817063500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">The Beguiled</title>
-    <desc>The Beguiled</desc>
   </programme>
   <programme start="20250817063500 -0500" stop="20250817082000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Wicked Little Letters</title>
-    <desc>Wicked Little Letters</desc>
   </programme>
   <programme start="20250817082000 -0500" stop="20250817092000 -0500" channel="Canal.HBO.Mundi.mx">
-    <title lang="es">The Gilded Age (&lt;b&gt;T4 E9&lt;/b&gt;)</title>
+    <title lang="es">The Gilded Age (T4 E9)</title>
     <desc lang="es">La Edad Dorada estadounidense fue un período de inmensos cambios económicos, de gran conflicto entre las viejas costumbres y los nuevos sistemas, y de enormes fortunas ganadas y perdidas. En el contexto de esta transformación, "La Edad Dorada" de HBO comienza en 1882 con la joven Marian Brook (Louisa Jacobson) que se muda de la zona rural de Pensilvania a la ciudad de Nueva York después de la muerte de su padre para vivir con sus viejas tías adineradas Agnes van Rhijn (Christine Baranski) y Ada Brook (Cynthia Nixon).Acompañada por Peggy Scott (Denée Benton), una aspirante a escritora que busca un nuevo comienzo, Marian sin darse cuenta se ve envuelta en una guerra social entre una de sus tías, una descendiente del antiguo grupo de dinero, y sus vecinos tremendamente ricos, un magnate ferroviario despiadado y su ambiciosa esposa, George (Morgan Spector) y Bertha Russel (Carrie Coon). Expuesta a un mundo al borde de la era moderna, ¿seguirá Marian las reglas establecidas por la sociedad o forjará su propio camino?</desc>
     <credits>
       <director>Michael Engler</director>
@@ -3766,37 +3588,29 @@
     </star-rating>
   </programme>
   <programme start="20250817092000 -0500" stop="20250817095000 -0500" channel="Canal.HBO.Mundi.mx">
-    <title lang="es">Estado de fúria (&lt;b&gt;T2 E7&lt;/b&gt;)</title>
+    <title lang="es">Estado de fúria (T2 E7)</title>
     <episode-num system="onscreen">S1 E6</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E7&lt;/b&gt; de Estado de fúria</desc>
   </programme>
   <programme start="20250817095000 -0500" stop="20250817105000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">HBO Movies</title>
-    <desc>HBO Movies</desc>
   </programme>
   <programme start="20250817105000 -0500" stop="20250817125000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Ascenso y caída John Galliano</title>
-    <desc>Ascenso y caída John Galliano</desc>
   </programme>
   <programme start="20250817125000 -0500" stop="20250817151500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Todo, en todas partes</title>
-    <desc>Todo, en todas partes</desc>
   </programme>
   <programme start="20250817151500 -0500" stop="20250817170000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Maggie Moore</title>
-    <desc>Maggie Moore</desc>
   </programme>
   <programme start="20250817170000 -0500" stop="20250817191000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Blow profesión de riesgo</title>
-    <desc>Blow profesión de riesgo</desc>
   </programme>
   <programme start="20250817191000 -0500" stop="20250817210000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Kneecap</title>
-    <desc>Kneecap</desc>
   </programme>
   <programme start="20250817210000 -0500" stop="20250817224000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Pieza por pieza</title>
-    <desc>Pieza por pieza</desc>
   </programme>
   <programme start="20250817224000 -0500" stop="20250818003000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">MaXXXine (2024)</title>
@@ -3829,35 +3643,27 @@
   </programme>
   <programme start="20250818003000 -0500" stop="20250818021000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Monolith</title>
-    <desc>Monolith</desc>
   </programme>
   <programme start="20250818021000 -0500" stop="20250818040000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Dracula</title>
-    <desc>Dracula</desc>
   </programme>
   <programme start="20250818040000 -0500" stop="20250818052000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">The incredible shrinking man</title>
-    <desc>The incredible shrinking man</desc>
   </programme>
   <programme start="20250818052000 -0500" stop="20250818071500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Psicosis</title>
-    <desc>Psicosis</desc>
   </programme>
   <programme start="20250818071500 -0500" stop="20250818090500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Cabo de miedo</title>
-    <desc>Cabo de miedo</desc>
   </programme>
   <programme start="20250818090500 -0500" stop="20250818105000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Maggie's Plan</title>
-    <desc>Maggie's Plan</desc>
   </programme>
   <programme start="20250818105000 -0500" stop="20250818131500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">El Abogado del diablo</title>
-    <desc>El Abogado del diablo</desc>
   </programme>
   <programme start="20250818131500 -0500" stop="20250818152500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Dracula</title>
-    <desc>Dracula</desc>
   </programme>
   <programme start="20250818152500 -0500" stop="20250818172500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Priscilla (2023)</title>
@@ -3891,7 +3697,6 @@
   </programme>
   <programme start="20250818172500 -0500" stop="20250818192000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Ex Machina</title>
-    <desc>Ex Machina</desc>
   </programme>
   <programme start="20250818192000 -0500" stop="20250818210000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Lady Bird (2017)</title>
@@ -3924,31 +3729,24 @@
   </programme>
   <programme start="20250818210000 -0500" stop="20250818230000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Un viaje de sobriedad</title>
-    <desc>Un viaje de sobriedad</desc>
   </programme>
   <programme start="20250818230000 -0500" stop="20250819000000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">HBO Movies</title>
-    <desc>HBO Movies</desc>
   </programme>
   <programme start="20250819000000 -0500" stop="20250819014500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">La hija del prisionero</title>
-    <desc>La hija del prisionero</desc>
   </programme>
   <programme start="20250819014500 -0500" stop="20250819033000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">The Settlers</title>
-    <desc>The Settlers</desc>
   </programme>
   <programme start="20250819033000 -0500" stop="20250819040000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">El estado de juego violencia</title>
-    <desc>El estado de juego violencia</desc>
   </programme>
   <programme start="20250819040000 -0500" stop="20250819052500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">El mundo de los olvidados</title>
-    <desc>El mundo de los olvidados</desc>
   </programme>
   <programme start="20250819052500 -0500" stop="20250819075000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Río Místico</title>
-    <desc>Río Místico</desc>
   </programme>
   <programme start="20250819075000 -0500" stop="20250819093500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Daddio (2024)</title>
@@ -3975,31 +3773,24 @@
   </programme>
   <programme start="20250819093500 -0500" stop="20250819112500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Kneecap</title>
-    <desc>Kneecap</desc>
   </programme>
   <programme start="20250819112500 -0500" stop="20250819132500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Spencer</title>
-    <desc>Spencer</desc>
   </programme>
   <programme start="20250819132500 -0500" stop="20250819155000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">El Juez</title>
-    <desc>El Juez</desc>
   </programme>
   <programme start="20250819155000 -0500" stop="20250819174500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">El llanto</title>
-    <desc>El llanto</desc>
   </programme>
   <programme start="20250819174500 -0500" stop="20250819191500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Drive-Away Dolls</title>
-    <desc>Drive-Away Dolls</desc>
   </programme>
   <programme start="20250819191500 -0500" stop="20250819210000 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Vi el brillo del televisor</title>
-    <desc>Vi el brillo del televisor</desc>
   </programme>
   <programme start="20250819210000 -0500" stop="20250819232500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Todo, en todas partes</title>
-    <desc>Todo, en todas partes</desc>
   </programme>
   <programme start="20250819232500 -0500" stop="20250820013500 -0500" channel="Canal.HBO.Mundi.mx">
     <title lang="es">Ella (2013)</title>
@@ -4028,68 +3819,52 @@
   </programme>
   <programme start="20250816013500 -0500" stop="20250816040000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">The Color Purple</title>
-    <desc>The Color Purple</desc>
   </programme>
   <programme start="20250816040000 -0500" stop="20250816055000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">La boda de mi mejor amigo</title>
-    <desc>La boda de mi mejor amigo</desc>
   </programme>
   <programme start="20250816055000 -0500" stop="20250816063500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Last week tonight</title>
-    <desc>Last week tonight</desc>
   </programme>
   <programme start="20250816063500 -0500" stop="20250816084000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Loco y estupido amor</title>
-    <desc>Loco y estupido amor</desc>
   </programme>
   <programme start="20250816084000 -0500" stop="20250816103000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">American Pie 2</title>
-    <desc>American Pie 2</desc>
   </programme>
   <programme start="20250816103000 -0500" stop="20250816130000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Rey Richard Una familia</title>
-    <desc>Rey Richard Una familia</desc>
   </programme>
   <programme start="20250816130000 -0500" stop="20250816133500 -0500" channel="Canal.HBO.Pop.mx">
-    <title lang="es">Estado de fúria (&lt;b&gt;T2 E7&lt;/b&gt;)</title>
+    <title lang="es">Estado de fúria (T2 E7)</title>
     <episode-num system="onscreen">S1 E6</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E7&lt;/b&gt; de Estado de fúria</desc>
   </programme>
   <programme start="20250816133500 -0500" stop="20250816154000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">El padre de la novia</title>
-    <desc>El padre de la novia</desc>
   </programme>
   <programme start="20250816154000 -0500" stop="20250816175500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Simplemente no te quiere</title>
-    <desc>Simplemente no te quiere</desc>
   </programme>
   <programme start="20250816175500 -0500" stop="20250816195500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Loco y estupido amor</title>
-    <desc>Loco y estupido amor</desc>
   </programme>
   <programme start="20250816195500 -0500" stop="20250816220000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Pasante de moda</title>
-    <desc>Pasante de moda</desc>
   </programme>
   <programme start="20250816220000 -0500" stop="20250816234500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Dog Un viaje salvaje</title>
-    <desc>Dog Un viaje salvaje</desc>
   </programme>
   <programme start="20250816234500 -0500" stop="20250817015000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Ángeles inesperados</title>
-    <desc>Ángeles inesperados</desc>
   </programme>
   <programme start="20250817015000 -0500" stop="20250817040000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">De vuelta a la universidad</title>
-    <desc>De vuelta a la universidad</desc>
   </programme>
   <programme start="20250817040000 -0500" stop="20250817054500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Talla Real</title>
-    <desc>Talla Real</desc>
   </programme>
   <programme start="20250817054500 -0500" stop="20250817075500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">La forja</title>
-    <desc>La forja</desc>
   </programme>
   <programme start="20250817075500 -0500" stop="20250817093000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Pelea de Maestros (2017)</title>
@@ -4119,27 +3894,21 @@
   </programme>
   <programme start="20250817093000 -0500" stop="20250817111500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Son como niños 2</title>
-    <desc>Son como niños 2</desc>
   </programme>
   <programme start="20250817111500 -0500" stop="20250817130500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Locos de ira</title>
-    <desc>Locos de ira</desc>
   </programme>
   <programme start="20250817130500 -0500" stop="20250817150000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Mil veces hasta siempre</title>
-    <desc>Mil veces hasta siempre</desc>
   </programme>
   <programme start="20250817150000 -0500" stop="20250817163500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Mi novia Polly</title>
-    <desc>Mi novia Polly</desc>
   </programme>
   <programme start="20250817163500 -0500" stop="20250817182000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Una suegra de cuidado</title>
-    <desc>Una suegra de cuidado</desc>
   </programme>
   <programme start="20250817182000 -0500" stop="20250817200500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Son como niños 2</title>
-    <desc>Son como niños 2</desc>
   </programme>
   <programme start="20250817200500 -0500" stop="20250817220000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">¿Cómo Sobrevivir a mi Ex? (2008)</title>
@@ -4199,31 +3968,24 @@
   </programme>
   <programme start="20250817234500 -0500" stop="20250818015000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Viaje de chicas</title>
-    <desc>Viaje de chicas</desc>
   </programme>
   <programme start="20250818015000 -0500" stop="20250818040000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Pura suerte</title>
-    <desc>Pura suerte</desc>
   </programme>
   <programme start="20250818040000 -0500" stop="20250818055000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">¿Y dónde están los Morgan?</title>
-    <desc>¿Y dónde están los Morgan?</desc>
   </programme>
   <programme start="20250818055000 -0500" stop="20250818081000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">The Holdovers</title>
-    <desc>The Holdovers</desc>
   </programme>
   <programme start="20250818081000 -0500" stop="20250818094500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">The Hollars</title>
-    <desc>The Hollars</desc>
   </programme>
   <programme start="20250818094500 -0500" stop="20250818114500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Loco y estupido amor</title>
-    <desc>Loco y estupido amor</desc>
   </programme>
   <programme start="20250818114500 -0500" stop="20250818134000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Una loca entrevista</title>
-    <desc>Una loca entrevista</desc>
   </programme>
   <programme start="20250818134000 -0500" stop="20250818154500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Enamorándome de mi ex (2009)</title>
@@ -4252,77 +4014,59 @@
   </programme>
   <programme start="20250818154500 -0500" stop="20250818174500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Ted 2</title>
-    <desc>Ted 2</desc>
   </programme>
   <programme start="20250818174500 -0500" stop="20250818203000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Elvis</title>
-    <desc>Elvis</desc>
   </programme>
   <programme start="20250818203000 -0500" stop="20250818210000 -0500" channel="Canal.HBO.Pop.mx">
-    <title lang="es">Universal Basic Guys (&lt;b&gt;T2 E12&lt;/b&gt;)</title>
+    <title lang="es">Universal Basic Guys (T2 E12)</title>
     <episode-num system="onscreen">S1 E11</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E12&lt;/b&gt; de Universal Basic Guys</desc>
   </programme>
   <programme start="20250818210000 -0500" stop="20250818224000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Tammy</title>
-    <desc>Tammy</desc>
   </programme>
   <programme start="20250818224000 -0500" stop="20250819002500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Thelma Una abuela en acción</title>
-    <desc>Thelma Una abuela en acción</desc>
   </programme>
   <programme start="20250819002500 -0500" stop="20250819012500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">HBO Especiales</title>
-    <desc>HBO Especiales</desc>
   </programme>
   <programme start="20250819012500 -0500" stop="20250819040000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Rey Richard Una familia</title>
-    <desc>Rey Richard Una familia</desc>
   </programme>
   <programme start="20250819040000 -0500" stop="20250819061500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Tan fuerte y tan cerca</title>
-    <desc>Tan fuerte y tan cerca</desc>
   </programme>
   <programme start="20250819061500 -0500" stop="20250819080500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Una madre imperfecta</title>
-    <desc>Una madre imperfecta</desc>
   </programme>
   <programme start="20250819080500 -0500" stop="20250819100000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Experta en Crisis</title>
-    <desc>Experta en Crisis</desc>
   </programme>
   <programme start="20250819100000 -0500" stop="20250819114500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Nanny McPhee La nana mágica</title>
-    <desc>Nanny McPhee La nana mágica</desc>
   </programme>
   <programme start="20250819114500 -0500" stop="20250819132000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Mi novia Polly</title>
-    <desc>Mi novia Polly</desc>
   </programme>
   <programme start="20250819132000 -0500" stop="20250819152500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Ángeles inesperados</title>
-    <desc>Ángeles inesperados</desc>
   </programme>
   <programme start="20250819152500 -0500" stop="20250819171000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Dog Un viaje salvaje</title>
-    <desc>Dog Un viaje salvaje</desc>
   </programme>
   <programme start="20250819171000 -0500" stop="20250819191500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Viaje de chicas</title>
-    <desc>Viaje de chicas</desc>
   </programme>
   <programme start="20250819191500 -0500" stop="20250819194500 -0500" channel="Canal.HBO.Pop.mx">
-    <title lang="es">Universal Basic Guys (&lt;b&gt;T2 E12&lt;/b&gt;)</title>
+    <title lang="es">Universal Basic Guys (T2 E12)</title>
     <episode-num system="onscreen">S1 E11</episode-num>
-    <desc>Episodio &lt;b&gt;T2 E12&lt;/b&gt; de Universal Basic Guys</desc>
   </programme>
   <programme start="20250819194500 -0500" stop="20250819212000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Mi novia Polly</title>
-    <desc>Mi novia Polly</desc>
   </programme>
   <programme start="20250819212000 -0500" stop="20250819220000 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Last week tonight</title>
-    <desc>Last week tonight</desc>
   </programme>
   <programme start="20250819220000 -0500" stop="20250819234500 -0500" channel="Canal.HBO.Pop.mx">
     <title lang="es">Hasta que la Muerte los Juntó (2014)</title>
@@ -4379,4 +4123,4 @@
       <value>6.0</value>
     </star-rating>
   </programme>
-</tv>
+  </tv>
