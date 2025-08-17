@@ -22,10 +22,12 @@ jobs:
         run: |
           python filter_hbo.py
 
-      - name: Commit y push de cambios
+            - name: Commit y push de cambios
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add guide_custom.xml
           git commit -m "Actualizar guide_custom.xml [skip ci]" || echo "No hay cambios"
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
