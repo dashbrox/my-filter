@@ -67,21 +67,27 @@ def main():
     selected_programmes = []
     for pr in root.findall("programme"):
         if pr.attrib.get("channel") in selected_ids:
-            # Buscar subtítulo (ej: "Temporada 1, Episodio 3")
+            # Subtítulo (ej: "Título del episodio")
             subtitle = pr.find("sub-title")
+            # Número de episodio (ej: 0.1.0/1)
             epnum = pr.find("episode-num")
 
-            # Construir texto extra (temporada/episodio)
+            # Construir texto extra (Sx Ex)
             extra = ""
-            if subtitle is not None and subtitle.text:
-                extra = subtitle.text
-            elif epnum is not None and epnum.text:
-                extra = epnum.text
+            if epnum is not None and epnum.text:
+                parts = epnum.text.split(".")
+                if len(parts) >= 2:
+                    extra = f"S{int(parts[0])+1} E{int(parts[1])+1}"
 
-            # Insertar al título si no está vacío
+            # Construir título final
             title = pr.find("title")
-            if title is not None and extra:
-                title.text = f"{title.text} ★ {extra} ★"
+            if title is not None:
+                final_title = title.text or ""
+                if extra:
+                    final_title += f" ({extra})"
+                if subtitle is not None and subtitle.text:
+                    final_title += f' "{subtitle.text}"'
+                title.text = final_title
 
             selected_programmes.append(pr)
 
