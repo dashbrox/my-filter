@@ -1,0 +1,31 @@
+name: Actualizar guía HBO
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # todos los días a las 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Ejecutar filtro HBO
+        run: |
+          python filter_hbo.py
+
+      - name: Commit y push de cambios
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add guide_custom.xml
+          git commit -m "Actualizar guide_custom.xml [skip ci]" || echo "No hay cambios"
+          git push
