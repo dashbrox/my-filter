@@ -8,19 +8,27 @@ import re
 import unicodedata
 import urllib.request
 import xml.etree.ElementTree as ET
+import xml.dom.minidom as minidom
+import sys
 
 SOURCE_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 OUTPUT_FILE = "guide_custom.xml"
 
-# Patrones para identificar los canales HBO (sin acentos, case-insensitive)
+# Patrones para identificar los canales (sin acentos, case-insensitive)
 PATTERNS = [
+    # HBO
     r"\bhbo\b.*mexico",
     r"\bhbo\s*2\b.*(latinoamerica|latin america)",
     r"\bhbo\s*signature\b.*(latinoamerica|latin america)",
     r"\bhbo\s*family\b.*(latinoamerica|latin america)",
-    r"\bhbo\s*plus\b",
+    r"\bhbo\s*plus\b.*(latinoamerica|latin america)",
     r"\bhbo\s*mundi\b",
     r"\bhbo\s*pop\b",
+
+    # Nuevos canales
+    r"canal\.?\.?2.*(mexico|xew|las estrellas)",  # Canal 2 / Las Estrellas (XEW)
+    r"azteca.*(mexico|xhor)",                     # Azteca (XHOR)
+    r"\bcinemax\b.*mexico",                       # Cinemax México
 ]
 COMPILED = [re.compile(pat, re.I) for pat in PATTERNS]
 
@@ -34,14 +42,19 @@ def normalize(text: str) -> str:
 
 
 def load_xmltv(url: str) -> bytes:
-    data = urllib.request.urlopen(url).read()
+    try:
+        data = urllib.request.urlopen(url).read()
+    except Exception as e:
+        print(f"❌ Error al descargar {url}: {e}")
+        sys.exit(1)
+
     if url.endswith(".gz") or data[:2] == b"\x1f\x8b":
         with gzip.GzipFile(fileobj=io.BytesIO(data)) as gz:
             return gz.read()
     return data
 
 
-def is_hbo_channel(names):
+def is_selected_channel(names):
     for name in names:
         n = normalize(name)
         if any(p.search(n) for p in COMPILED):
@@ -58,7 +71,7 @@ def main():
 
     for ch in root.findall("channel"):
         disp_names = [dn.text or "" for dn in ch.findall("display-name")]
-        if is_hbo_channel(disp_names):
+        if is_selected_channel(disp_names):
             selected_channels.append(ch)
             cid = ch.attrib.get("id")
             if cid:
@@ -74,10 +87,10 @@ def main():
             # Construir texto extra (T/E) sin HTML
             extra = ""
             if epnum is not None and epnum.text:
-                parts = re.findall(r'\d+', epnum.text)
-                if len(parts) >= 2:
-                    season = int(parts[0]) + 1
-                    episode = int(parts[1]) + 1
+                match = re.match(r"(\d+)\.(\d+)", epnum.text)
+                if match:
+                    season = int(match.group(1)) + 1
+                    episode = int(match.group(2)) + 1
                     extra = f"T{season} E{episode}"
 
             # Obtener año si es película o documental
@@ -99,17 +112,21 @@ def main():
 
             selected_programmes.append(pr)
 
+    # Crear XML de salida
     out_root = ET.Element("tv", root.attrib)
     for ch in selected_channels:
         out_root.append(copy.deepcopy(ch))
     for pr in selected_programmes:
         out_root.append(copy.deepcopy(pr))
 
-    tree = ET.ElementTree(out_root)
-    tree.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
+    # Pretty print
+    xml_str = ET.tostring(out_root, encoding="utf-8")
+    pretty = minidom.parseString(xml_str).toprettyxml(indent="  ")
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        f.write(pretty)
 
     print(f"✅ Generado {OUTPUT_FILE}")
-    print(f"Canales HBO: {len(selected_channels)}")
+    print(f"Canales seleccionados: {len(selected_channels)}")
     print(f"Programas copiados: {len(selected_programmes)}")
 
 
