@@ -11,6 +11,7 @@ Este repositorio genera `guide_custom.xml` con los siguientes canales HBO:
 - Canal.HBO.Pop.mx
 - Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx
 - Azteca.(XHOR).mx
+- Canal.Cinemax.(México).mx
 
 ## Uso
 
