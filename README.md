@@ -12,6 +12,14 @@ Este repositorio genera `guide_custom.xml` con los siguientes canales HBO:
 - Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx
 - Azteca.(XHOR).mx
 - Canal.Cinemax.(México).mx
+- TSN1.ca 
+- TSN2.ca 
+- TSN3.ca 
+- TSN4.ca 
+- ABC.(KABC).Los.Angeles,.CA.us 
+- ABC.(WABC).New.York,.NY.us 
+- NBC.(WNBC).New.York,.NY.us 
+- NBC.(KNBC).Los.Angeles,.CA.us
 
 ## Uso
 
