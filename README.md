@@ -1,1 +1,19 @@
-# my-filter
+# Filtro de canales HBO para my-filter
+
+Este repositorio genera `guide_custom.xml` con los siguientes canales HBO:
+
+- Canal.HBO.(México).mx
+- Canal.HBO.2.Latinoamérica.mx
+- Canal.HBO.Signature.Latinoamérica.mx
+- Canal.HBO.Family.Latinoamérica.mx
+- Canal.HBO.Plus.mx
+- Canal.HBO.Mundi.mx
+- Canal.HBO.Pop.mx
+
+## Uso
+
+1. Coloca `epg_ripper_MX1.txt` en el mismo directorio que `filter_hbo.py`.
+2. Ejecuta el script:
+
+```bash
+python filter_hbo.py
