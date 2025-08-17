@@ -71,7 +71,7 @@ def main():
             epnum = pr.find("episode-num")
             date_elem = pr.find("date")
 
-            # Construir texto extra (Tx Ex) de forma robusta
+            # Construir texto extra (T/E) sin HTML
             extra = ""
             if epnum is not None and epnum.text:
                 parts = re.findall(r'\d+', epnum.text)
