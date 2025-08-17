@@ -56,7 +56,6 @@ def main():
     selected_channels = []
     selected_ids = set()
 
-    # Filtrar canales HBO
     for ch in root.findall("channel"):
         disp_names = [dn.text or "" for dn in ch.findall("display-name")]
         if is_hbo_channel(disp_names):
@@ -71,16 +70,15 @@ def main():
             subtitle = pr.find("sub-title")
             epnum = pr.find("episode-num")
             date_elem = pr.find("date")
-            desc = pr.find("desc")
 
-            # Construir texto extra (T/E)
+            # Construir texto extra (Tx Ex) de forma robusta
             extra = ""
             if epnum is not None and epnum.text:
                 parts = re.findall(r'\d+', epnum.text)
                 if len(parts) >= 2:
                     season = int(parts[0]) + 1
                     episode = int(parts[1]) + 1
-                    extra = f"<b>T{season} E{episode}</b>"
+                    extra = f"T{season} E{episode}"
 
             # Obtener año si es película o documental
             year = ""
@@ -88,40 +86,19 @@ def main():
                 year = date_elem.text[:4]
 
             # Construir título final
-            title_elem = pr.find("title")
-            title_text = title_elem.text if title_elem is not None and title_elem.text else "Sin título"
-
-            if extra:  # Serie
-                title_text += f" ({extra})"
-                if subtitle is not None and subtitle.text:
-                    title_text += f' "{subtitle.text}"'
-            elif year:  # Película o documental
-                title_text += f" ({year})"
-
-            if title_elem is not None:
-                title_elem.text = title_text
-            else:
-                t_elem = ET.Element("title")
-                t_elem.text = title_text
-                pr.insert(0, t_elem)
-
-            # Crear sinopsis automática si no existe
-            if desc is None:
-                desc = ET.Element("desc")
-                pr.append(desc)
-
-            if not desc.text or desc.text.strip() == "":
+            title = pr.find("title")
+            if title is not None:
+                final_title = title.text or ""
                 if extra:  # Serie
-                    subtitle_text = f': "{subtitle.text}"' if subtitle is not None and subtitle.text else ""
-                    desc.text = f"Episodio {extra} de {title_elem.text.split(' (')[0]}{subtitle_text}"
-                elif year:  # Película/documental
-                    desc.text = f"Película de {year}: {title_elem.text.split(' (')[0]}"
-                else:
-                    desc.text = title_elem.text
+                    final_title += f" ({extra})"
+                    if subtitle is not None and subtitle.text:
+                        final_title += f' "{subtitle.text}"'
+                elif year:  # Película o documental
+                    final_title += f" ({year})"
+                title.text = final_title
 
             selected_programmes.append(pr)
 
-    # Crear XML de salida
     out_root = ET.Element("tv", root.attrib)
     for ch in selected_channels:
         out_root.append(copy.deepcopy(ch))
@@ -129,12 +106,6 @@ def main():
         out_root.append(copy.deepcopy(pr))
 
     tree = ET.ElementTree(out_root)
-    # Indentar para legibilidad (Python 3.9+)
-    try:
-        ET.indent(tree, space="  ")
-    except AttributeError:
-        pass
-
     tree.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
 
     print(f"✅ Generado {OUTPUT_FILE}")
