@@ -64,9 +64,26 @@ def main():
             if cid:
                 selected_ids.add(cid)
 
-    selected_programmes = [
-        pr for pr in root.findall("programme") if pr.attrib.get("channel") in selected_ids
-    ]
+    selected_programmes = []
+    for pr in root.findall("programme"):
+        if pr.attrib.get("channel") in selected_ids:
+            # Buscar subtítulo (ej: "Temporada 1, Episodio 3")
+            subtitle = pr.find("sub-title")
+            epnum = pr.find("episode-num")
+
+            # Construir texto extra (temporada/episodio)
+            extra = ""
+            if subtitle is not None and subtitle.text:
+                extra = subtitle.text
+            elif epnum is not None and epnum.text:
+                extra = epnum.text
+
+            # Insertar al título si no está vacío
+            title = pr.find("title")
+            if title is not None and extra:
+                title.text = f"{title.text} ★ {extra} ★"
+
+            selected_programmes.append(pr)
 
     out_root = ET.Element("tv", root.attrib)
     for ch in selected_channels:
