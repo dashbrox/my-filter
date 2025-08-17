@@ -69,25 +69,32 @@ def main():
         if pr.attrib.get("channel") in selected_ids:
             subtitle = pr.find("sub-title")
             epnum = pr.find("episode-num")
+            date_elem = pr.find("date")
 
-            # Construir texto extra (Sx Ex) de forma robusta
+            # Construir texto extra (Tx Ex) de forma robusta
             extra = ""
             if epnum is not None and epnum.text:
-                # Extraer los dos primeros números del episode-num
                 parts = re.findall(r'\d+', epnum.text)
                 if len(parts) >= 2:
                     season = int(parts[0]) + 1
                     episode = int(parts[1]) + 1
-                    extra = f"S{season} E{episode}"
+                    extra = f"T{season} E{episode}"
+
+            # Obtener año si es película o documental
+            year = ""
+            if date_elem is not None and date_elem.text and len(date_elem.text) >= 4:
+                year = date_elem.text[:4]
 
             # Construir título final
             title = pr.find("title")
             if title is not None:
                 final_title = title.text or ""
-                if extra:
+                if extra:  # Serie
                     final_title += f" ({extra})"
-                if subtitle is not None and subtitle.text:
-                    final_title += f' "{subtitle.text}"'
+                    if subtitle is not None and subtitle.text:
+                        final_title += f' "{subtitle.text}"'
+                elif year:  # Película o documental
+                    final_title += f" ({year})"
                 title.text = final_title
 
             selected_programmes.append(pr)
