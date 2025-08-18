@@ -17,14 +17,16 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true   # permite push automático
 
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Ejecutar filtro HBO
-        run: python filter_hbo.py
+      - name: Ejecutar scraper HBO
+        run: python scraper_mitv.py   # o filter_hbo.py si no lo renombraste
 
       - name: Commit y push de cambios
         env:
@@ -32,6 +34,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Si quieres publicar en gh-pages, descomenta estas líneas:
+          # git fetch origin
+          # if git show-ref --quiet refs/heads/gh-pages; then
+          #   git checkout gh-pages
+          # else
+          #   git checkout --orphan gh-pages
+          # fi
+
           git add guide_custom.xml
-          git commit -m "Actualizar guide_custom.xml" || echo "No hay cambios"
+          git commit -m "Actualizar guide_custom.xml $(date '+%Y-%m-%d')" || echo "No hay cambios"
           git push
