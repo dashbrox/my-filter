@@ -1,18 +1,18 @@
 # My-Filter – Guía EPG personalizada
 
 Este repositorio genera `guide_custom.xml` con programación actualizada para tus canales favoritos.  
-El script descarga la programación de **hoy, mañana y pasado mañana** de los canales de mi.tv y la convierte en formato EPG compatible con Plex, Jellyfin y otros reproductores.
+El script descarga la programación de **hoy, mañana y pasado mañana** de los canales de mi.tv o de tus fuentes EPG personalizadas y la convierte en formato EPG compatible con Plex, Jellyfin y otros reproductores.
 
 ## Canales incluidos por defecto
 
-- HBO Oeste MX  
-- HBO 2 MX  
-- HBO Family MX  
-- HBO Plus MX  
-- Max Prime AR  
-- HBO Signature CO  
-- Max MX  
-- Max Up AR  
+- HBO 2.mx  
+- HBO FAMILY.mx  
+- HBO.mx  
+- MAX PRIME.mx  
+- MAX UP.mx  
+- MAX.mx  
+
+> Estos canales se toman de `channels.txt` y puedes modificarlos si deseas agregar o quitar canales.
 
 ## Instalación de dependencias
 
