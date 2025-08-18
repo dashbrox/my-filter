@@ -1,27 +1,894 @@
-<?xml version="1.0" ?>
+<?xml version='1.0' encoding='utf-8'?>
 <tv>
-  <channel id="HBO_Oeste_MX">
-    <display-name>HBO Oeste MX</display-name>
+  <channel id="BANDAMAX.mx">
+    <display-name>BANDAMAX.mx</display-name>
   </channel>
-  <channel id="HBO_2_MX">
-    <display-name>HBO 2 MX</display-name>
+  <channel id="CINEMAX.mx">
+    <display-name>CINEMAX.mx</display-name>
   </channel>
-  <channel id="HBO_Family_MX">
-    <display-name>HBO Family MX</display-name>
+  <channel id="HBO 2.mx">
+    <display-name>HBO 2.mx</display-name>
   </channel>
-  <channel id="HBO_Plus_MX">
-    <display-name>HBO Plus MX</display-name>
+  <channel id="HBO FAMILY.mx">
+    <display-name>HBO FAMILY.mx</display-name>
   </channel>
-  <channel id="Max_Prime_AR">
-    <display-name>Max Prime AR</display-name>
+  <channel id="HBO.mx">
+    <display-name>HBO.mx</display-name>
   </channel>
-  <channel id="HBO_Signature_CO">
-    <display-name>HBO Signature CO</display-name>
+  <channel id="MAX PRIME.mx">
+    <display-name>MAX PRIME.mx</display-name>
   </channel>
-  <channel id="Max_MX">
-    <display-name>Max MX</display-name>
+  <channel id="MAX UP.mx">
+    <display-name>MAX UP.mx</display-name>
   </channel>
-  <channel id="Max_Up_AR">
-    <display-name>Max Up AR</display-name>
+  <channel id="MAX.mx">
+    <display-name>MAX.mx</display-name>
   </channel>
+  <programme start="20250818060000 +0000" stop="20250818072000 +0000" channel="BANDAMAX.mx">
+    <title>Las más sonadas</title>
+  </programme>
+  <programme start="20250818072000 +0000" stop="20250818081000 +0000" channel="BANDAMAX.mx">
+    <title>Las 10 más picudas</title>
+  </programme>
+  <programme start="20250818081000 +0000" stop="20250818093000 +0000" channel="BANDAMAX.mx">
+    <title>Las imperdibles BDX</title>
+  </programme>
+  <programme start="20250818093000 +0000" stop="20250818100000 +0000" channel="BANDAMAX.mx">
+    <title>Los consagrados de Bandamax</title>
+  </programme>
+  <programme start="20250818100000 +0000" stop="20250818111500 +0000" channel="BANDAMAX.mx">
+    <title>Banda y Max</title>
+  </programme>
+  <programme start="20250818111500 +0000" stop="20250818121000 +0000" channel="BANDAMAX.mx">
+    <title>Bandamáximo dolor</title>
+  </programme>
+  <programme start="20250818121000 +0000" stop="20250818133000 +0000" channel="BANDAMAX.mx">
+    <title>Las más sonadas</title>
+  </programme>
+  <programme start="20250818133000 +0000" stop="20250818140000 +0000" channel="BANDAMAX.mx">
+    <title>Viejitas pero sabrosas</title>
+  </programme>
+  <programme start="20250818140000 +0000" stop="20250818142500 +0000" channel="BANDAMAX.mx">
+    <title>Colaboreme compa</title>
+  </programme>
+  <programme start="20250818142500 +0000" stop="20250818155000 +0000" channel="BANDAMAX.mx">
+    <title>Banda y Max</title>
+  </programme>
+  <programme start="20250818155000 +0000" stop="20250818161500 +0000" channel="BANDAMAX.mx">
+    <title>Ãdolos de Bandamax</title>
+  </programme>
+  <programme start="20250818161500 +0000" stop="20250818174000 +0000" channel="BANDAMAX.mx">
+    <title>Buenas Banda</title>
+  </programme>
+  <programme start="20250818174000 +0000" stop="20250818190000 +0000" channel="BANDAMAX.mx">
+    <title>Las imperdibles BDX</title>
+  </programme>
+  <programme start="20250818190000 +0000" stop="20250818210000 +0000" channel="BANDAMAX.mx">
+    <title>Vivo pala banda</title>
+  </programme>
+  <programme start="20250818210000 +0000" stop="20250818213000 +0000" channel="BANDAMAX.mx">
+    <title>Que News Bandamax</title>
+  </programme>
+  <programme start="20250818213000 +0000" stop="20250818230000 +0000" channel="BANDAMAX.mx">
+    <title>Buenas Banda</title>
+  </programme>
+  <programme start="20250818230000 +0000" stop="20250819002000 +0000" channel="BANDAMAX.mx">
+    <title>Las más sonadas</title>
+  </programme>
+  <programme start="20250819002000 +0000" stop="20250819005000 +0000" channel="BANDAMAX.mx">
+    <title>Viejitas pero sabrosas</title>
+  </programme>
+  <programme start="20250819005000 +0000" stop="20250819014500 +0000" channel="BANDAMAX.mx">
+    <title>Las más sonadas</title>
+  </programme>
+  <programme start="20250819014500 +0000" stop="20250819031000 +0000" channel="BANDAMAX.mx">
+    <title>Banda y Max</title>
+  </programme>
+  <programme start="20250819031000 +0000" stop="20250819043000 +0000" channel="BANDAMAX.mx">
+    <title>Las imperdibles BDX</title>
+  </programme>
+  <programme start="20250819043000 +0000" stop="20250819050000 +0000" channel="BANDAMAX.mx">
+    <title>Los consagrados de Bandamax</title>
+  </programme>
+  <programme start="20250819050000 +0000" stop="20250819060000 +0000" channel="BANDAMAX.mx">
+    <title>Bandamáximo dolor</title>
+  </programme>
+  <programme start="20250819060000 +0000" stop="20250819072000 +0000" channel="BANDAMAX.mx">
+    <title>Las más sonadas</title>
+  </programme>
+  <programme start="20250819072000 +0000" stop="20250819081000 +0000" channel="BANDAMAX.mx">
+    <title>Las más sonadas</title>
+  </programme>
+  <programme start="20250819081000 +0000" stop="20250819093000 +0000" channel="BANDAMAX.mx">
+    <title>Las imperdibles BDX</title>
+  </programme>
+  <programme start="20250819093000 +0000" stop="20250819100000 +0000" channel="BANDAMAX.mx">
+    <title>Las consagradas de Bandamax</title>
+  </programme>
+  <programme start="20250819100000 +0000" stop="20250819111500 +0000" channel="BANDAMAX.mx">
+    <title>Banda y Max</title>
+  </programme>
+  <programme start="20250819111500 +0000" stop="20250819121000 +0000" channel="BANDAMAX.mx">
+    <title>Bandamáximo dolor</title>
+  </programme>
+  <programme start="20250819121000 +0000" stop="20250819133000 +0000" channel="BANDAMAX.mx">
+    <title>Las más sonadas</title>
+  </programme>
+  <programme start="20250819133000 +0000" stop="20250819140000 +0000" channel="BANDAMAX.mx">
+    <title>Viejitas pero sabrosas</title>
+  </programme>
+  <programme start="20250819140000 +0000" stop="20250819142500 +0000" channel="BANDAMAX.mx">
+    <title>Mi version</title>
+  </programme>
+  <programme start="20250819142500 +0000" stop="20250819155000 +0000" channel="BANDAMAX.mx">
+    <title>Banda y Max</title>
+  </programme>
+  <programme start="20250819155000 +0000" stop="20250819161500 +0000" channel="BANDAMAX.mx">
+    <title>Ãdolos de Bandamax</title>
+  </programme>
+  <programme start="20250819161500 +0000" stop="20250819174000 +0000" channel="BANDAMAX.mx">
+    <title>Buenas Banda</title>
+  </programme>
+  <programme start="20250819174000 +0000" stop="20250819190000 +0000" channel="BANDAMAX.mx">
+    <title>Las imperdibles BDX</title>
+  </programme>
+  <programme start="20250819190000 +0000" stop="20250819210000 +0000" channel="BANDAMAX.mx">
+    <title>Vivo pala banda</title>
+  </programme>
+  <programme start="20250819210000 +0000" stop="20250819213000 +0000" channel="BANDAMAX.mx">
+    <title>Que News Bandamax</title>
+  </programme>
+  <programme start="20250819213000 +0000" stop="20250819230000 +0000" channel="BANDAMAX.mx">
+    <title>Buenas Banda</title>
+  </programme>
+  <programme start="20250819230000 +0000" stop="20250820002000 +0000" channel="BANDAMAX.mx">
+    <title>Las más sonadas</title>
+  </programme>
+  <programme start="20250820002000 +0000" stop="20250820005000 +0000" channel="BANDAMAX.mx">
+    <title>Viejitas pero sabrosas</title>
+  </programme>
+  <programme start="20250820005000 +0000" stop="20250820014500 +0000" channel="BANDAMAX.mx">
+    <title>Las 10 más picudas</title>
+  </programme>
+  <programme start="20250820014500 +0000" stop="20250820031000 +0000" channel="BANDAMAX.mx">
+    <title>Banda y Max</title>
+  </programme>
+  <programme start="20250820031000 +0000" stop="20250820043000 +0000" channel="BANDAMAX.mx">
+    <title>Las imperdibles BDX</title>
+  </programme>
+  <programme start="20250820043000 +0000" stop="20250820050000 +0000" channel="BANDAMAX.mx">
+    <title>Las consagradas de Bandamax</title>
+  </programme>
+  <programme start="20250820050000 +0000" stop="20250820060000 +0000" channel="BANDAMAX.mx">
+    <title>Bandamáximo dolor</title>
+  </programme>
+  <programme start="20250820060000 +0000" stop="20250820072000 +0000" channel="BANDAMAX.mx">
+    <title>Las más sonadas</title>
+  </programme>
+  <programme start="20250820072000 +0000" stop="20250820081000 +0000" channel="BANDAMAX.mx">
+    <title>Las 10 más picudas</title>
+  </programme>
+  <programme start="20250820081000 +0000" stop="20250820093000 +0000" channel="BANDAMAX.mx">
+    <title>Las imperdibles BDX</title>
+  </programme>
+  <programme start="20250820093000 +0000" stop="20250820100000 +0000" channel="BANDAMAX.mx">
+    <title>Regional clasificado</title>
+    <sub-title>Episodio: Chuy Lizárraga - Parte 1</sub-title>
+  </programme>
+  <programme start="20250820100000 +0000" stop="20250820111500 +0000" channel="BANDAMAX.mx">
+    <title>Banda y Max</title>
+  </programme>
+  <programme start="20250820111500 +0000" stop="20250820121000 +0000" channel="BANDAMAX.mx">
+    <title>Bandamáximo dolor</title>
+  </programme>
+  <programme start="20250820121000 +0000" stop="20250820133000 +0000" channel="BANDAMAX.mx">
+    <title>Las más sonadas</title>
+  </programme>
+  <programme start="20250820133000 +0000" stop="20250820140000 +0000" channel="BANDAMAX.mx">
+    <title>Viejitas pero sabrosas</title>
+  </programme>
+  <programme start="20250820140000 +0000" stop="20250820142500 +0000" channel="BANDAMAX.mx">
+    <title>Colaboreme compa</title>
+  </programme>
+  <programme start="20250820142500 +0000" stop="20250820155000 +0000" channel="BANDAMAX.mx">
+    <title>Banda y Max</title>
+  </programme>
+  <programme start="20250820155000 +0000" stop="20250820161500 +0000" channel="BANDAMAX.mx">
+    <title>Ãdolos de Bandamax</title>
+  </programme>
+  <programme start="20250820161500 +0000" stop="20250820174000 +0000" channel="BANDAMAX.mx">
+    <title>Buenas Banda</title>
+  </programme>
+  <programme start="20250818074900 +0000" stop="20250818090000 +0000" channel="CINEMAX.mx">
+    <title>La mesías - Episodio: Resurreccion</title>
+  </programme>
+  <programme start="20250818090000 +0000" stop="20250818114300 +0000" channel="CINEMAX.mx">
+    <title>El rey Arturo: la leyenda de la espada</title>
+  </programme>
+  <programme start="20250818114300 +0000" stop="20250818123800 +0000" channel="CINEMAX.mx">
+    <title>Hollywood One on One</title>
+    <sub-title>Episodio 16</sub-title>
+  </programme>
+  <programme start="20250818123800 +0000" stop="20250818143400 +0000" channel="CINEMAX.mx">
+    <title>Iceman 2: El viajero del tiempo</title>
+  </programme>
+  <programme start="20250818143400 +0000" stop="20250818164400 +0000" channel="CINEMAX.mx">
+    <title>La momia: La tumba del emperador Dragon</title>
+  </programme>
+  <programme start="20250818164400 +0000" stop="20250818184500 +0000" channel="CINEMAX.mx">
+    <title>El legado de Ip Man</title>
+  </programme>
+  <programme start="20250818184500 +0000" stop="20250818190000 +0000" channel="CINEMAX.mx">
+    <title>Previa - UEFA Champions League</title>
+    <sub-title>Ferencvaros (Hun) vs. Qarabag (Aze), Ronda de Clasificacion, Groupama Arena</sub-title>
+  </programme>
+  <programme start="20250818190000 +0000" stop="20250818210000 +0000" channel="CINEMAX.mx">
+    <title>UEFA Champions League</title>
+    <sub-title>Ferencvaros (Hun) vs. Qarabag (Aze), Ronda de Clasificacion, Groupama Arena</sub-title>
+  </programme>
+  <programme start="20250818210000 +0000" stop="20250818210500 +0000" channel="CINEMAX.mx">
+    <title>Post - UEFA Champions League</title>
+    <sub-title>Ferencvaros (Hun) vs. Qarabag (Aze), Ronda de Clasificacion, Groupama Arena</sub-title>
+  </programme>
+  <programme start="20250818210500 +0000" stop="20250818231600 +0000" channel="CINEMAX.mx">
+    <title>Romeo debe morir</title>
+  </programme>
+  <programme start="20250818231600 +0000" stop="20250819011200 +0000" channel="CINEMAX.mx">
+    <title>Iceman 2: El viajero del tiempo</title>
+  </programme>
+  <programme start="20250819011200 +0000" stop="20250819032400 +0000" channel="CINEMAX.mx">
+    <title>La momia: La tumba del emperador Dragon</title>
+  </programme>
+  <programme start="20250819032400 +0000" stop="20250819052600 +0000" channel="CINEMAX.mx">
+    <title>El legado de Ip Man</title>
+  </programme>
+  <programme start="20250819052600 +0000" stop="20250819075100 +0000" channel="CINEMAX.mx">
+    <title>Parásitos</title>
+  </programme>
+  <programme start="20250819075100 +0000" stop="20250819094100 +0000" channel="CINEMAX.mx">
+    <title>¡Huye!</title>
+  </programme>
+  <programme start="20250819094100 +0000" stop="20250819120000 +0000" channel="CINEMAX.mx">
+    <title>El amanecer de los muertos</title>
+  </programme>
+  <programme start="20250819120000 +0000" stop="20250819134500 +0000" channel="CINEMAX.mx">
+    <title>Despereaux, un pequeño gran heroe</title>
+  </programme>
+  <programme start="20250819134500 +0000" stop="20250819154500 +0000" channel="CINEMAX.mx">
+    <title>UEFA Champions League</title>
+    <sub-title>Ferencvaros (Hun) vs. Qarabag (Aze), Ronda de Clasificacion, Groupama Arena</sub-title>
+  </programme>
+  <programme start="20250819154500 +0000" stop="20250819174300 +0000" channel="CINEMAX.mx">
+    <title>Focus: maestros de la estafa</title>
+  </programme>
+  <programme start="20250819174300 +0000" stop="20250819192600 +0000" channel="CINEMAX.mx">
+    <title>Jack y Jill</title>
+  </programme>
+  <programme start="20250819192600 +0000" stop="20250819210300 +0000" channel="CINEMAX.mx">
+    <title>Mentiroso, mentiroso</title>
+  </programme>
+  <programme start="20250819210300 +0000" stop="20250819231900 +0000" channel="CINEMAX.mx">
+    <title>Julie and Julia</title>
+  </programme>
+  <programme start="20250819231900 +0000" stop="20250820010000 +0000" channel="CINEMAX.mx">
+    <title>Mi novia Polly</title>
+  </programme>
+  <programme start="20250820010000 +0000" stop="20250820025900 +0000" channel="CINEMAX.mx">
+    <title>Robo en las alturas</title>
+  </programme>
+  <programme start="20250820025900 +0000" stop="20250820045900 +0000" channel="CINEMAX.mx">
+    <title>Focus: maestros de la estafa</title>
+  </programme>
+  <programme start="20250818071800 +0000" stop="20250818095800 +0000" channel="HBO 2.mx">
+    <title>Batman vs. Superman: El origen de la jus...</title>
+  </programme>
+  <programme start="20250818095800 +0000" stop="20250818120000 +0000" channel="HBO 2.mx">
+    <title>Triple 9</title>
+  </programme>
+  <programme start="20250818120000 +0000" stop="20250818135100 +0000" channel="HBO 2.mx">
+    <title>Amor a distancia</title>
+  </programme>
+  <programme start="20250818135100 +0000" stop="20250818162000 +0000" channel="HBO 2.mx">
+    <title>El primer hombre en la luna</title>
+  </programme>
+  <programme start="20250818162000 +0000" stop="20250818183200 +0000" channel="HBO 2.mx">
+    <title>Aquaman y el reino perdido</title>
+  </programme>
+  <programme start="20250818183200 +0000" stop="20250818203400 +0000" channel="HBO 2.mx">
+    <title>Godzilla y Kong: El nuevo imperio</title>
+  </programme>
+  <programme start="20250818203400 +0000" stop="20250818231000 +0000" channel="HBO 2.mx">
+    <title>El codigo Da Vinci</title>
+  </programme>
+  <programme start="20250818231000 +0000" stop="20250818234500 +0000" channel="HBO 2.mx">
+    <title>Twisted Metal</title>
+    <sub-title>Episodio: DOLF4C3</sub-title>
+  </programme>
+  <programme start="20250818234500 +0000" stop="20250819015700 +0000" channel="HBO 2.mx">
+    <title>Aquaman y el reino perdido</title>
+  </programme>
+  <programme start="20250819015700 +0000" stop="20250819040000 +0000" channel="HBO 2.mx">
+    <title>Baby: el aprendiz del crimen</title>
+  </programme>
+  <programme start="20250819040000 +0000" stop="20250819061500 +0000" channel="HBO 2.mx">
+    <title>Blue Beetle</title>
+  </programme>
+  <programme start="20250819061500 +0000" stop="20250819082300 +0000" channel="HBO 2.mx">
+    <title>Liga de la Justicia</title>
+  </programme>
+  <programme start="20250819082300 +0000" stop="20250819103500 +0000" channel="HBO 2.mx">
+    <title>xXx - Triple X</title>
+  </programme>
+  <programme start="20250819103500 +0000" stop="20250819120100 +0000" channel="HBO 2.mx">
+    <title>Destino final 4</title>
+  </programme>
+  <programme start="20250819120100 +0000" stop="20250819135200 +0000" channel="HBO 2.mx">
+    <title>300: El nacimiento de un imperio</title>
+  </programme>
+  <programme start="20250819135200 +0000" stop="20250819154200 +0000" channel="HBO 2.mx">
+    <title>Pokemon: Detective Pikachu</title>
+  </programme>
+  <programme start="20250819154200 +0000" stop="20250819173000 +0000" channel="HBO 2.mx">
+    <title>Una película de Minecraft</title>
+  </programme>
+  <programme start="20250819173000 +0000" stop="20250819192500 +0000" channel="HBO 2.mx">
+    <title>Five Nights at Freddys</title>
+  </programme>
+  <programme start="20250819192500 +0000" stop="20250819215100 +0000" channel="HBO 2.mx">
+    <title>Pecadores</title>
+  </programme>
+  <programme start="20250819215100 +0000" stop="20250820000000 +0000" channel="HBO 2.mx">
+    <title>Tornados</title>
+  </programme>
+  <programme start="20250820000000 +0000" stop="20250820020800 +0000" channel="HBO 2.mx">
+    <title>Monkey Man: el despertar de la bestia</title>
+  </programme>
+  <programme start="20250820020800 +0000" stop="20250820040000 +0000" channel="HBO 2.mx">
+    <title>Beekeeper: sentencia de muerte</title>
+  </programme>
+  <programme start="20250820040000 +0000" stop="20250820043600 +0000" channel="HBO 2.mx">
+    <title>Twisted Metal</title>
+    <sub-title>Episodio: DOLF4C3</sub-title>
+  </programme>
+  <programme start="20250820043600 +0000" stop="20250820062500 +0000" channel="HBO 2.mx">
+    <title>La trampa</title>
+  </programme>
+  <programme start="20250820062500 +0000" stop="20250820070000 +0000" channel="HBO 2.mx">
+    <title>Estado de furia - Episodio: Part 7</title>
+  </programme>
+  <programme start="20250820070000 +0000" stop="20250820080000 +0000" channel="HBO 2.mx">
+    <title>Marcial Maciel, el lobo de Dios Episodio...</title>
+  </programme>
+  <programme start="20250820080000 +0000" stop="20250820090100 +0000" channel="HBO 2.mx">
+    <title>Marcial Maciel, el lobo de Dios</title>
+    <sub-title>Episodio 2</sub-title>
+  </programme>
+  <programme start="20250820090100 +0000" stop="20250820103400 +0000" channel="HBO 2.mx">
+    <title>Ouija</title>
+  </programme>
+  <programme start="20250820103400 +0000" stop="20250820120100 +0000" channel="HBO 2.mx">
+    <title>La aparicion</title>
+  </programme>
+  <programme start="20250820120100 +0000" stop="20250820135900 +0000" channel="HBO 2.mx">
+    <title>Al filo del mañana</title>
+  </programme>
+  <programme start="20250820135900 +0000" stop="20250820155900 +0000" channel="HBO 2.mx">
+    <title>Bad Boys - Hasta la muerte</title>
+  </programme>
+  <programme start="20250820155900 +0000" stop="20250820181100 +0000" channel="HBO 2.mx">
+    <title>El justiciero</title>
+  </programme>
+  <programme start="20250818062900 +0000" stop="20250818084500 +0000" channel="HBO FAMILY.mx">
+    <title>Meteoro</title>
+  </programme>
+  <programme start="20250818084500 +0000" stop="20250818101900 +0000" channel="HBO FAMILY.mx">
+    <title>El club del tesoro</title>
+  </programme>
+  <programme start="20250818101900 +0000" stop="20250818120000 +0000" channel="HBO FAMILY.mx">
+    <title>Los Croods</title>
+  </programme>
+  <programme start="20250818120000 +0000" stop="20250818133200 +0000" channel="HBO FAMILY.mx">
+    <title>Madagascar 2</title>
+  </programme>
+  <programme start="20250818133200 +0000" stop="20250818150000 +0000" channel="HBO FAMILY.mx">
+    <title>La vida secreta de tus mascotas</title>
+  </programme>
+  <programme start="20250818150000 +0000" stop="20250818162900 +0000" channel="HBO FAMILY.mx">
+    <title>Amigos salvajes</title>
+  </programme>
+  <programme start="20250818162900 +0000" stop="20250818185300 +0000" channel="HBO FAMILY.mx">
+    <title>Animales fantásticos: Los secretos de Dumbledore</title>
+  </programme>
+  <programme start="20250818185300 +0000" stop="20250818202500 +0000" channel="HBO FAMILY.mx">
+    <title>Las momias y el anillo perdido</title>
+  </programme>
+  <programme start="20250818202500 +0000" stop="20250818215800 +0000" channel="HBO FAMILY.mx">
+    <title>Madagascar 2</title>
+  </programme>
+  <programme start="20250818215800 +0000" stop="20250818233200 +0000" channel="HBO FAMILY.mx">
+    <title>Shrek</title>
+  </programme>
+  <programme start="20250818233200 +0000" stop="20250819005900 +0000" channel="HBO FAMILY.mx">
+    <title>El Grinch</title>
+  </programme>
+  <programme start="20250819005900 +0000" stop="20250819023400 +0000" channel="HBO FAMILY.mx">
+    <title>Kung Fu Panda</title>
+  </programme>
+  <programme start="20250819023400 +0000" stop="20250819041800 +0000" channel="HBO FAMILY.mx">
+    <title>Son como niños</title>
+  </programme>
+  <programme start="20250819041800 +0000" stop="20250819062700 +0000" channel="HBO FAMILY.mx">
+    <title>Blancanieves y el cazador</title>
+  </programme>
+  <programme start="20250819062700 +0000" stop="20250819082400 +0000" channel="HBO FAMILY.mx">
+    <title>El hermano de Santa</title>
+  </programme>
+  <programme start="20250819082400 +0000" stop="20250819103200 +0000" channel="HBO FAMILY.mx">
+    <title>El Karate Kid</title>
+  </programme>
+  <programme start="20250819103200 +0000" stop="20250819120100 +0000" channel="HBO FAMILY.mx">
+    <title>El Grinch</title>
+  </programme>
+  <programme start="20250819120100 +0000" stop="20250819132900 +0000" channel="HBO FAMILY.mx">
+    <title>Amigos salvajes</title>
+  </programme>
+  <programme start="20250819132900 +0000" stop="20250819145500 +0000" channel="HBO FAMILY.mx">
+    <title>Â¡Patos!</title>
+  </programme>
+  <programme start="20250819145500 +0000" stop="20250819161300 +0000" channel="HBO FAMILY.mx">
+    <title>Amigos salvajes 2</title>
+  </programme>
+  <programme start="20250819161300 +0000" stop="20250819174100 +0000" channel="HBO FAMILY.mx">
+    <title>El Grinch</title>
+  </programme>
+  <programme start="20250819174100 +0000" stop="20250819200700 +0000" channel="HBO FAMILY.mx">
+    <title>Flash</title>
+  </programme>
+  <programme start="20250819200700 +0000" stop="20250819213900 +0000" channel="HBO FAMILY.mx">
+    <title>El espantatiburones</title>
+  </programme>
+  <programme start="20250819213900 +0000" stop="20250819232700 +0000" channel="HBO FAMILY.mx">
+    <title>Paddington: aventura en la selva</title>
+  </programme>
+  <programme start="20250819232700 +0000" stop="20250820010100 +0000" channel="HBO FAMILY.mx">
+    <title>Pinguinos de Madagascar</title>
+  </programme>
+  <programme start="20250820010100 +0000" stop="20250820022700 +0000" channel="HBO FAMILY.mx">
+    <title>Â¡Patos!</title>
+  </programme>
+  <programme start="20250820022700 +0000" stop="20250820050300 +0000" channel="HBO FAMILY.mx">
+    <title>Harry Potter y el misterio del príncipe</title>
+  </programme>
+  <programme start="20250820050300 +0000" stop="20250820064800 +0000" channel="HBO FAMILY.mx">
+    <title>17 otra vez</title>
+  </programme>
+  <programme start="20250820064800 +0000" stop="20250820082800 +0000" channel="HBO FAMILY.mx">
+    <title>Si tuviera 30</title>
+  </programme>
+  <programme start="20250820082800 +0000" stop="20250820101200 +0000" channel="HBO FAMILY.mx">
+    <title>Los Pitufos</title>
+  </programme>
+  <programme start="20250820101200 +0000" stop="20250820120100 +0000" channel="HBO FAMILY.mx">
+    <title>Paddington: aventura en la selva</title>
+  </programme>
+  <programme start="20250820120100 +0000" stop="20250820134200 +0000" channel="HBO FAMILY.mx">
+    <title>Happy Feet 2: El pinguino</title>
+  </programme>
+  <programme start="20250820134200 +0000" stop="20250820152600 +0000" channel="HBO FAMILY.mx">
+    <title>Robot salvaje</title>
+  </programme>
+  <programme start="20250820152600 +0000" stop="20250820165500 +0000" channel="HBO FAMILY.mx">
+    <title>La vida secreta de tus mascotas</title>
+  </programme>
+  <programme start="20250820165500 +0000" stop="20250820183100 +0000" channel="HBO FAMILY.mx">
+    <title>Shrek tercero</title>
+  </programme>
+  <programme start="20250818063500 +0000" stop="20250818082900 +0000" channel="HBO.mx">
+    <title>Abigail</title>
+  </programme>
+  <programme start="20250818082900 +0000" stop="20250818100900 +0000" channel="HBO.mx">
+    <title>Destino final</title>
+  </programme>
+  <programme start="20250818100900 +0000" stop="20250818120000 +0000" channel="HBO.mx">
+    <title>El camino de regreso</title>
+  </programme>
+  <programme start="20250818120000 +0000" stop="20250818135400 +0000" channel="HBO.mx">
+    <title>Muy parecido al amor</title>
+  </programme>
+  <programme start="20250818135400 +0000" stop="20250818153500 +0000" channel="HBO.mx">
+    <title>Chica conoce chico</title>
+  </programme>
+  <programme start="20250818153500 +0000" stop="20250818171600 +0000" channel="HBO.mx">
+    <title>Harold y su crayon mágico</title>
+  </programme>
+  <programme start="20250818171600 +0000" stop="20250818193800 +0000" channel="HBO.mx">
+    <title>El señor de los anillos: la guerra de los Rohirrim</title>
+  </programme>
+  <programme start="20250818193800 +0000" stop="20250818215500 +0000" channel="HBO.mx">
+    <title>El justiciero</title>
+  </programme>
+  <programme start="20250818215500 +0000" stop="20250819000300 +0000" channel="HBO.mx">
+    <title>Everest</title>
+  </programme>
+  <programme start="20250819000300 +0000" stop="20250819015300 +0000" channel="HBO.mx">
+    <title>Until Dawn: noche de terror</title>
+  </programme>
+  <programme start="20250819015300 +0000" stop="20250819032900 +0000" channel="HBO.mx">
+    <title>No descansarás</title>
+  </programme>
+  <programme start="20250819032900 +0000" stop="20250819040500 +0000" channel="HBO.mx">
+    <title>Estado de furia</title>
+    <sub-title>Episodio: Part 7</sub-title>
+  </programme>
+  <programme start="20250819040500 +0000" stop="20250819054900 +0000" channel="HBO.mx">
+    <title>Compañera perfecta</title>
+  </programme>
+  <programme start="20250819054900 +0000" stop="20250819063500 +0000" channel="HBO.mx">
+    <title>Last Week Tonight with John Oliver</title>
+    <sub-title>Episodio 21</sub-title>
+  </programme>
+  <programme start="20250819063500 +0000" stop="20250819082700 +0000" channel="HBO.mx">
+    <title>La trampa</title>
+  </programme>
+  <programme start="20250819082700 +0000" stop="20250819101300 +0000" channel="HBO.mx">
+    <title>Intrusos</title>
+  </programme>
+  <programme start="20250819101300 +0000" stop="20250819121100 +0000" channel="HBO.mx">
+    <title>Agente Salt</title>
+  </programme>
+  <programme start="20250819121100 +0000" stop="20250819135400 +0000" channel="HBO.mx">
+    <title>Mi villano favorito 4</title>
+  </programme>
+  <programme start="20250819135400 +0000" stop="20250819154300 +0000" channel="HBO.mx">
+    <title>Noche de juegos</title>
+  </programme>
+  <programme start="20250819154300 +0000" stop="20250819162900 +0000" channel="HBO.mx">
+    <title>Last Week Tonight with John Oliver</title>
+    <sub-title>Episodio 21</sub-title>
+  </programme>
+  <programme start="20250819162900 +0000" stop="20250819184600 +0000" channel="HBO.mx">
+    <title>Blue Beetle</title>
+  </programme>
+  <programme start="20250819184600 +0000" stop="20250819203000 +0000" channel="HBO.mx">
+    <title>Mi villano favorito 4</title>
+  </programme>
+  <programme start="20250819203000 +0000" stop="20250819223500 +0000" channel="HBO.mx">
+    <title>Bad Boys - Hasta la muerte</title>
+  </programme>
+  <programme start="20250819223500 +0000" stop="20250820004300 +0000" channel="HBO.mx">
+    <title>Escape bajo fuego</title>
+  </programme>
+  <programme start="20250820004300 +0000" stop="20250820031000 +0000" channel="HBO.mx">
+    <title>El codigo Da Vinci</title>
+  </programme>
+  <programme start="20250820031000 +0000" stop="20250820040000 +0000" channel="HBO.mx">
+    <title>Marcial Maciel, el lobo de Dios</title>
+    <sub-title>Episodio 1</sub-title>
+  </programme>
+  <programme start="20250820040000 +0000" stop="20250820045500 +0000" channel="HBO.mx">
+    <title>Marcial Maciel, el lobo de Dios</title>
+    <sub-title>Episodio 2</sub-title>
+  </programme>
+  <programme start="20250820045500 +0000" stop="20250820072600 +0000" channel="HBO.mx">
+    <title>Nosferatu</title>
+  </programme>
+  <programme start="20250820072600 +0000" stop="20250820091800 +0000" channel="HBO.mx">
+    <title>Brigada 49</title>
+  </programme>
+  <programme start="20250820091800 +0000" stop="20250820100900 +0000" channel="HBO.mx">
+    <title>Twisted Metal - Episodio: DOLF4C3</title>
+  </programme>
+  <programme start="20250820100900 +0000" stop="20250820121100 +0000" channel="HBO.mx">
+    <title>El hombre del año</title>
+  </programme>
+  <programme start="20250820121100 +0000" stop="20250820140600 +0000" channel="HBO.mx">
+    <title>El aprendiz de vampiro</title>
+  </programme>
+  <programme start="20250820140600 +0000" stop="20250820161200 +0000" channel="HBO.mx">
+    <title>Liga de la Justicia</title>
+  </programme>
+  <programme start="20250820161200 +0000" stop="20250820185900 +0000" channel="HBO.mx">
+    <title>Wicked</title>
+  </programme>
+  <programme start="20250818073100 +0000" stop="20250818090000 +0000" channel="MAX PRIME.mx">
+    <title>Una llamada perdida</title>
+  </programme>
+  <programme start="20250818090000 +0000" stop="20250818102200 +0000" channel="MAX PRIME.mx">
+    <title>Jonah Hex: cazador de recompensas</title>
+  </programme>
+  <programme start="20250818102200 +0000" stop="20250818123000 +0000" channel="MAX PRIME.mx">
+    <title>Oblivion</title>
+  </programme>
+  <programme start="20250818123000 +0000" stop="20250818145100 +0000" channel="MAX PRIME.mx">
+    <title>Matrix recargado</title>
+  </programme>
+  <programme start="20250818145100 +0000" stop="20250818165100 +0000" channel="MAX PRIME.mx">
+    <title>El libro de los secretos</title>
+  </programme>
+  <programme start="20250818165100 +0000" stop="20250818172400 +0000" channel="MAX PRIME.mx">
+    <title>Rome: Making Of</title>
+    <sub-title>Episodio 1</sub-title>
+  </programme>
+  <programme start="20250818172400 +0000" stop="20250818192000 +0000" channel="MAX PRIME.mx">
+    <title>Sector 9</title>
+  </programme>
+  <programme start="20250818192000 +0000" stop="20250818212300 +0000" channel="MAX PRIME.mx">
+    <title>El vengador del futuro</title>
+  </programme>
+  <programme start="20250818212300 +0000" stop="20250818233200 +0000" channel="MAX PRIME.mx">
+    <title>Oblivion</title>
+  </programme>
+  <programme start="20250818233200 +0000" stop="20250819012000 +0000" channel="MAX PRIME.mx">
+    <title>Soldado de elite</title>
+  </programme>
+  <programme start="20250819012000 +0000" stop="20250819030000 +0000" channel="MAX PRIME.mx">
+    <title>1992</title>
+  </programme>
+  <programme start="20250819030000 +0000" stop="20250819044300 +0000" channel="MAX PRIME.mx">
+    <title>Francotirador: la última batalla</title>
+  </programme>
+  <programme start="20250819044300 +0000" stop="20250819065600 +0000" channel="MAX PRIME.mx">
+    <title>El contador</title>
+  </programme>
+  <programme start="20250819065600 +0000" stop="20250819090100 +0000" channel="MAX PRIME.mx">
+    <title>El coleccionista de huesos</title>
+  </programme>
+  <programme start="20250819090100 +0000" stop="20250819105600 +0000" channel="MAX PRIME.mx">
+    <title>La habitacion del pánico</title>
+  </programme>
+  <programme start="20250819105600 +0000" stop="20250819125600 +0000" channel="MAX PRIME.mx">
+    <title>John Q, situacion extrema</title>
+  </programme>
+  <programme start="20250819125600 +0000" stop="20250819150900 +0000" channel="MAX PRIME.mx">
+    <title>Pequeños secretos</title>
+  </programme>
+  <programme start="20250819150900 +0000" stop="20250819165000 +0000" channel="MAX PRIME.mx">
+    <title>Vista por última vez</title>
+  </programme>
+  <programme start="20250819165000 +0000" stop="20250819183000 +0000" channel="MAX PRIME.mx">
+    <title>Criaturas del faro</title>
+  </programme>
+  <programme start="20250819183000 +0000" stop="20250819200000 +0000" channel="MAX PRIME.mx">
+    <title>Terror en el río</title>
+  </programme>
+  <programme start="20250819200000 +0000" stop="20250819215600 +0000" channel="MAX PRIME.mx">
+    <title>Megalodon</title>
+  </programme>
+  <programme start="20250819215600 +0000" stop="20250819235600 +0000" channel="MAX PRIME.mx">
+    <title>Megalodon 2: El gran abismo</title>
+  </programme>
+  <programme start="20250819235600 +0000" stop="20250820013600 +0000" channel="MAX PRIME.mx">
+    <title>Vista por última vez</title>
+  </programme>
+  <programme start="20250820013600 +0000" stop="20250820030100 +0000" channel="MAX PRIME.mx">
+    <title>1978</title>
+  </programme>
+  <programme start="20250820030100 +0000" stop="20250820043100 +0000" channel="MAX PRIME.mx">
+    <title>Terror en el río</title>
+  </programme>
+  <programme start="20250820043100 +0000" stop="20250820062800 +0000" channel="MAX PRIME.mx">
+    <title>Megalodon</title>
+  </programme>
+  <programme start="20250820062800 +0000" stop="20250820083100 +0000" channel="MAX PRIME.mx">
+    <title>Megalodon 2: El gran abismo</title>
+  </programme>
+  <programme start="20250820083100 +0000" stop="20250820090000 +0000" channel="MAX PRIME.mx">
+    <title>Solo en Florida - Episodio: Gator</title>
+  </programme>
+  <programme start="20250820090000 +0000" stop="20250820114000 +0000" channel="MAX PRIME.mx">
+    <title>Batman: El caballero de la noche</title>
+  </programme>
+  <programme start="20250820114000 +0000" stop="20250820133200 +0000" channel="MAX PRIME.mx">
+    <title>Los agentes del destino</title>
+  </programme>
+  <programme start="20250820133200 +0000" stop="20250820154600 +0000" channel="MAX PRIME.mx">
+    <title>Profesion peligro</title>
+  </programme>
+  <programme start="20250820154600 +0000" stop="20250820175200 +0000" channel="MAX PRIME.mx">
+    <title>El vengador del futuro</title>
+  </programme>
+  <programme start="20250818064900 +0000" stop="20250818090000 +0000" channel="MAX UP.mx">
+    <title>Pura suerte</title>
+  </programme>
+  <programme start="20250818090000 +0000" stop="20250818102300 +0000" channel="MAX UP.mx">
+    <title>Detective por error</title>
+  </programme>
+  <programme start="20250818102300 +0000" stop="20250818123600 +0000" channel="MAX UP.mx">
+    <title>Los que se quedan</title>
+  </programme>
+  <programme start="20250818123600 +0000" stop="20250818140900 +0000" channel="MAX UP.mx">
+    <title>La familia Hollars</title>
+  </programme>
+  <programme start="20250818140900 +0000" stop="20250818160900 +0000" channel="MAX UP.mx">
+    <title>Loco y estúpido amor</title>
+  </programme>
+  <programme start="20250818160900 +0000" stop="20250818180400 +0000" channel="MAX UP.mx">
+    <title>Una loca entrevista</title>
+  </programme>
+  <programme start="20250818180400 +0000" stop="20250818200900 +0000" channel="MAX UP.mx">
+    <title>Enamorándome de mi ex</title>
+  </programme>
+  <programme start="20250818200900 +0000" stop="20250818220900 +0000" channel="MAX UP.mx">
+    <title>Ted 2</title>
+  </programme>
+  <programme start="20250818220900 +0000" stop="20250819005400 +0000" channel="MAX UP.mx">
+    <title>Elvis</title>
+  </programme>
+  <programme start="20250819005400 +0000" stop="20250819013000 +0000" channel="MAX UP.mx">
+    <title>Rome: Making Of</title>
+    <sub-title>Episodio 1</sub-title>
+  </programme>
+  <programme start="20250819013000 +0000" stop="20250819020000 +0000" channel="MAX UP.mx">
+    <title>Universal Basic Guys</title>
+    <sub-title>Episodio: Sheet Shock</sub-title>
+  </programme>
+  <programme start="20250819020000 +0000" stop="20250819034000 +0000" channel="MAX UP.mx">
+    <title>Tammy</title>
+  </programme>
+  <programme start="20250819034000 +0000" stop="20250819041400 +0000" channel="MAX UP.mx">
+    <title>Rome: Making Of</title>
+    <sub-title>Episodio 1</sub-title>
+  </programme>
+  <programme start="20250819041400 +0000" stop="20250819060000 +0000" channel="MAX UP.mx">
+    <title>Thelma: una abuela en accion</title>
+  </programme>
+  <programme start="20250819060000 +0000" stop="20250819071500 +0000" channel="MAX UP.mx">
+    <title>Marc Maron: ¡Pánico!</title>
+  </programme>
+  <programme start="20250819071500 +0000" stop="20250819090100 +0000" channel="MAX UP.mx">
+    <title>El expreso de los recuerdos</title>
+  </programme>
+  <programme start="20250819090100 +0000" stop="20250819111600 +0000" channel="MAX UP.mx">
+    <title>Tan fuerte y tan cerca</title>
+  </programme>
+  <programme start="20250819111600 +0000" stop="20250819130600 +0000" channel="MAX UP.mx">
+    <title>Una madre indiscreta</title>
+  </programme>
+  <programme start="20250819130600 +0000" stop="20250819150100 +0000" channel="MAX UP.mx">
+    <title>Experta en crisis</title>
+  </programme>
+  <programme start="20250819150100 +0000" stop="20250819164600 +0000" channel="MAX UP.mx">
+    <title>La nana mágica: Nanny McPhee</title>
+  </programme>
+  <programme start="20250819164600 +0000" stop="20250819182100 +0000" channel="MAX UP.mx">
+    <title>Mi novia Polly</title>
+  </programme>
+  <programme start="20250819182100 +0000" stop="20250819202600 +0000" channel="MAX UP.mx">
+    <title>Ãngeles inesperados</title>
+  </programme>
+  <programme start="20250819202600 +0000" stop="20250819221100 +0000" channel="MAX UP.mx">
+    <title>Dog, un viaje salvaje</title>
+  </programme>
+  <programme start="20250819221100 +0000" stop="20250820001600 +0000" channel="MAX UP.mx">
+    <title>Viaje de chicas</title>
+  </programme>
+  <programme start="20250820001600 +0000" stop="20250820004600 +0000" channel="MAX UP.mx">
+    <title>Universal Basic Guys</title>
+    <sub-title>Episodio: Sheet Shock</sub-title>
+  </programme>
+  <programme start="20250820004600 +0000" stop="20250820022100 +0000" channel="MAX UP.mx">
+    <title>Mi novia Polly</title>
+  </programme>
+  <programme start="20250820022100 +0000" stop="20250820030100 +0000" channel="MAX UP.mx">
+    <title>Last Week Tonight with John Oliver</title>
+    <sub-title>Episodio 21</sub-title>
+  </programme>
+  <programme start="20250820030100 +0000" stop="20250820044600 +0000" channel="MAX UP.mx">
+    <title>Hasta que la muerte los junto</title>
+  </programme>
+  <programme start="20250820044600 +0000" stop="20250820065600 +0000" channel="MAX UP.mx">
+    <title>No te preocupes, cariño</title>
+  </programme>
+  <programme start="20250820065600 +0000" stop="20250820090100 +0000" channel="MAX UP.mx">
+    <title>Viaje de chicas</title>
+  </programme>
+  <programme start="20250820090100 +0000" stop="20250820112100 +0000" channel="MAX UP.mx">
+    <title>El mago</title>
+  </programme>
+  <programme start="20250820112100 +0000" stop="20250820130100 +0000" channel="MAX UP.mx">
+    <title>Dicen por ahí...</title>
+  </programme>
+  <programme start="20250820130100 +0000" stop="20250820143600 +0000" channel="MAX UP.mx">
+    <title>Cercana obsesion</title>
+  </programme>
+  <programme start="20250820143600 +0000" stop="20250820170600 +0000" channel="MAX UP.mx">
+    <title>Rey Richard: una familia ganadora</title>
+  </programme>
+  <programme start="20250818071000 +0000" stop="20250818090000 +0000" channel="MAX.mx">
+    <title>Drácula</title>
+  </programme>
+  <programme start="20250818090000 +0000" stop="20250818102400 +0000" channel="MAX.mx">
+    <title>El Increíble hombre menguante</title>
+  </programme>
+  <programme start="20250818102400 +0000" stop="20250818121500 +0000" channel="MAX.mx">
+    <title>Psicosis</title>
+  </programme>
+  <programme start="20250818121500 +0000" stop="20250818140500 +0000" channel="MAX.mx">
+    <title>Cabo de miedo</title>
+  </programme>
+  <programme start="20250818140500 +0000" stop="20250818155000 +0000" channel="MAX.mx">
+    <title>El plan de Maggie</title>
+  </programme>
+  <programme start="20250818155000 +0000" stop="20250818181500 +0000" channel="MAX.mx">
+    <title>El abogado del Diablo</title>
+  </programme>
+  <programme start="20250818181500 +0000" stop="20250818202500 +0000" channel="MAX.mx">
+    <title>Drácula, de Bram Stoker</title>
+  </programme>
+  <programme start="20250818202500 +0000" stop="20250818222400 +0000" channel="MAX.mx">
+    <title>Priscilla</title>
+  </programme>
+  <programme start="20250818222400 +0000" stop="20250819002000 +0000" channel="MAX.mx">
+    <title>Ex-Máquina</title>
+  </programme>
+  <programme start="20250819002000 +0000" stop="20250819020000 +0000" channel="MAX.mx">
+    <title>Lady Bird</title>
+  </programme>
+  <programme start="20250819020000 +0000" stop="20250819040000 +0000" channel="MAX.mx">
+    <title>Un viaje de sobriedad</title>
+  </programme>
+  <programme start="20250819040000 +0000" stop="20250819050000 +0000" channel="MAX.mx">
+    <title>Los asesinatos de la tienda de yogur</title>
+    <sub-title>Episodio: Mental Evidence</sub-title>
+  </programme>
+  <programme start="20250819050000 +0000" stop="20250819064500 +0000" channel="MAX.mx">
+    <title>La hija del prisionero</title>
+  </programme>
+  <programme start="20250819064500 +0000" stop="20250819082900 +0000" channel="MAX.mx">
+    <title>Los colonos</title>
+  </programme>
+  <programme start="20250819082900 +0000" stop="20250819090100 +0000" channel="MAX.mx">
+    <title>El estado de juego - Episodio: Violencia...</title>
+  </programme>
+  <programme start="20250819090100 +0000" stop="20250819102600 +0000" channel="MAX.mx">
+    <title>El mundo de los olvidados</title>
+  </programme>
+  <programme start="20250819102600 +0000" stop="20250819125100 +0000" channel="MAX.mx">
+    <title>Río místico</title>
+  </programme>
+  <programme start="20250819125100 +0000" stop="20250819143600 +0000" channel="MAX.mx">
+    <title>Papi</title>
+  </programme>
+  <programme start="20250819143600 +0000" stop="20250819162600 +0000" channel="MAX.mx">
+    <title>Kneecap: música y libertad</title>
+  </programme>
+  <programme start="20250819162600 +0000" stop="20250819182600 +0000" channel="MAX.mx">
+    <title>Spencer</title>
+  </programme>
+  <programme start="20250819182600 +0000" stop="20250819205000 +0000" channel="MAX.mx">
+    <title>El juez</title>
+  </programme>
+  <programme start="20250819205000 +0000" stop="20250819224600 +0000" channel="MAX.mx">
+    <title>El llanto</title>
+  </programme>
+  <programme start="20250819224600 +0000" stop="20250820001600 +0000" channel="MAX.mx">
+    <title>El amor es un viaje en trineo al infierno</title>
+  </programme>
+  <programme start="20250820001600 +0000" stop="20250820020100 +0000" channel="MAX.mx">
+    <title>Vi el brillo del televisor</title>
+  </programme>
+  <programme start="20250820020100 +0000" stop="20250820042600 +0000" channel="MAX.mx">
+    <title>Todo en todas partes al mismo tiempo</title>
+  </programme>
+  <programme start="20250820042600 +0000" stop="20250820063600 +0000" channel="MAX.mx">
+    <title>Ella</title>
+  </programme>
+  <programme start="20250820063600 +0000" stop="20250820090100 +0000" channel="MAX.mx">
+    <title>Sueños de fuga</title>
+  </programme>
+  <programme start="20250820090100 +0000" stop="20250820111100 +0000" channel="MAX.mx">
+    <title>YOLO: solo se vive una vez</title>
+  </programme>
+  <programme start="20250820111100 +0000" stop="20250820130600 +0000" channel="MAX.mx">
+    <title>Los cazafantasmas 2</title>
+  </programme>
+  <programme start="20250820130600 +0000" stop="20250820145100 +0000" channel="MAX.mx">
+    <title>Cartas malvadas</title>
+  </programme>
+  <programme start="20250820145100 +0000" stop="20250820165100 +0000" channel="MAX.mx">
+    <title>Casi el paraíso</title>
+  </programme>
+  <programme start="20250820165100 +0000" stop="20250820190000 +0000" channel="MAX.mx">
+    <title>Inhala</title>
+  </programme>
 </tv>
