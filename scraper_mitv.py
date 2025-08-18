@@ -74,11 +74,16 @@ def obtener_eventos(nombre, url):
         url_dia = f"{url}?date={fecha.isoformat()}"
         print(f"  Día {fecha}: {url_dia}")
 
-        resp = requests.get(url_dia, headers=HEADERS, timeout=10)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        try:
+            resp = requests.get(url_dia, headers=HEADERS, timeout=10)
+            resp.raise_for_status()
+        except Exception as e:
+            print(f"❌ Error descargando {url_dia}: {e}")
+            continue
 
+        soup = BeautifulSoup(resp.text, "html.parser")
         bloques = soup.select(".program-list li")
+
         for idx, ev in enumerate(bloques):
             hora = ev.select_one(".time")
             titulo = ev.select_one(".title")
@@ -89,15 +94,14 @@ def obtener_eventos(nombre, url):
                 if not inicio_dt:
                     continue
 
-                # Hora de inicio en formato EPG
                 inicio = inicio_dt.strftime("%Y%m%d%H%M%S %z")
 
-                # Hora de fin = hora del siguiente programa o +1h
+                # Hora de fin
                 if idx + 1 < len(bloques):
                     sig_hora = bloques[idx+1].select_one(".time")
                     if sig_hora:
                         fin_dt = parsear_hora(sig_hora.get_text(strip=True), tz, fecha)
-                        if fin_dt and fin_dt < inicio_dt:  
+                        if fin_dt and fin_dt < inicio_dt:
                             fin_dt += timedelta(days=1)
                     else:
                         fin_dt = inicio_dt + timedelta(hours=1)
@@ -116,7 +120,7 @@ def obtener_eventos(nombre, url):
                     "title": titulo_final
                 })
 
-        time.sleep(2)
+        time.sleep(2)  # Evitar saturar el sitio
 
     return eventos
 
@@ -130,6 +134,7 @@ def generar_xml(data):
         for ev in eventos:
             prog = SubElement(tv, "programme", channel=canal_id, start=ev["start"], stop=ev["stop"])
             SubElement(prog, "title").text = ev["title"]
+            SubElement(prog, "desc").text = ""  # Para compatibilidad Plex/Jellyfin
     return xml.dom.minidom.parseString(tostring(tv)).toprettyxml(indent="  ")
 
 if __name__ == "__main__":
@@ -139,7 +144,7 @@ if __name__ == "__main__":
             eventos = obtener_eventos(nombre, url)
             data[nombre] = eventos
         except Exception as e:
-            print(f"❌ Error con {nombre}: {e}")
+            print(f"❌ Error con {nombre} ({url}): {e}")
 
     xml_str = generar_xml(data)
     with open("guide_custom.xml", "w", encoding="utf-8") as f:
