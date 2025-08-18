@@ -45,8 +45,6 @@ Este repositorio genera `guide_custom.xml` con los siguientes canales filtrados:
 - FOX.(WNYW).New.York,.NY.us  
 - The.Tennis.Channel.us  
 - E!.Entertainment.USA.-.Eastern.Feed.us  
-- CBS.(WCBS).New.York,.NY.us  
-- FOX.(WNYW).New.York,.NY.us  
 - CNN.us  
 
 ## Uso
