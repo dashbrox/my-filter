@@ -1,30 +1,37 @@
-# Filtro de canales HBO para my-filter
+# Filtro de canales personalizados para my-filter
 
-Este repositorio genera `guide_custom.xml` con los siguientes canales HBO:
+Este repositorio genera `guide_custom.xml` con los siguientes canales filtrados:
 
-- Canal.HBO.(México).mx
-- Canal.HBO.2.Latinoamérica.mx
-- Canal.HBO.Signature.Latinoamérica.mx
-- Canal.HBO.Family.Latinoamérica.mx
-- Canal.HBO.Plus.mx
-- Canal.HBO.Mundi.mx
-- Canal.HBO.Pop.mx
-- Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx
-- Azteca.(XHOR).mx
-- Canal.Cinemax.(México).mx
-- TSN1.ca 
-- TSN2.ca 
-- TSN3.ca 
-- TSN4.ca 
-- ABC.(KABC).Los.Angeles,.CA.us 
-- ABC.(WABC).New.York,.NY.us 
-- NBC.(WNBC).New.York,.NY.us 
-- NBC.(KNBC).Los.Angeles,.CA.us
+- Canal.HBO.(México).mx  
+- Canal.HBO.2.Latinoamérica.mx  
+- Canal.HBO.Signature.Latinoamérica.mx  
+- Canal.HBO.Family.Latinoamérica.mx  
+- Canal.HBO.Plus.mx  
+- Canal.HBO.Mundi.mx  
+- Canal.HBO.Pop.mx  
+- Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx  
+- Azteca.(XHOR).mx  
+- Canal.Cinemax.(México).mx  
+- TSN1.ca  
+- TSN2.ca  
+- TSN3.ca  
+- TSN4.ca  
+- ABC.(KABC).Los.Angeles,.CA.us  
+- ABC.(WABC).New.York,.NY.us  
+- NBC.(WNBC).New.York,.NY.us  
+- NBC.(KNBC).Los.Angeles,.CA.us  
+- M+.Deportes.2.es  
+- M+.Deportes.3.es  
+- M+.Deportes.4.es  
+- M+.Deportes.5.es  
+- M+.Deportes.6.es  
+- M+.Deportes.7.es  
+- M+.Deportes.es  
+- plex.tv.T2.plex  
 
 ## Uso
 
-1. Coloca `epg_ripper_MX1.txt` en el mismo directorio que `filter_hbo.py`.
-2. Ejecuta el script:
+1. Ejecuta el script en tu terminal:
 
 ```bash
 python filter_hbo.py
