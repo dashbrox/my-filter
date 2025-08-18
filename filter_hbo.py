@@ -16,13 +16,15 @@ SOURCE_URLS = [
     "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_US_SPORTS1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
 ]
 
 OUTPUT_FILE = "guide_custom.xml"
 
 # Patrones para identificar los canales (sin acentos, case-insensitive)
 PATTERNS = [
-    # HBO
+    # HBO (LatAm / MX)
     r"\bhbo\b.*mexico",
     r"\bhbo\s*2\b.*(latinoamerica|latin america)",
     r"\bhbo\s*signature\b.*(latinoamerica|latin america)",
@@ -49,6 +51,18 @@ PATTERNS = [
     # USA – NBC
     r"nbc.*wnbc.*new york",
     r"nbc.*knbc.*los angeles",
+
+    # España – M+ Deportes
+    r"m\+\s*deportes\s*2.*es",
+    r"m\+\s*deportes\s*3.*es",
+    r"m\+\s*deportes\s*4.*es",
+    r"m\+\s*deportes\s*5.*es",
+    r"m\+\s*deportes\s*6.*es",
+    r"m\+\s*deportes\s*7.*es",
+    r"m\+\s*deportes(\s|\.|$).*es",  # M+ Deportes (canal base)
+
+    # Plex
+    r"plex\.tv.*t2\.plex",
 ]
 COMPILED = [re.compile(pat, re.I) for pat in PATTERNS]
 
