@@ -1,8 +1,6 @@
-https://mi.tv/mx/canales/hbo-oeste
-https://mi.tv/mx/canales/hbo-2
-https://mi.tv/mx/canales/hbo-family
-https://mi.tv/mx/canales/hbo-plus-mexico
-https://mi.tv/ar/canales/max-prime
-https://mi.tv/co/canales/hbo-signature-hd
-https://mi.tv/mx/canales/max
-https://mi.tv/ar/canales/max-up
+HBO 2.mx;HBO 2.mx
+HBO FAMILY.mx;HBO FAMILY.mx
+HBO.mx;HBO.mx
+MAX PRIME.mx;MAX PRIME.mx
+MAX UP.mx;MAX UP.mx
+MAX.mx;MAX.mx
