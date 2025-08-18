@@ -16,3 +16,11 @@ ABC.(KABC).Los.Angeles,.CA.us
 ABC.(WABC).New.York,.NY.us 
 NBC.(WNBC).New.York,.NY.us 
 NBC.(KNBC).Los.Angeles,.CA.us
+M+.Deportes.2.es
+M+.Deportes.3.es
+M+.Deportes.4.es
+M+.Deportes.5.es
+M+.Deportes.6.es
+M+.Deportes.7.es
+M+.Deportes.es
+plex.tv.T2.plex
