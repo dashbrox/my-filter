@@ -27,8 +27,27 @@ Este repositorio genera `guide_custom.xml` con los siguientes canales filtrados:
 - M+.Deportes.6.es  
 - M+.Deportes.7.es  
 - M+.Deportes.es  
-- plex.tv.T2.plex  
-
+- plex.tv.T2.plex
+- Hallmark.-.Eastern.Feed.us
+- Hallmark.Mystery.Eastern.-.HD.us
+- HBO.2.-.Eastern.Feed.us
+- HBO.2.-.Pacific.Feed.us
+- HBO.Comedy.HD.-.East.us
+- HBO.-.Eastern.Feed.us
+- HBO.Family.-.Eastern.Feed.us
+- HBO.Family.-.Pacific.Feed.us
+- HBO.Latino.(HBO.7).-.Eastern.us
+- HBO.-.Pacific.Feed.us
+- HBO.Signature.(HBO.3).-.Eastern.us
+- HBO.Zone.HD.-.East.us
+- CBS.(WCBS).New.York,.NY.us
+- Bravo.USA.-.Eastern.Feed.us
+- FOX.(WNYW).New.York,.NY.us
+- The.Tennis.Channel.us
+- E!.Entertainment.USA.-.Eastern.Feed.us
+- CBS.(WCBS).New.York,.NY.us
+- FOX.(WNYW).New.York,.NY.us
+- CNN.us
 ## Uso
 
 1. Ejecuta el script en tu terminal:
