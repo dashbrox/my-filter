@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import gzip
 import re
-import requests
+import urllib.request
 import xml.etree.ElementTree as ET
 
 # Fuentes de EPG que vamos a combinar
@@ -82,9 +85,9 @@ def normalize(text):
 
 def download_and_extract(url):
     print(f"Descargando {url} ...")
-    resp = requests.get(url)
-    resp.raise_for_status()
-    return gzip.decompress(resp.content)
+    with urllib.request.urlopen(url) as resp:
+        data = resp.read()
+    return gzip.decompress(data)
 
 def channel_matches(name):
     norm_name = normalize(name)
@@ -107,7 +110,10 @@ def main():
 
     # Guardar resultado bonito
     tree_out = ET.ElementTree(root)
-    ET.indent(tree_out, space="  ", level=0)
+    try:
+        ET.indent(tree_out, space="  ", level=0)  # Python ≥3.9
+    except AttributeError:
+        pass  # Ignorar si no está disponible
     tree_out.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
     print("✅ guide_custom.xml generado con éxito.")
 
