@@ -1,121 +1,148 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime, date, timedelta
+from xml.etree.ElementTree import Element, SubElement, tostring
+import xml.dom.minidom
+import pytz
+import time
 
-import gzip
-import re
-import urllib.request
-import xml.etree.ElementTree as ET
+HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# Fuentes de EPG que vamos a combinar
-URLS = [
-    "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
-]
+# Canales a scrapear
+CANALS = {
+    "HBO Oeste MX": "https://mi.tv/mx/canales/hbo-oeste",
+    "HBO 2 MX": "https://mi.tv/mx/canales/hbo-2",
+    "HBO Family MX": "https://mi.tv/mx/canales/hbo-family",
+    "HBO Plus MX": "https://mi.tv/mx/canales/hbo-plus-mexico",
+    "Max Prime AR": "https://mi.tv/ar/canales/max-prime",
+    "HBO Signature CO": "https://mi.tv/co/canales/hbo-signature-hd",
+    "Max MX": "https://mi.tv/mx/canales/max",
+    "Max Up AR": "https://mi.tv/ar/canales/max-up"
+}
 
-# Lista de patrones para filtrar los canales
-PATTERNS = [
-    # HBO México / Latinoamérica
-    r"\bhbo\b.*mexico",
-    r"\bhbo\s*2\b.*(latinoamerica|latin america)",
-    r"\bhbo\s*signature\b.*(latinoamerica|latin america)",
-    r"\bhbo\s*family\b.*(latinoamerica|latin america)",
-    r"\bhbo\s*plus\b.*mx",
-    r"\bhbo\s*mundi\b",
-    r"\bhbo\s*pop\b",
-
-    # Canales México
-    r"canal\.?\.?2.*(mexico|xew|las estrellas)",
-    r"azteca.*(mexico|xhor)",
-    r"\bcinemax\b.*mexico",
-
-    # Canales Canadá
-    r"\btsn1\b",
-    r"\btsn2\b",
-    r"\btsn3\b",
-    r"\btsn4\b",
-
-    # Canales USA principales
-    r"abc.*(kabc|los angeles)",
-    r"abc.*(wabc|new york)",
-    r"nbc.*(wnbc|new york)",
-    r"nbc.*(knbc|los angeles)",
-
-    # Canales España (Movistar+ Deportes)
-    r"m\+\.?deportes(\.\d+)?\.es",
-
-    # Plex
-    r"plex\.tv\.t2\.plex",
-
-    # --- NUEVOS US Feeds / Networks ---
-    r"hallmark.*eastern",
-    r"hallmark.*mystery.*eastern",
-    r"hbo\s*2.*eastern",
-    r"hbo\s*2.*pacific",
-    r"hbo.*comedy.*east",
-    r"hbo.*eastern",
-    r"hbo.*family.*eastern",
-    r"hbo.*family.*pacific",
-    r"hbo.*latino.*eastern",
-    r"hbo.*pacific",
-    r"hbo.*signature.*eastern",
-    r"hbo.*zone.*east",
-    r"cbs.*wcbs.*new york",
-    r"bravo.*usa.*eastern",
-    r"fox.*wnyw.*new york",
-    r"tennis.*channel",
-    r"e!.*entertainment.*eastern",
-    r"\bcnn\b",
-]
-
-# Normalizar texto (quitar mayúsculas, acentos, caracteres raros)
-def normalize(text):
-    return (
-        text.lower()
-        .replace("á", "a")
-        .replace("é", "e")
-        .replace("í", "i")
-        .replace("ó", "o")
-        .replace("ú", "u")
-        .replace("-", " ")
-        .replace("_", " ")
-    )
-
-def download_and_extract(url):
-    print(f"Descargando {url} ...")
-    with urllib.request.urlopen(url) as resp:
-        data = resp.read()
-    return gzip.decompress(data)
-
-def channel_matches(name):
-    norm_name = normalize(name)
-    return any(re.search(pattern, norm_name) for pattern in PATTERNS)
-
-def main():
-    root = ET.Element("tv")
-
-    for url in URLS:
-        xml_data = download_and_extract(url)
-        tree = ET.ElementTree(ET.fromstring(xml_data))
-        for channel in tree.findall("channel"):
-            name = "".join(channel.findtext("display-name", default=""))
-            if channel_matches(name):
-                root.append(channel)
-        for programme in tree.findall("programme"):
-            ch = programme.attrib.get("channel", "")
-            if channel_matches(ch):
-                root.append(programme)
-
-    # Guardar resultado bonito
-    tree_out = ET.ElementTree(root)
+# Convertir hora AM/PM de mi.tv a formato EPG
+def parsear_hora(hora_str, tz, fecha):
     try:
-        ET.indent(tree_out, space="  ", level=0)  # Python ≥3.9
-    except AttributeError:
-        pass  # Ignorar si no está disponible
-    tree_out.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
-    print("✅ guide_custom.xml generado con éxito.")
+        hora = datetime.strptime(hora_str, "%I:%M %p")
+    except:
+        return None
+    dt = datetime.combine(fecha, hora.time())
+    dt = tz.localize(dt)
+    return dt
+
+# Formatear título (series y películas)
+def formatear_titulo(titulo, detalles):
+    if "Temporada" in detalles and "Episodio" in detalles:
+        # Serie
+        temp = None
+        ep = None
+        epi_titulo = ""
+        partes = detalles.split(",")
+        for p in partes:
+            if "Temporada" in p:
+                temp = p.strip().replace("Temporada", "").strip()
+            if "Episodio" in p:
+                ep_partes = p.strip().replace("Episodio", "").split(":")
+                ep = ep_partes[0].strip()
+                if len(ep_partes) > 1:
+                    epi_titulo = ep_partes[1].strip()
+        if temp and ep:
+            return f'{titulo} (S{temp} E{ep}) "{epi_titulo}"'
+    elif detalles.isdigit() and len(detalles) == 4:
+        # Película con año
+        return f"{titulo} ({detalles})"
+    return titulo
+
+# Obtener la programación de 3 días
+def obtener_eventos(nombre, url):
+    print(f"Descargando {nombre} ...")
+
+    if "/mx/" in url:
+        tz = pytz.timezone("America/Mexico_City")
+    elif "/ar/" in url:
+        tz = pytz.timezone("America/Argentina/Buenos_Aires")
+    elif "/co/" in url:
+        tz = pytz.timezone("America/Bogota")
+    else:
+        tz = pytz.utc
+
+    eventos = []
+    hoy = date.today()
+
+    for i in range(3):
+        fecha = hoy + timedelta(days=i)
+        url_dia = f"{url}?date={fecha.isoformat()}"
+        print(f"  Día {fecha}: {url_dia}")
+
+        resp = requests.get(url_dia, headers=HEADERS, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        bloques = soup.select(".program-list li")
+        for idx, ev in enumerate(bloques):
+            hora = ev.select_one(".time")
+            titulo = ev.select_one(".title")
+            detalle = ev.select_one(".subtitle")
+
+            if hora and titulo:
+                inicio_dt = parsear_hora(hora.get_text(strip=True), tz, fecha)
+                if not inicio_dt:
+                    continue
+
+                # Hora de inicio en formato EPG
+                inicio = inicio_dt.strftime("%Y%m%d%H%M%S %z")
+
+                # Hora de fin = hora del siguiente programa o +1h
+                if idx + 1 < len(bloques):
+                    sig_hora = bloques[idx+1].select_one(".time")
+                    if sig_hora:
+                        fin_dt = parsear_hora(sig_hora.get_text(strip=True), tz, fecha)
+                        if fin_dt and fin_dt < inicio_dt:  
+                            fin_dt += timedelta(days=1)
+                    else:
+                        fin_dt = inicio_dt + timedelta(hours=1)
+                else:
+                    fin_dt = inicio_dt + timedelta(hours=1)
+
+                fin = fin_dt.strftime("%Y%m%d%H%M%S %z")
+
+                titulo_final = titulo.get_text(strip=True)
+                if detalle:
+                    titulo_final = formatear_titulo(titulo_final, detalle.get_text(strip=True))
+
+                eventos.append({
+                    "start": inicio,
+                    "stop": fin,
+                    "title": titulo_final
+                })
+
+        time.sleep(2)
+
+    return eventos
+
+# Generar XML EPG
+def generar_xml(data):
+    tv = Element("tv")
+    for canal, eventos in data.items():
+        canal_id = canal.replace(" ", "_")
+        ch = SubElement(tv, "channel", id=canal_id)
+        SubElement(ch, "display-name").text = canal
+        for ev in eventos:
+            prog = SubElement(tv, "programme", channel=canal_id, start=ev["start"], stop=ev["stop"])
+            SubElement(prog, "title").text = ev["title"]
+    return xml.dom.minidom.parseString(tostring(tv)).toprettyxml(indent="  ")
 
 if __name__ == "__main__":
-    main()
+    data = {}
+    for nombre, url in CANALS.items():
+        try:
+            eventos = obtener_eventos(nombre, url)
+            data[nombre] = eventos
+        except Exception as e:
+            print(f"❌ Error con {nombre}: {e}")
+
+    xml_str = generar_xml(data)
+    with open("guide_custom.xml", "w", encoding="utf-8") as f:
+        f.write(xml_str)
+
+    print("✅ Guía generada en guide_custom.xml")
