@@ -92,10 +92,15 @@ def normalize(text: str) -> str:
     return text
 
 def download_and_extract(url: str) -> bytes:
+    """Descarga y devuelve los datos, soportando gz o xml plano"""
     print(f"📥 Descargando {url} ...")
     with urllib.request.urlopen(url) as resp:
         data = resp.read()
-    return gzip.decompress(data)
+    try:
+        return gzip.decompress(data)
+    except OSError:
+        # No es gzip → se devuelve tal cual
+        return data
 
 def channel_matches(name: str) -> bool:
     norm_name = normalize(name)
