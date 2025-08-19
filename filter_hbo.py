@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import gzip, re, urllib.request, xml.etree.ElementTree as ET, io, os, hashlib, sys
+import gzip, re, urllib.request, xml.etree.ElementTree as ET, io, os, hashlib, copy
 
 # -------------------- Configuración --------------------
 URLS = [
@@ -88,7 +88,7 @@ def merge_programmes(primary,secondary):
     for tag in ["episode-num","desc","date"]:
         p=primary.find(tag); s=secondary.find(tag)
         if (p is None or not (p.text or "").strip()) and s is not None:
-            primary.append(s)
+            primary.append(copy.deepcopy(s))
     return primary
 
 def process_programme(prog):
@@ -119,7 +119,7 @@ def load_secondary_programmes(principal_code):
             for event, prog in tree:
                 if prog.tag == "programme":
                     key = (prog.attrib.get("channel"), prog.attrib.get("start"))
-                    sec_dict[key] = prog
+                    sec_dict[key] = copy.deepcopy(prog)
                     prog.clear()
         except Exception as e:
             print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}", flush=True)
@@ -153,7 +153,7 @@ def main():
                 chan_id = elem.attrib.get("id","")
                 name = elem.findtext("display-name","")
                 if chan_id not in seen_channels and channel_matches(name):
-                    root.append(elem)
+                    root.append(copy.deepcopy(elem))  # ✅ Clonar antes de limpiar
                     seen_channels.add(chan_id)
                 elem.clear()
             elif elem.tag == "programme":
@@ -164,7 +164,7 @@ def main():
                 if key in sec_dict:
                     elem = merge_programmes(elem, sec_dict[key])
                 elem = process_programme(elem)
-                root.append(elem)
+                root.append(copy.deepcopy(elem))  # ✅ Clonar antes de limpiar
                 seen_programmes.add(key)
                 elem.clear()
 
