@@ -74,6 +74,15 @@ def channel_matches(name: str) -> bool:
     norm_name = normalize(name)
     return any(re.search(p, norm_name) for p in PATTERNS)
 
+def format_episode(epnum: str) -> str:
+    """Convierte E122 -> (T1 E22)"""
+    match = re.match(r'E(\d)(\d{2})', epnum)
+    if match:
+        season = int(match.group(1))
+        episode = int(match.group(2))
+        return f"(T{season} E{episode})"
+    return f"({epnum})" if epnum else ""
+
 def main():
     root = ET.Element("tv")
     seen_channels = set()
@@ -95,16 +104,19 @@ def main():
         for programme in tree.findall("programme"):
             ch = programme.attrib.get("channel", "")
             if channel_matches(ch):
-                # Tomar datos
                 title = programme.findtext("title", default="")
                 subtitle = programme.findtext("sub-title", default="")
                 epnum = programme.findtext("episode-num", default="")
 
-                # Concatenar título, episodio y subtítulo si existen
-                if epnum or subtitle:
-                    full_title = f"{title} {epnum} {subtitle}".strip()
-                    programme.find("title").text = full_title
+                ep_formatted = format_episode(epnum)
 
+                # Concatenar todo: título + episodio + subtítulo entre comillas si existe
+                if subtitle:
+                    full_title = f"{title} {ep_formatted} \"{subtitle}\"".strip()
+                else:
+                    full_title = f"{title} {ep_formatted}".strip()
+
+                programme.find("title").text = full_title
                 root.append(programme)
 
     tree_out = ET.ElementTree(root)
