@@ -13,9 +13,14 @@ URLS = [
 
 SECONDARY_URLS = {
     "MX1": ["https://www.open-epg.com/files/mexico1.xml.gz","https://www.open-epg.com/files/mexico2.xml.gz"],
-    "ES1": ["https://www.open-epg.com/files/spain1.xml.gz","https://www.open-epg.com/files/spain2.xml.gz","https://www.open-epg.com/files/spain3.xml.gz","https://www.open-epg.com/files/spain4.xml.gz","https://www.open-epg.com/files/spain5.xml.gz","https://www.open-epg.com/files/spain6.xml.gz"],
-    "US1": ["https://www.open-epg.com/files/unitedstates1.xml.gz","https://www.open-epg.com/files/unitedstates2.xml.gz","https://www.open-epg.com/files/unitedstates3.xml.gz"],
-    "CA1": ["https://www.open-epg.com/files/canada1.xml.gz","https://www.open-epg.com/files/canada2.xml.gz","https://www.open-epg.com/files/canada3.xml.gz","https://www.open-epg.com/files/canada4.xml.gz","https://www.open-epg.com/files/canada5.xml.gz"],
+    "ES1": ["https://www.open-epg.com/files/spain1.xml.gz","https://www.open-epg.com/files/spain2.xml.gz",
+            "https://www.open-epg.com/files/spain3.xml.gz","https://www.open-epg.com/files/spain4.xml.gz",
+            "https://www.open-epg.com/files/spain5.xml.gz","https://www.open-epg.com/files/spain6.xml.gz"],
+    "US1": ["https://www.open-epg.com/files/unitedstates1.xml.gz","https://www.open-epg.com/files/unitedstates2.xml.gz",
+            "https://www.open-epg.com/files/unitedstates3.xml.gz"],
+    "CA1": ["https://www.open-epg.com/files/canada1.xml.gz","https://www.open-epg.com/files/canada2.xml.gz",
+            "https://www.open-epg.com/files/canada3.xml.gz","https://www.open-epg.com/files/canada4.xml.gz",
+            "https://www.open-epg.com/files/canada5.xml.gz"],
 }
 
 PATTERNS = [
@@ -30,7 +35,13 @@ PATTERNS = [
     r"e!.*entertainment.*eastern", r"\bcnn\b",
 ]
 
-def normalize(text): return re.sub(r'[^a-z0-9 ]',' ', re.sub(r'[áàä]','a', re.sub(r'[éèë]','e', re.sub(r'[íìï]','i', re.sub(r'[óòö]','o', re.sub(r'[úùü]','u', text.lower()))))))
+def normalize(text):
+    return re.sub(r'[^a-z0-9 ]',' ',
+                  re.sub(r'[áàä]','a',
+                  re.sub(r'[éèë]','e',
+                  re.sub(r'[íìï]','i',
+                  re.sub(r'[óòö]','o',
+                  re.sub(r'[úùü]','u', text.lower()))))))
 
 def download_and_extract(url):
     cache_file = f"/tmp/{hashlib.md5(url.encode()).hexdigest()}.xml"
@@ -45,13 +56,13 @@ def download_and_extract(url):
     with open(cache_file,"wb") as f: f.write(data)
     return data
 
-def get_channel_base_and_suffix(name):
-    name = normalize(name); parts = name.split()
-    base = ' '.join([p for p in parts if not re.match(r'^[a-z]{2,3}$',p)])
-    suffix_match = re.search(r'\.(mx|us|ca|es)$', name)
-    return base.strip(), suffix_match.group(1) if suffix_match else ''
+def get_channel_base(name):
+    name = normalize(name)
+    parts = name.split()
+    return ' '.join([p for p in parts if not re.match(r'^[a-z]{2,3}$',p)])
 
-def channels_are_equivalent(ch1,ch2): return get_channel_base_and_suffix(ch1)[0]==get_channel_base_and_suffix(ch2)[0]
+def channels_are_equivalent(ch1,ch2):
+    return get_channel_base(ch1)==get_channel_base(ch2)
 
 def format_episode(epnum, system=""):
     if not epnum: return ""
@@ -90,10 +101,13 @@ def load_secondary_programmes(principal_code):
     sec_dict={}
     for sec_url in SECONDARY_URLS.get(principal_code,[]):
         try:
-            tree = ET.ElementTree(ET.fromstring(download_and_extract(sec_url)))
-            for prog in tree.findall("programme"):
-                sec_dict[(prog.attrib.get("channel"), prog.attrib.get("start"))]=prog
-        except Exception as e: print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}")
+            data = download_and_extract(sec_url)
+            for event, elem in ET.iterparse(io.BytesIO(data)):
+                if elem.tag=="programme":
+                    sec_dict[(elem.attrib.get("channel"), elem.attrib.get("start"))]=elem
+                    elem.clear()
+        except Exception as e:
+            print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}")
     return sec_dict
 
 def channel_matches(chan_name):
@@ -101,32 +115,45 @@ def channel_matches(chan_name):
     return any(re.search(p,n) for p in PATTERNS)
 
 def main():
-    root = ET.Element("tv"); seen_channels=set(); seen_programmes=set()
+    root = ET.Element("tv")
+    seen_channels=set()
+    seen_programmes=set()
 
     for url in URLS:
-        try: tree = ET.ElementTree(ET.fromstring(download_and_extract(url)))
-        except Exception as e: print(f"⚠️ No se pudo descargar {url}: {e}"); continue
+        try:
+            data = download_and_extract(url)
+        except Exception as e:
+            print(f"⚠️ No se pudo descargar {url}: {e}")
+            continue
 
         principal_code = next((c for c in SECONDARY_URLS if c in url), None)
         sec_dict = load_secondary_programmes(principal_code) if principal_code else {}
 
-        # Filtrar canales de interés antes de procesar programas
-        for channel in tree.findall("channel"):
-            chan_id = channel.attrib.get("id","")
-            name = channel.findtext("display-name","")
-            if chan_id not in seen_channels and channel_matches(name):
-                root.append(channel); seen_channels.add(chan_id)
+        # Procesar canales en streaming
+        for event, elem in ET.iterparse(io.BytesIO(data)):
+            if elem.tag=="channel":
+                chan_id = elem.attrib.get("id","")
+                name = elem.findtext("display-name","")
+                if chan_id not in seen_channels and channel_matches(name):
+                    root.append(elem)
+                    seen_channels.add(chan_id)
+                elem.clear()
 
-        for programme in tree.findall("programme"):
-            ch = programme.attrib.get("channel","")
-            key = (ch, programme.attrib.get("start"))
-            if key in seen_programmes: continue
-            # Buscar en secundarias solo si es canal de interés
-            if any(channels_are_equivalent(ch, sc[0]) and sc[1]==programme.attrib.get("start") for sc in sec_dict):
-                sec_prog = next(sec_dict[sc] for sc in sec_dict if channels_are_equivalent(ch, sc[0]) and sc[1]==programme.attrib.get("start"))
-                programme = merge_programmes(programme, sec_prog)
-            programme = process_programme(programme)
-            root.append(programme); seen_programmes.add(key)
+            elif elem.tag=="programme":
+                ch = elem.attrib.get("channel","")
+                key = (ch, elem.attrib.get("start"))
+                if key in seen_programmes: 
+                    elem.clear()
+                    continue
+
+                sec_prog = sec_dict.get(key)
+                if sec_prog:
+                    elem = merge_programmes(elem, sec_prog)
+
+                elem = process_programme(elem)
+                root.append(elem)
+                seen_programmes.add(key)
+                elem.clear()
 
     tree_out = ET.ElementTree(root)
     try: ET.indent(tree_out, space="  ", level=0)
@@ -134,4 +161,5 @@ def main():
     tree_out.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
     print(f"✅ guide_custom.xml generado con {len(seen_channels)} canales y {len(seen_programmes)} programas.")
 
-if __name__=="__main__": main()
+if __name__=="__main__":
+    main()
