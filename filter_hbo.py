@@ -76,9 +76,9 @@ def format_episode(epnum, system=""):
     return f"(S{int(m.group(1)):02d} E{int(m.group(2)):02d})" if m else ""
 
 def merge_programmes(primary,secondary):
-    for tag in ["episode-num","desc"]:
+    for tag in ["episode-num","desc","date"]:  # 👈 añadimos "date"
         p=primary.find(tag); s=secondary.find(tag)
-        if (p is None or not p.text) and s is not None: 
+        if (p is None or not (p.text or "").strip()) and s is not None: 
             primary.append(s)
     return primary
 
