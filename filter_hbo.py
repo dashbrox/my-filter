@@ -30,19 +30,30 @@ PATTERNS = [
     r"e!.*entertainment.*eastern", r"\bcnn\b",
 ]
 
-def normalize(text): return re.sub(r'[^a-z0-9 ]',' ', re.sub(r'[áàä]','a', re.sub(r'[éèë]','e', re.sub(r'[íìï]','i', re.sub(r'[óòö]','o', re.sub(r'[úùü]','u', text.lower()))))))
+def normalize(text): 
+    return re.sub(r'[^a-z0-9 ]',' ', re.sub(r'[áàä]','a', re.sub(r'[éèë]','e', re.sub(r'[íìï]','i', re.sub(r'[óòö]','o', re.sub(r'[úùü]','u', text.lower()))))))
 
-def download_and_extract(url):
+def download_and_extract(url, timeout=60):
     cache_file = f"/tmp/{hashlib.md5(url.encode()).hexdigest()}.xml"
     if os.path.exists(cache_file):
         return open(cache_file,"rb").read()
     print(f"📥 Descargando {url} ...")
-    with urllib.request.urlopen(url) as resp:
-        data = resp.read()
     try:
-        with gzip.GzipFile(fileobj=io.BytesIO(data)) as f: data = f.read()
-    except: pass
-    with open(cache_file,"wb") as f: f.write(data)
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = resp.read()
+    except Exception as e:
+        print(f"❌ Error descargando {url}: {e}")
+        return b""
+
+    # Intentar descomprimir si es gzip
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(data)) as f:
+            data = f.read()
+    except Exception:
+        pass
+
+    with open(cache_file,"wb") as f:
+        f.write(data)
     return data
 
 def get_channel_base_and_suffix(name):
@@ -51,7 +62,8 @@ def get_channel_base_and_suffix(name):
     suffix_match = re.search(r'\.(mx|us|ca|es)$', name)
     return base.strip(), suffix_match.group(1) if suffix_match else ''
 
-def channels_are_equivalent(ch1,ch2): return get_channel_base_and_suffix(ch1)[0]==get_channel_base_and_suffix(ch2)[0]
+def channels_are_equivalent(ch1,ch2): 
+    return get_channel_base_and_suffix(ch1)[0]==get_channel_base_and_suffix(ch2)[0]
 
 def format_episode(epnum, system=""):
     if not epnum: return ""
@@ -66,7 +78,8 @@ def format_episode(epnum, system=""):
 def merge_programmes(primary,secondary):
     for tag in ["episode-num","desc"]:
         p=primary.find(tag); s=secondary.find(tag)
-        if (p is None or not p.text) and s is not None: primary.append(s)
+        if (p is None or not p.text) and s is not None: 
+            primary.append(s)
     return primary
 
 def process_programme(prog):
@@ -90,10 +103,14 @@ def load_secondary_programmes(principal_code):
     sec_dict={}
     for sec_url in SECONDARY_URLS.get(principal_code,[]):
         try:
-            tree = ET.ElementTree(ET.fromstring(download_and_extract(sec_url)))
+            raw_data = download_and_extract(sec_url)
+            if not raw_data:
+                continue
+            tree = ET.ElementTree(ET.fromstring(raw_data))
             for prog in tree.findall("programme"):
                 sec_dict[(prog.attrib.get("channel"), prog.attrib.get("start"))]=prog
-        except Exception as e: print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}")
+        except Exception as e: 
+            print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}")
     return sec_dict
 
 def channel_matches(chan_name):
@@ -104,8 +121,14 @@ def main():
     root = ET.Element("tv"); seen_channels=set(); seen_programmes=set()
 
     for url in URLS:
-        try: tree = ET.ElementTree(ET.fromstring(download_and_extract(url)))
-        except Exception as e: print(f"⚠️ No se pudo descargar {url}: {e}"); continue
+        try: 
+            raw_data = download_and_extract(url)
+            if not raw_data:
+                continue
+            tree = ET.ElementTree(ET.fromstring(raw_data))
+        except Exception as e: 
+            print(f"⚠️ No se pudo procesar {url}: {e}")
+            continue
 
         principal_code = next((c for c in SECONDARY_URLS if c in url), None)
         sec_dict = load_secondary_programmes(principal_code) if principal_code else {}
@@ -120,7 +143,8 @@ def main():
         for programme in tree.findall("programme"):
             ch = programme.attrib.get("channel","")
             key = (ch, programme.attrib.get("start"))
-            if key in seen_programmes: continue
+            if key in seen_programmes: 
+                continue
             # Buscar en secundarias solo si es canal de interés
             if any(channels_are_equivalent(ch, sc[0]) and sc[1]==programme.attrib.get("start") for sc in sec_dict):
                 sec_prog = next(sec_dict[sc] for sc in sec_dict if channels_are_equivalent(ch, sc[0]) and sc[1]==programme.attrib.get("start"))
@@ -129,9 +153,12 @@ def main():
             root.append(programme); seen_programmes.add(key)
 
     tree_out = ET.ElementTree(root)
-    try: ET.indent(tree_out, space="  ", level=0)
-    except: pass
+    try: 
+        ET.indent(tree_out, space="  ", level=0)
+    except: 
+        pass
     tree_out.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
     print(f"✅ guide_custom.xml generado con {len(seen_channels)} canales y {len(seen_programmes)} programas.")
 
-if __name__=="__main__": main()
+if __name__=="__main__": 
+    main()
