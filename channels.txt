@@ -41,6 +41,4 @@ Bravo.USA.-.Eastern.Feed.us
 FOX.(WNYW).New.York,.NY.us
 The.Tennis.Channel.us
 E!.Entertainment.USA.-.Eastern.Feed.us
-CBS.(WCBS).New.York,.NY.us
-FOX.(WNYW).New.York,.NY.us
 CNN.us
