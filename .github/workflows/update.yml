@@ -41,4 +41,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add guide_custom.xml
           git commit -m "Actualizar guide_custom.xml $(date '+%Y-%m-%d %H:%M')" || echo "No hay cambios"
+          git pull --rebase origin main || echo "No hay cambios remotos"
           git push
