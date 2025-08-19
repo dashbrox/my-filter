@@ -98,9 +98,19 @@ def download_and_extract(url: str) -> bytes:
     except OSError:
         return data
 
-def channel_matches(name: str) -> bool:
-    norm_name = normalize(name)
-    return any(re.search(p, norm_name) for p in PATTERNS)
+def get_channel_base_and_suffix(name: str):
+    """Extrae la parte base y la terminación geográfica del canal"""
+    name = normalize(name)
+    parts = name.split()
+    base = ' '.join([p for p in parts if not re.match(r'^[a-z]{2,3}$', p)])  # ignora sufijos
+    suffix_match = re.search(r'\.(mx|us|ca|es)$', name)
+    suffix = suffix_match.group(1) if suffix_match else ''
+    return base.strip(), suffix
+
+def channels_are_equivalent(ch1, ch2):
+    base1, suf1 = get_channel_base_and_suffix(ch1)
+    base2, suf2 = get_channel_base_and_suffix(ch2)
+    return base1 == base2 and suf1 == suf2
 
 def format_episode(epnum: str, system: str = "") -> str:
     if not epnum:
@@ -157,7 +167,6 @@ def process_programme(programme):
     return programme
 
 def load_secondary_programmes(principal_code):
-    """Descarga y devuelve un diccionario {(channel,start): programme} de todas las secundarias"""
     sec_dict = {}
     for sec_url in SECONDARY_URLS.get(principal_code, []):
         try:
@@ -184,7 +193,6 @@ def main():
 
         tree = ET.ElementTree(ET.fromstring(xml_data))
 
-        # Detectar principal
         principal_code = None
         for code in SECONDARY_URLS:
             if code in url:
@@ -195,17 +203,19 @@ def main():
         for channel in tree.findall("channel"):
             chan_id = channel.attrib.get("id","")
             name = channel.findtext("display-name","")
-            if channel_matches(chan_id) or channel_matches(name):
-                if chan_id not in seen_channels:
-                    root.append(channel)
-                    seen_channels.add(chan_id)
+            if chan_id not in seen_channels:
+                root.append(channel)
+                seen_channels.add(chan_id)
 
         for programme in tree.findall("programme"):
             ch = programme.attrib.get("channel","")
             key = (ch, programme.attrib.get("start"))
-            if channel_matches(ch) and key not in seen_programmes:
-                if key in sec_dict:
-                    programme = merge_programmes(programme, sec_dict[key])
+            if key not in seen_programmes:
+                # Buscar coincidencia en secundarias usando canal equivalente
+                for sec_key, sec_prog in sec_dict.items():
+                    if channels_are_equivalent(ch, sec_key[0]) and sec_key[1] == programme.attrib.get("start"):
+                        programme = merge_programmes(programme, sec_prog)
+                        break
                 programme = process_programme(programme)
                 root.append(programme)
                 seen_programmes.add(key)
