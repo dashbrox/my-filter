@@ -8,17 +8,40 @@ import xml.etree.ElementTree as ET
 
 # Fuentes de EPG que vamos a combinar
 URLS = [
-    # México: principal + secundarias
-    "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",  # principal
-    "https://www.open-epg.com/files/mexico1.xml.gz",               # secundaria
-    "https://www.open-epg.com/files/mexico2.xml.gz",               # secundaria
-
-    # Otras fuentes
+    "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
 ]
+
+# Fuentes secundarias por principal
+SECONDARY_URLS = {
+    "MX1": [
+        "https://www.open-epg.com/files/mexico1.xml.gz",
+        "https://www.open-epg.com/files/mexico2.xml.gz",
+    ],
+    "ES1": [
+        "https://www.open-epg.com/files/spain1.xml.gz",
+        "https://www.open-epg.com/files/spain2.xml.gz",
+        "https://www.open-epg.com/files/spain3.xml.gz",
+        "https://www.open-epg.com/files/spain4.xml.gz",
+        "https://www.open-epg.com/files/spain5.xml.gz",
+        "https://www.open-epg.com/files/spain6.xml.gz",
+    ],
+    "US1": [
+        "https://www.open-epg.com/files/unitedstates1.xml.gz",
+        "https://www.open-epg.com/files/unitedstates2.xml.gz",
+        "https://www.open-epg.com/files/unitedstates3.xml.gz",
+    ],
+    "CA1": [
+        "https://www.open-epg.com/files/canada1.xml.gz",
+        "https://www.open-epg.com/files/canada2.xml.gz",
+        "https://www.open-epg.com/files/canada3.xml.gz",
+        "https://www.open-epg.com/files/canada4.xml.gz",
+        "https://www.open-epg.com/files/canada5.xml.gz",
+    ],
+}
 
 # Lista de patrones para filtrar los canales
 PATTERNS = [
@@ -58,6 +81,7 @@ PATTERNS = [
 ]
 
 def normalize(text: str) -> str:
+    """Normaliza el texto para filtrar más fácilmente"""
     text = text.lower()
     text = re.sub(r'[áàä]', 'a', text)
     text = re.sub(r'[éèë]', 'e', text)
@@ -78,6 +102,7 @@ def channel_matches(name: str) -> bool:
     return any(re.search(p, norm_name) for p in PATTERNS)
 
 def format_episode(epnum: str, system: str = "") -> str:
+    """Convierte varios formatos de episodios a (S07 E02), si se puede"""
     if not epnum:
         return ""
 
@@ -95,21 +120,18 @@ def format_episode(epnum: str, system: str = "") -> str:
     if match:
         return f"(S{int(match.group(1)):02d} E{int(match.group(2)):02d})"
 
-    match = re.search(r'[Ss](\d)(\d{2})$', epnum)
-    if match:
-        return f"(S{int(match.group(1)):02d} E{int(match.group(2)):02d})"
-
     return ""
 
 def merge_programmes(primary, secondary):
+    """Completa info de primary con datos de secondary si faltan"""
     ep_primary = primary.find("episode-num")
     ep_secondary = secondary.find("episode-num")
-    if (ep_primary is None or not (ep_primary.text or "").strip()) and ep_secondary is not None:
+    if (ep_primary is None or not ep_primary.text) and ep_secondary is not None:
         primary.append(ep_secondary)
 
     desc_primary = primary.find("desc")
     desc_secondary = secondary.find("desc")
-    if (desc_primary is None or not (desc_primary.text or "").strip()) and desc_secondary is not None:
+    if (desc_primary is None or not desc_primary.text) and desc_secondary is not None:
         primary.append(desc_secondary)
 
     return primary
@@ -117,8 +139,7 @@ def merge_programmes(primary, secondary):
 def process_programme(programme):
     title_elem = programme.find("title")
     if title_elem is None:
-        return
-
+        return programme
     title = title_elem.text or ""
 
     epnum_elem = programme.find("episode-num")
@@ -130,8 +151,10 @@ def process_programme(programme):
         ep_formatted = ""
 
     if ep_formatted:
+        # Serie
         full_title = f"{title} {ep_formatted}".strip()
     else:
+        # Película o documental
         categories = [c.text.lower() for c in programme.findall("category") if c.text]
         is_movie_or_doc = any(
             kw in categories for kw in ["movie", "film", "pelicula", "documentary", "documental"]
@@ -144,11 +167,12 @@ def process_programme(programme):
             full_title = title.strip()
 
     title_elem.text = full_title
+    return programme
 
 def main():
     root = ET.Element("tv")
     seen_channels = set()
-    programmes_by_key = {}
+    seen_programmes = set()
 
     for url in URLS:
         try:
@@ -159,6 +183,7 @@ def main():
 
         tree = ET.ElementTree(ET.fromstring(xml_data))
 
+        # Filtrar canales
         for channel in tree.findall("channel"):
             chan_id = channel.attrib.get("id", "")
             name = channel.findtext("display-name", default="")
@@ -167,25 +192,34 @@ def main():
                     root.append(channel)
                     seen_channels.add(chan_id)
 
+        # Filtrar y mejorar programas
         for programme in tree.findall("programme"):
             ch = programme.attrib.get("channel", "")
             key = (ch, programme.attrib.get("start"))
-            if not channel_matches(ch):
-                continue
+            if channel_matches(ch) and key not in seen_programmes:
+                # Comprobar si es fuente principal con secundarias
+                principal_code = None
+                for code in SECONDARY_URLS:
+                    if code in url:
+                        principal_code = code
+                        break
 
-            # MX1 + secundarias
-            if key in programmes_by_key and url != URLS[0]:
-                programmes_by_key[key] = merge_programmes(programmes_by_key[key], programme)
-                continue
+                if principal_code:
+                    # Descargar secundarias y completar info
+                    for sec_url in SECONDARY_URLS[principal_code]:
+                        try:
+                            sec_data = download_and_extract(sec_url)
+                            sec_tree = ET.ElementTree(ET.fromstring(sec_data))
+                            sec_prog = sec_tree.find(f".//programme[@channel='{ch}'][@start='{programme.attrib.get('start')}']")
+                            if sec_prog is not None:
+                                programme = merge_programmes(programme, sec_prog)
+                        except Exception as e:
+                            print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}")
 
-            if url == URLS[0]:
-                process_programme(programme)
-                programmes_by_key[key] = programme
-
-            # En el futuro podrías agregar la misma lógica para US1, CA1, ES1, PLEX1
-
-    for prog in programmes_by_key.values():
-        root.append(prog)
+                # Procesar título según tipo
+                programme = process_programme(programme)
+                root.append(programme)
+                seen_programmes.add(key)
 
     tree_out = ET.ElementTree(root)
     try:
@@ -193,7 +227,7 @@ def main():
     except AttributeError:
         pass
     tree_out.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
-    print(f"✅ guide_custom.xml generado con {len(seen_channels)} canales y {len(programmes_by_key)} programas.")
+    print(f"✅ guide_custom.xml generado con {len(seen_channels)} canales y {len(seen_programmes)} programas.")
 
 if __name__ == "__main__":
     main()
