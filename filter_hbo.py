@@ -53,16 +53,15 @@ PATTERNS = [
 ]
 
 def normalize(text: str) -> str:
-    return (
-        text.lower()
-        .replace("á", "a")
-        .replace("é", "e")
-        .replace("í", "i")
-        .replace("ó", "o")
-        .replace("ú", "u")
-        .replace("-", " ")
-        .replace("_", " ")
-    )
+    """Normaliza el texto para filtrar más fácilmente"""
+    text = text.lower()
+    text = re.sub(r'[áàä]', 'a', text)
+    text = re.sub(r'[éèë]', 'e', text)
+    text = re.sub(r'[íìï]', 'i', text)
+    text = re.sub(r'[óòö]', 'o', text)
+    text = re.sub(r'[úùü]', 'u', text)
+    text = re.sub(r'[^a-z0-9 ]', ' ', text)
+    return text
 
 def download_and_extract(url: str) -> bytes:
     print(f"📥 Descargando {url} ...")
@@ -75,17 +74,18 @@ def channel_matches(name: str) -> bool:
     return any(re.search(p, norm_name) for p in PATTERNS)
 
 def format_episode(epnum: str) -> str:
-    """Convierte E122 -> (T1 E22)"""
-    match = re.match(r'E(\d)(\d{2})', epnum)
+    """Convierte E122, 1x22, etc. -> (T1 E22)"""
+    match = re.match(r'E?(\d{1,2})[x-]?(\d{1,2})', epnum)
     if match:
         season = int(match.group(1))
         episode = int(match.group(2))
         return f"(T{season} E{episode})"
-    return f"({epnum})" if epnum else ""
+    return ""
 
 def main():
     root = ET.Element("tv")
     seen_channels = set()
+    seen_programmes = set()
 
     for url in URLS:
         xml_data = download_and_extract(url)
@@ -103,21 +103,21 @@ def main():
         # Filtrar y mejorar programas
         for programme in tree.findall("programme"):
             ch = programme.attrib.get("channel", "")
-            if channel_matches(ch):
+            key = (ch, programme.attrib.get("start"))
+            if channel_matches(ch) and key not in seen_programmes:
                 title = programme.findtext("title", default="")
-                subtitle = programme.findtext("sub-title", default="")
                 epnum = programme.findtext("episode-num", default="")
 
+                # Si tiene episodio -> serie, si no -> película
                 ep_formatted = format_episode(epnum)
-
-                # Concatenar todo: título + episodio + subtítulo entre comillas si existe
-                if subtitle:
-                    full_title = f"{title} {ep_formatted} \"{subtitle}\"".strip()
-                else:
+                if ep_formatted:
                     full_title = f"{title} {ep_formatted}".strip()
+                else:
+                    full_title = title.strip()
 
                 programme.find("title").text = full_title
                 root.append(programme)
+                seen_programmes.add(key)
 
     tree_out = ET.ElementTree(root)
     try:
@@ -125,7 +125,7 @@ def main():
     except AttributeError:
         pass
     tree_out.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
-    print("✅ guide_custom.xml generado con éxito.")
+    print(f"✅ guide_custom.xml generado con {len(seen_channels)} canales y {len(seen_programmes)} programas.")
 
 if __name__ == "__main__":
     main()
