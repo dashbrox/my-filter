@@ -74,7 +74,7 @@ def channel_matches(name: str) -> bool:
     return any(re.search(p, norm_name) for p in PATTERNS)
 
 def format_episode(epnum: str, system: str = "") -> str:
-    """Convierte varios formatos de episodios a (T1 E22), si se puede"""
+    """Convierte varios formatos de episodios a (S07 E02), si se puede"""
     if not epnum:
         return ""
 
@@ -85,14 +85,14 @@ def format_episode(epnum: str, system: str = "") -> str:
             try:
                 season = int(parts[0]) + 1
                 episode = int(parts[1]) + 1
-                return f"(T{season} E{episode})"
+                return f"(S{season:02d} E{episode:02d})"
             except ValueError:
                 return ""
 
     # Formatos tipo S01E05, 1x05, T1E05
     match = re.search(r'[Ss]?(\d{1,2})[xEe-](\d{1,3})', epnum)
     if match:
-        return f"(T{int(match.group(1))} E{int(match.group(2))})"
+        return f"(S{int(match.group(1)):02d} E{int(match.group(2)):02d})"
 
     # Si no coincide ningún formato → no mostrar nada
     return ""
@@ -140,13 +140,22 @@ def main():
                     ep_formatted = ""
 
                 if ep_formatted:
-                    # Serie
+                    # Serie → solo título de la serie + (Sxx Exx)
                     full_title = f"{title} {ep_formatted}".strip()
                 else:
-                    # Película -> extraer año si existe
-                    date_text = programme.findtext("date")
-                    year = date_text[:4] if date_text and len(date_text) >= 4 else ""
-                    full_title = f"{title} ({year})" if year else title.strip()
+                    # Revisar si es película o documental
+                    categories = [c.text.lower() for c in programme.findall("category") if c.text]
+                    is_movie_or_doc = any(
+                        kw in categories for kw in ["movie", "film", "pelicula", "documentary", "documental"]
+                    )
+
+                    if is_movie_or_doc:
+                        date_text = programme.findtext("date")
+                        year = date_text[:4] if date_text and len(date_text) >= 4 else ""
+                        full_title = f"{title} ({year})" if year else title.strip()
+                    else:
+                        # Otro tipo de programa → solo título
+                        full_title = title.strip()
 
                 title_elem.text = full_title
                 root.append(programme)
