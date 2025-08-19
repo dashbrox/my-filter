@@ -17,7 +17,6 @@ URLS = [
 
 # Lista de patrones para filtrar los canales
 PATTERNS = [
-    # HBO México / Latinoamérica
     r"\bhbo\b.*mexico",
     r"\bhbo\s*2\b.*(latinoamerica|latin america)",
     r"\bhbo\s*signature\b.*(latinoamerica|latin america)",
@@ -25,39 +24,22 @@ PATTERNS = [
     r"\bhbo\s*plus\b.*mx",
     r"\bhbo\s*mundi\b",
     r"\bhbo\s*pop\b",
-
-    # Canales México
     r"canal\.?\.?2.*(mexico|xew|las estrellas)",
     r"azteca.*(mexico|xhor)",
     r"\bcinemax\b.*mexico",
-
-    # Canales Canadá
-    r"\btsn1\b",
-    r"\btsn2\b",
-    r"\btsn3\b",
-    r"\btsn4\b",
-
-    # Canales USA principales
+    r"\btsn[1-4]\b",
     r"abc.*(kabc|los angeles)",
     r"abc.*(wabc|new york)",
     r"nbc.*(wnbc|new york)",
     r"nbc.*(knbc|los angeles)",
-
-    # Canales España (Movistar+ Deportes)
     r"m\+\.?deportes(\.\d+)?\.es",
-
-    # Plex
     r"plex\.tv\.t2\.plex",
-
-    # --- NUEVOS US Feeds / Networks ---
     r"hallmark.*eastern",
     r"hallmark.*mystery.*eastern",
-    r"hbo\s*2.*eastern",
-    r"hbo\s*2.*pacific",
+    r"hbo\s*2.*(eastern|pacific)",
     r"hbo.*comedy.*east",
     r"hbo.*eastern",
-    r"hbo.*family.*eastern",
-    r"hbo.*family.*pacific",
+    r"hbo.*family.*(eastern|pacific)",
     r"hbo.*latino.*eastern",
     r"hbo.*pacific",
     r"hbo.*signature.*eastern",
@@ -70,8 +52,7 @@ PATTERNS = [
     r"\bcnn\b",
 ]
 
-# Normalizar texto (quitar mayúsculas, acentos, caracteres raros)
-def normalize(text):
+def normalize(text: str) -> str:
     return (
         text.lower()
         .replace("á", "a")
@@ -83,37 +64,42 @@ def normalize(text):
         .replace("_", " ")
     )
 
-def download_and_extract(url):
-    print(f"Descargando {url} ...")
+def download_and_extract(url: str) -> bytes:
+    print(f"📥 Descargando {url} ...")
     with urllib.request.urlopen(url) as resp:
         data = resp.read()
     return gzip.decompress(data)
 
-def channel_matches(name):
+def channel_matches(name: str) -> bool:
     norm_name = normalize(name)
-    return any(re.search(pattern, norm_name) for pattern in PATTERNS)
+    return any(re.search(p, norm_name) for p in PATTERNS)
 
 def main():
     root = ET.Element("tv")
+    seen_channels = set()
 
     for url in URLS:
         xml_data = download_and_extract(url)
         tree = ET.ElementTree(ET.fromstring(xml_data))
+
         for channel in tree.findall("channel"):
-            name = "".join(channel.findtext("display-name", default=""))
-            if channel_matches(name):
-                root.append(channel)
+            chan_id = channel.attrib.get("id", "")
+            name = channel.findtext("display-name", default="")
+            if channel_matches(chan_id) or channel_matches(name):
+                if chan_id not in seen_channels:
+                    root.append(channel)
+                    seen_channels.add(chan_id)
+
         for programme in tree.findall("programme"):
             ch = programme.attrib.get("channel", "")
             if channel_matches(ch):
                 root.append(programme)
 
-    # Guardar resultado bonito
     tree_out = ET.ElementTree(root)
     try:
-        ET.indent(tree_out, space="  ", level=0)  # Python ≥3.9
+        ET.indent(tree_out, space="  ", level=0)
     except AttributeError:
-        pass  # Ignorar si no está disponible
+        pass
     tree_out.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
     print("✅ guide_custom.xml generado con éxito.")
 
