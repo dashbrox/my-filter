@@ -8,7 +8,12 @@ import xml.etree.ElementTree as ET
 
 # Fuentes de EPG que vamos a combinar
 URLS = [
-    "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
+    # México: principal + secundarias
+    "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",  # principal
+    "https://www.open-epg.com/files/mexico1.xml.gz",               # secundaria
+    "https://www.open-epg.com/files/mexico2.xml.gz",               # secundaria
+
+    # Otras fuentes
     "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
@@ -53,7 +58,6 @@ PATTERNS = [
 ]
 
 def normalize(text: str) -> str:
-    """Normaliza el texto para filtrar más fácilmente"""
     text = text.lower()
     text = re.sub(r'[áàä]', 'a', text)
     text = re.sub(r'[éèë]', 'e', text)
@@ -74,11 +78,9 @@ def channel_matches(name: str) -> bool:
     return any(re.search(p, norm_name) for p in PATTERNS)
 
 def format_episode(epnum: str, system: str = "") -> str:
-    """Convierte varios formatos de episodios a (S07 E02), si se puede"""
     if not epnum:
         return ""
 
-    # Formato xmltv_ns: temporada y episodio empiezan desde 0 (ej: 0.4.0/1)
     if system == "xmltv_ns":
         parts = epnum.split(".")
         if len(parts) >= 2:
@@ -89,18 +91,64 @@ def format_episode(epnum: str, system: str = "") -> str:
             except ValueError:
                 return ""
 
-    # Formatos tipo S01E05, 1x05, T1E05
     match = re.search(r'[Ss]?(\d{1,2})[xEe-](\d{1,3})', epnum)
     if match:
         return f"(S{int(match.group(1)):02d} E{int(match.group(2)):02d})"
 
-    # Si no coincide ningún formato → no mostrar nada
+    match = re.search(r'[Ss](\d)(\d{2})$', epnum)
+    if match:
+        return f"(S{int(match.group(1)):02d} E{int(match.group(2)):02d})"
+
     return ""
+
+def merge_programmes(primary, secondary):
+    ep_primary = primary.find("episode-num")
+    ep_secondary = secondary.find("episode-num")
+    if (ep_primary is None or not (ep_primary.text or "").strip()) and ep_secondary is not None:
+        primary.append(ep_secondary)
+
+    desc_primary = primary.find("desc")
+    desc_secondary = secondary.find("desc")
+    if (desc_primary is None or not (desc_primary.text or "").strip()) and desc_secondary is not None:
+        primary.append(desc_secondary)
+
+    return primary
+
+def process_programme(programme):
+    title_elem = programme.find("title")
+    if title_elem is None:
+        return
+
+    title = title_elem.text or ""
+
+    epnum_elem = programme.find("episode-num")
+    if epnum_elem is not None:
+        epnum = epnum_elem.text or ""
+        system = epnum_elem.attrib.get("system", "")
+        ep_formatted = format_episode(epnum, system)
+    else:
+        ep_formatted = ""
+
+    if ep_formatted:
+        full_title = f"{title} {ep_formatted}".strip()
+    else:
+        categories = [c.text.lower() for c in programme.findall("category") if c.text]
+        is_movie_or_doc = any(
+            kw in categories for kw in ["movie", "film", "pelicula", "documentary", "documental"]
+        )
+        if is_movie_or_doc:
+            date_text = programme.findtext("date")
+            year = date_text[:4] if date_text and len(date_text) >= 4 else ""
+            full_title = f"{title} ({year})" if year else title.strip()
+        else:
+            full_title = title.strip()
+
+    title_elem.text = full_title
 
 def main():
     root = ET.Element("tv")
     seen_channels = set()
-    seen_programmes = set()
+    programmes_by_key = {}
 
     for url in URLS:
         try:
@@ -111,7 +159,6 @@ def main():
 
         tree = ET.ElementTree(ET.fromstring(xml_data))
 
-        # Filtrar canales
         for channel in tree.findall("channel"):
             chan_id = channel.attrib.get("id", "")
             name = channel.findtext("display-name", default="")
@@ -120,54 +167,33 @@ def main():
                     root.append(channel)
                     seen_channels.add(chan_id)
 
-        # Filtrar y mejorar programas
         for programme in tree.findall("programme"):
             ch = programme.attrib.get("channel", "")
             key = (ch, programme.attrib.get("start"))
-            if channel_matches(ch) and key not in seen_programmes:
-                title_elem = programme.find("title")
-                if title_elem is None:
-                    continue
-                title = title_elem.text or ""
+            if not channel_matches(ch):
+                continue
 
-                # Episodios
-                epnum_elem = programme.find("episode-num")
-                if epnum_elem is not None:
-                    epnum = epnum_elem.text or ""
-                    system = epnum_elem.attrib.get("system", "")
-                    ep_formatted = format_episode(epnum, system)
-                else:
-                    ep_formatted = ""
+            # MX1 + secundarias
+            if key in programmes_by_key and url != URLS[0]:
+                programmes_by_key[key] = merge_programmes(programmes_by_key[key], programme)
+                continue
 
-                if ep_formatted:
-                    # Serie → solo título de la serie + (Sxx Exx)
-                    full_title = f"{title} {ep_formatted}".strip()
-                else:
-                    # Revisar si es película o documental
-                    categories = [c.text.lower() for c in programme.findall("category") if c.text]
-                    is_movie_or_doc = any(
-                        kw in categories for kw in ["movie", "film", "pelicula", "documentary", "documental"]
-                    )
+            if url == URLS[0]:
+                process_programme(programme)
+                programmes_by_key[key] = programme
 
-                    if is_movie_or_doc:
-                        date_text = programme.findtext("date")
-                        year = date_text[:4] if date_text and len(date_text) >= 4 else ""
-                        full_title = f"{title} ({year})" if year else title.strip()
-                    else:
-                        # Otro tipo de programa → solo título
-                        full_title = title.strip()
+            # En el futuro podrías agregar la misma lógica para US1, CA1, ES1, PLEX1
 
-                title_elem.text = full_title
-                root.append(programme)
-                seen_programmes.add(key)
+    for prog in programmes_by_key.values():
+        root.append(prog)
 
     tree_out = ET.ElementTree(root)
     try:
-        ET.indent(tree_out, space="  ", level=0)  # Python ≥3.9
+        ET.indent(tree_out, space="  ", level=0)
     except AttributeError:
         pass
     tree_out.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
-    print(f"✅ guide_custom.xml generado con {len(seen_channels)} canales y {len(seen_programmes)} programas.")
+    print(f"✅ guide_custom.xml generado con {len(seen_channels)} canales y {len(programmes_by_key)} programas.")
 
 if __name__ == "__main__":
     main()
