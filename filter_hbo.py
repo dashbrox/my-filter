@@ -82,6 +82,7 @@ def main():
         xml_data = download_and_extract(url)
         tree = ET.ElementTree(ET.fromstring(xml_data))
 
+        # Filtrar canales
         for channel in tree.findall("channel"):
             chan_id = channel.attrib.get("id", "")
             name = channel.findtext("display-name", default="")
@@ -90,14 +91,25 @@ def main():
                     root.append(channel)
                     seen_channels.add(chan_id)
 
+        # Filtrar y mejorar programas
         for programme in tree.findall("programme"):
             ch = programme.attrib.get("channel", "")
             if channel_matches(ch):
+                # Tomar datos
+                title = programme.findtext("title", default="")
+                subtitle = programme.findtext("sub-title", default="")
+                epnum = programme.findtext("episode-num", default="")
+
+                # Concatenar título, episodio y subtítulo si existen
+                if epnum or subtitle:
+                    full_title = f"{title} {epnum} {subtitle}".strip()
+                    programme.find("title").text = full_title
+
                 root.append(programme)
 
     tree_out = ET.ElementTree(root)
     try:
-        ET.indent(tree_out, space="  ", level=0)
+        ET.indent(tree_out, space="  ", level=0)  # Python ≥3.9
     except AttributeError:
         pass
     tree_out.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
