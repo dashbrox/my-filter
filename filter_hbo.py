@@ -5,6 +5,7 @@ import gzip
 import re
 import urllib.request
 import xml.etree.ElementTree as ET
+import io  # 👈 agregado para manejar BytesIO
 
 # Fuentes de EPG que vamos a combinar
 URLS = [
@@ -97,9 +98,11 @@ def download_and_extract(url: str) -> bytes:
     with urllib.request.urlopen(url) as resp:
         data = resp.read()
     try:
-        return gzip.decompress(data)
+        # Intentar como gzip real
+        with gzip.GzipFile(fileobj=io.BytesIO(data)) as f:
+            return f.read()
     except OSError:
-        # No es gzip → se devuelve tal cual
+        # No es gzip → usar tal cual
         return data
 
 def channel_matches(name: str) -> bool:
@@ -156,10 +159,8 @@ def process_programme(programme):
         ep_formatted = ""
 
     if ep_formatted:
-        # Serie
         full_title = f"{title} {ep_formatted}".strip()
     else:
-        # Película o documental
         categories = [c.text.lower() for c in programme.findall("category") if c.text]
         is_movie_or_doc = any(
             kw in categories for kw in ["movie", "film", "pelicula", "documentary", "documental"]
@@ -188,7 +189,6 @@ def main():
 
         tree = ET.ElementTree(ET.fromstring(xml_data))
 
-        # Filtrar canales
         for channel in tree.findall("channel"):
             chan_id = channel.attrib.get("id", "")
             name = channel.findtext("display-name", default="")
@@ -197,12 +197,10 @@ def main():
                     root.append(channel)
                     seen_channels.add(chan_id)
 
-        # Filtrar y mejorar programas
         for programme in tree.findall("programme"):
             ch = programme.attrib.get("channel", "")
             key = (ch, programme.attrib.get("start"))
             if channel_matches(ch) and key not in seen_programmes:
-                # Comprobar si es fuente principal con secundarias
                 principal_code = None
                 for code in SECONDARY_URLS:
                     if code in url:
@@ -210,7 +208,6 @@ def main():
                         break
 
                 if principal_code:
-                    # Descargar secundarias y completar info
                     for sec_url in SECONDARY_URLS[principal_code]:
                         try:
                             sec_data = download_and_extract(sec_url)
@@ -221,7 +218,6 @@ def main():
                         except Exception as e:
                             print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}")
 
-                # Procesar título según tipo
                 programme = process_programme(programme)
                 root.append(programme)
                 seen_programmes.add(key)
