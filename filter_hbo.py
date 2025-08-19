@@ -33,12 +33,14 @@ PATTERNS = [
 
 # -------------------- Funciones --------------------
 def normalize(text):
-    return re.sub(r'[^a-z0-9 ]',' ', 
-           re.sub(r'[áàä]','a', 
-           re.sub(r'[éèë]','e',
-           re.sub(r'[íìï]','i',
-           re.sub(r'[óòö]','o',
-           re.sub(r'[úùü]','u', text.lower())))))))
+    text = text.lower()
+    text = re.sub(r'[áàä]','a', text)
+    text = re.sub(r'[éèë]','e', text)
+    text = re.sub(r'[íìï]','i', text)
+    text = re.sub(r'[óòö]','o', text)
+    text = re.sub(r'[úùü]','u', text)
+    text = re.sub(r'[^a-z0-9 ]',' ', text)
+    return text
 
 def download_and_extract(url, timeout=20):
     cache_file = f"/tmp/{hashlib.md5(url.encode()).hexdigest()}.xml"
@@ -52,7 +54,7 @@ def download_and_extract(url, timeout=20):
         print(f"❌ Error descargando {url}: {e}", flush=True)
         return b""
 
-    try:  # descomprimir gzip
+    try:
         with gzip.GzipFile(fileobj=io.BytesIO(data)) as f:
             data = f.read()
     except Exception:
@@ -83,7 +85,7 @@ def format_episode(epnum, system=""):
     return f"(S{int(m.group(1)):02d} E{int(m.group(2)):02d})" if m else ""
 
 def merge_programmes(primary,secondary):
-    for tag in ["episode-num","desc","date"]:  # incluimos date
+    for tag in ["episode-num","desc","date"]:
         p=primary.find(tag); s=secondary.find(tag)
         if (p is None or not (p.text or "").strip()) and s is not None:
             primary.append(s)
