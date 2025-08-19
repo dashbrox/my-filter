@@ -12,26 +12,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # necesario para permitir push con GITHUB_TOKEN
+      contents: write
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          persist-credentials: true   # permite push automático
+          persist-credentials: true
 
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Instalar dependencias
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Ejecutar scraper HBO
-        run: python scraper_mitv.py
+      - name: Ejecutar filtro HBO
+        run: python filter_hbo.py
 
       - name: Commit y push de cambios
         env:
