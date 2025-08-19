@@ -5,7 +5,7 @@ import gzip
 import re
 import urllib.request
 import xml.etree.ElementTree as ET
-import io  # 👈 agregado para manejar BytesIO
+import io
 
 # Fuentes de EPG que vamos a combinar
 URLS = [
@@ -44,7 +44,6 @@ SECONDARY_URLS = {
     ],
 }
 
-# Lista de patrones para filtrar los canales
 PATTERNS = [
     r"\bhbo\b.*mexico",
     r"\bhbo\s*2\b.*(latinoamerica|latin america)",
@@ -82,7 +81,6 @@ PATTERNS = [
 ]
 
 def normalize(text: str) -> str:
-    """Normaliza el texto para filtrar más fácilmente"""
     text = text.lower()
     text = re.sub(r'[áàä]', 'a', text)
     text = re.sub(r'[éèë]', 'e', text)
@@ -92,25 +90,34 @@ def normalize(text: str) -> str:
     text = re.sub(r'[^a-z0-9 ]', ' ', text)
     return text
 
-def download_and_extract(url: str) -> bytes:
-    """Descarga y devuelve los datos, soportando gz o xml plano"""
+def download_and_extract_multiple_xml(url: str):
+    """Descarga un archivo y devuelve una lista de árboles XML separados"""
     print(f"📥 Descargando {url} ...")
     with urllib.request.urlopen(url) as resp:
         data = resp.read()
+
     try:
-        # Intentar como gzip real
         with gzip.GzipFile(fileobj=io.BytesIO(data)) as f:
-            return f.read()
+            data = f.read()
     except OSError:
-        # No es gzip → usar tal cual
-        return data
+        pass  # no es gzip, usamos los bytes tal cual
+
+    text = data.decode('utf-8', errors='ignore').replace('\r\n', '\n')
+    xml_blocks = re.findall(r'(<tv.*?>.*?</tv>)', text, flags=re.DOTALL)
+
+    trees = []
+    for block in xml_blocks:
+        try:
+            trees.append(ET.ElementTree(ET.fromstring(block)))
+        except ET.ParseError as e:
+            print(f"⚠️ Error parseando bloque XML en {url}: {e}")
+    return trees
 
 def channel_matches(name: str) -> bool:
     norm_name = normalize(name)
     return any(re.search(p, norm_name) for p in PATTERNS)
 
 def format_episode(epnum: str, system: str = "") -> str:
-    """Convierte varios formatos de episodios a (S07 E02), si se puede"""
     if not epnum:
         return ""
 
@@ -131,7 +138,6 @@ def format_episode(epnum: str, system: str = "") -> str:
     return ""
 
 def merge_programmes(primary, secondary):
-    """Completa info de primary con datos de secondary si faltan"""
     ep_primary = primary.find("episode-num")
     ep_secondary = secondary.find("episode-num")
     if (ep_primary is None or not ep_primary.text) and ep_secondary is not None:
@@ -182,45 +188,44 @@ def main():
 
     for url in URLS:
         try:
-            xml_data = download_and_extract(url)
+            trees = download_and_extract_multiple_xml(url)
         except Exception as e:
             print(f"⚠️ No se pudo descargar {url}: {e}")
             continue
 
-        tree = ET.ElementTree(ET.fromstring(xml_data))
+        for tree in trees:
+            for channel in tree.findall("channel"):
+                chan_id = channel.attrib.get("id", "")
+                name = channel.findtext("display-name", default="")
+                if channel_matches(chan_id) or channel_matches(name):
+                    if chan_id not in seen_channels:
+                        root.append(channel)
+                        seen_channels.add(chan_id)
 
-        for channel in tree.findall("channel"):
-            chan_id = channel.attrib.get("id", "")
-            name = channel.findtext("display-name", default="")
-            if channel_matches(chan_id) or channel_matches(name):
-                if chan_id not in seen_channels:
-                    root.append(channel)
-                    seen_channels.add(chan_id)
+            for programme in tree.findall("programme"):
+                ch = programme.attrib.get("channel", "")
+                key = (ch, programme.attrib.get("start"))
+                if channel_matches(ch) and key not in seen_programmes:
+                    principal_code = None
+                    for code in SECONDARY_URLS:
+                        if code in url:
+                            principal_code = code
+                            break
 
-        for programme in tree.findall("programme"):
-            ch = programme.attrib.get("channel", "")
-            key = (ch, programme.attrib.get("start"))
-            if channel_matches(ch) and key not in seen_programmes:
-                principal_code = None
-                for code in SECONDARY_URLS:
-                    if code in url:
-                        principal_code = code
-                        break
+                    if principal_code:
+                        for sec_url in SECONDARY_URLS[principal_code]:
+                            try:
+                                sec_trees = download_and_extract_multiple_xml(sec_url)
+                                for sec_tree in sec_trees:
+                                    sec_prog = sec_tree.find(f".//programme[@channel='{ch}'][@start='{programme.attrib.get('start')}']")
+                                    if sec_prog is not None:
+                                        programme = merge_programmes(programme, sec_prog)
+                            except Exception as e:
+                                print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}")
 
-                if principal_code:
-                    for sec_url in SECONDARY_URLS[principal_code]:
-                        try:
-                            sec_data = download_and_extract(sec_url)
-                            sec_tree = ET.ElementTree(ET.fromstring(sec_data))
-                            sec_prog = sec_tree.find(f".//programme[@channel='{ch}'][@start='{programme.attrib.get('start')}']")
-                            if sec_prog is not None:
-                                programme = merge_programmes(programme, sec_prog)
-                        except Exception as e:
-                            print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}")
-
-                programme = process_programme(programme)
-                root.append(programme)
-                seen_programmes.add(key)
+                    programme = process_programme(programme)
+                    root.append(programme)
+                    seen_programmes.add(key)
 
     tree_out = ET.ElementTree(root)
     try:
