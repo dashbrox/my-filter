@@ -73,15 +73,28 @@ def channel_matches(name: str) -> bool:
     norm_name = normalize(name)
     return any(re.search(p, norm_name) for p in PATTERNS)
 
-def format_episode(epnum: str) -> str:
-    """Convierte varios formatos de episodios a (T1 E22)"""
+def format_episode(epnum: str, system: str = "") -> str:
+    """Convierte varios formatos de episodios a (T1 E22), si se puede"""
     if not epnum:
         return ""
-    match = re.search(r'(?:S?(\d{1,2}))?[xE-]?(\d{1,2})', epnum, re.IGNORECASE)
+
+    # Formato xmltv_ns: temporada y episodio empiezan desde 0 (ej: 0.4.0/1)
+    if system == "xmltv_ns":
+        parts = epnum.split(".")
+        if len(parts) >= 2:
+            try:
+                season = int(parts[0]) + 1
+                episode = int(parts[1]) + 1
+                return f"(T{season} E{episode})"
+            except ValueError:
+                return ""
+
+    # Formatos tipo S01E05, 1x05, T1E05
+    match = re.search(r'[Ss]?(\d{1,2})[xEe-](\d{1,3})', epnum)
     if match:
-        season = int(match.group(1)) if match.group(1) else 1
-        episode = int(match.group(2))
-        return f"(T{season} E{episode})"
+        return f"(T{int(match.group(1))} E{int(match.group(2))})"
+
+    # Si no coincide ningún formato → no mostrar nada
     return ""
 
 def main():
@@ -116,9 +129,16 @@ def main():
                 if title_elem is None:
                     continue
                 title = title_elem.text or ""
-                epnum = programme.findtext("episode-num", default="")
 
-                ep_formatted = format_episode(epnum)
+                # Episodios
+                epnum_elem = programme.find("episode-num")
+                if epnum_elem is not None:
+                    epnum = epnum_elem.text or ""
+                    system = epnum_elem.attrib.get("system", "")
+                    ep_formatted = format_episode(epnum, system)
+                else:
+                    ep_formatted = ""
+
                 if ep_formatted:
                     # Serie
                     full_title = f"{title} {ep_formatted}".strip()
