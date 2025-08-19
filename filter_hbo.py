@@ -7,7 +7,6 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import io
 
-# Fuentes de EPG que vamos a combinar
 URLS = [
     "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
@@ -16,7 +15,6 @@ URLS = [
     "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
 ]
 
-# Fuentes secundarias por principal
 SECONDARY_URLS = {
     "MX1": [
         "https://www.open-epg.com/files/mexico1.xml.gz",
@@ -90,28 +88,15 @@ def normalize(text: str) -> str:
     text = re.sub(r'[^a-z0-9 ]', ' ', text)
     return text
 
-def download_and_extract_multiple_xml(url: str):
-    """Descarga un archivo y devuelve una lista de árboles XML separados"""
+def download_and_extract(url: str) -> bytes:
     print(f"📥 Descargando {url} ...")
     with urllib.request.urlopen(url) as resp:
         data = resp.read()
-
     try:
         with gzip.GzipFile(fileobj=io.BytesIO(data)) as f:
-            data = f.read()
+            return f.read()
     except OSError:
-        pass  # no es gzip, usamos los bytes tal cual
-
-    text = data.decode('utf-8', errors='ignore').replace('\r\n', '\n')
-    xml_blocks = re.findall(r'(<tv.*?>.*?</tv>)', text, flags=re.DOTALL)
-
-    trees = []
-    for block in xml_blocks:
-        try:
-            trees.append(ET.ElementTree(ET.fromstring(block)))
-        except ET.ParseError as e:
-            print(f"⚠️ Error parseando bloque XML en {url}: {e}")
-    return trees
+        return data
 
 def channel_matches(name: str) -> bool:
     norm_name = normalize(name)
@@ -120,7 +105,6 @@ def channel_matches(name: str) -> bool:
 def format_episode(epnum: str, system: str = "") -> str:
     if not epnum:
         return ""
-
     if system == "xmltv_ns":
         parts = epnum.split(".")
         if len(parts) >= 2:
@@ -130,11 +114,9 @@ def format_episode(epnum: str, system: str = "") -> str:
                 return f"(S{season:02d} E{episode:02d})"
             except ValueError:
                 return ""
-
     match = re.search(r'[Ss]?(\d{1,2})[xEe-](\d{1,3})', epnum)
     if match:
         return f"(S{int(match.group(1)):02d} E{int(match.group(2)):02d})"
-
     return ""
 
 def merge_programmes(primary, secondary):
@@ -142,12 +124,10 @@ def merge_programmes(primary, secondary):
     ep_secondary = secondary.find("episode-num")
     if (ep_primary is None or not ep_primary.text) and ep_secondary is not None:
         primary.append(ep_secondary)
-
     desc_primary = primary.find("desc")
     desc_secondary = secondary.find("desc")
     if (desc_primary is None or not desc_primary.text) and desc_secondary is not None:
         primary.append(desc_secondary)
-
     return primary
 
 def process_programme(programme):
@@ -155,7 +135,6 @@ def process_programme(programme):
     if title_elem is None:
         return programme
     title = title_elem.text or ""
-
     epnum_elem = programme.find("episode-num")
     if epnum_elem is not None:
         epnum = epnum_elem.text or ""
@@ -163,23 +142,33 @@ def process_programme(programme):
         ep_formatted = format_episode(epnum, system)
     else:
         ep_formatted = ""
-
     if ep_formatted:
         full_title = f"{title} {ep_formatted}".strip()
     else:
         categories = [c.text.lower() for c in programme.findall("category") if c.text]
-        is_movie_or_doc = any(
-            kw in categories for kw in ["movie", "film", "pelicula", "documentary", "documental"]
-        )
+        is_movie_or_doc = any(kw in categories for kw in ["movie","film","pelicula","documentary","documental"])
         if is_movie_or_doc:
             date_text = programme.findtext("date")
-            year = date_text[:4] if date_text and len(date_text) >= 4 else ""
+            year = date_text[:4] if date_text and len(date_text)>=4 else ""
             full_title = f"{title} ({year})" if year else title.strip()
         else:
             full_title = title.strip()
-
     title_elem.text = full_title
     return programme
+
+def load_secondary_programmes(principal_code):
+    """Descarga y devuelve un diccionario {(channel,start): programme} de todas las secundarias"""
+    sec_dict = {}
+    for sec_url in SECONDARY_URLS.get(principal_code, []):
+        try:
+            sec_data = download_and_extract(sec_url)
+            tree = ET.ElementTree(ET.fromstring(sec_data))
+            for prog in tree.findall("programme"):
+                key = (prog.attrib.get("channel"), prog.attrib.get("start"))
+                sec_dict[key] = prog
+        except Exception as e:
+            print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}")
+    return sec_dict
 
 def main():
     root = ET.Element("tv")
@@ -188,44 +177,38 @@ def main():
 
     for url in URLS:
         try:
-            trees = download_and_extract_multiple_xml(url)
+            xml_data = download_and_extract(url)
         except Exception as e:
             print(f"⚠️ No se pudo descargar {url}: {e}")
             continue
 
-        for tree in trees:
-            for channel in tree.findall("channel"):
-                chan_id = channel.attrib.get("id", "")
-                name = channel.findtext("display-name", default="")
-                if channel_matches(chan_id) or channel_matches(name):
-                    if chan_id not in seen_channels:
-                        root.append(channel)
-                        seen_channels.add(chan_id)
+        tree = ET.ElementTree(ET.fromstring(xml_data))
 
-            for programme in tree.findall("programme"):
-                ch = programme.attrib.get("channel", "")
-                key = (ch, programme.attrib.get("start"))
-                if channel_matches(ch) and key not in seen_programmes:
-                    principal_code = None
-                    for code in SECONDARY_URLS:
-                        if code in url:
-                            principal_code = code
-                            break
+        # Detectar principal
+        principal_code = None
+        for code in SECONDARY_URLS:
+            if code in url:
+                principal_code = code
+                break
+        sec_dict = load_secondary_programmes(principal_code) if principal_code else {}
 
-                    if principal_code:
-                        for sec_url in SECONDARY_URLS[principal_code]:
-                            try:
-                                sec_trees = download_and_extract_multiple_xml(sec_url)
-                                for sec_tree in sec_trees:
-                                    sec_prog = sec_tree.find(f".//programme[@channel='{ch}'][@start='{programme.attrib.get('start')}']")
-                                    if sec_prog is not None:
-                                        programme = merge_programmes(programme, sec_prog)
-                            except Exception as e:
-                                print(f"⚠️ No se pudo descargar secundaria {sec_url}: {e}")
+        for channel in tree.findall("channel"):
+            chan_id = channel.attrib.get("id","")
+            name = channel.findtext("display-name","")
+            if channel_matches(chan_id) or channel_matches(name):
+                if chan_id not in seen_channels:
+                    root.append(channel)
+                    seen_channels.add(chan_id)
 
-                    programme = process_programme(programme)
-                    root.append(programme)
-                    seen_programmes.add(key)
+        for programme in tree.findall("programme"):
+            ch = programme.attrib.get("channel","")
+            key = (ch, programme.attrib.get("start"))
+            if channel_matches(ch) and key not in seen_programmes:
+                if key in sec_dict:
+                    programme = merge_programmes(programme, sec_dict[key])
+                programme = process_programme(programme)
+                root.append(programme)
+                seen_programmes.add(key)
 
     tree_out = ET.ElementTree(root)
     try:
