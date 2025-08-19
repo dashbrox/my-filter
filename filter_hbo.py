@@ -74,10 +74,12 @@ def channel_matches(name: str) -> bool:
     return any(re.search(p, norm_name) for p in PATTERNS)
 
 def format_episode(epnum: str) -> str:
-    """Convierte E122, 1x22, etc. -> (T1 E22)"""
-    match = re.match(r'E?(\d{1,2})[x-]?(\d{1,2})', epnum)
+    """Convierte varios formatos de episodios a (T1 E22)"""
+    if not epnum:
+        return ""
+    match = re.search(r'(?:S?(\d{1,2}))?[xE-]?(\d{1,2})', epnum, re.IGNORECASE)
     if match:
-        season = int(match.group(1))
+        season = int(match.group(1)) if match.group(1) else 1
         episode = int(match.group(2))
         return f"(T{season} E{episode})"
     return ""
@@ -88,7 +90,12 @@ def main():
     seen_programmes = set()
 
     for url in URLS:
-        xml_data = download_and_extract(url)
+        try:
+            xml_data = download_and_extract(url)
+        except Exception as e:
+            print(f"⚠️ No se pudo descargar {url}: {e}")
+            continue
+
         tree = ET.ElementTree(ET.fromstring(xml_data))
 
         # Filtrar canales
@@ -105,17 +112,23 @@ def main():
             ch = programme.attrib.get("channel", "")
             key = (ch, programme.attrib.get("start"))
             if channel_matches(ch) and key not in seen_programmes:
-                title = programme.findtext("title", default="")
+                title_elem = programme.find("title")
+                if title_elem is None:
+                    continue
+                title = title_elem.text or ""
                 epnum = programme.findtext("episode-num", default="")
 
-                # Si tiene episodio -> serie, si no -> película
                 ep_formatted = format_episode(epnum)
                 if ep_formatted:
+                    # Serie
                     full_title = f"{title} {ep_formatted}".strip()
                 else:
-                    full_title = title.strip()
+                    # Película -> extraer año si existe
+                    date_text = programme.findtext("date")
+                    year = date_text[:4] if date_text and len(date_text) >= 4 else ""
+                    full_title = f"{title} ({year})" if year else title.strip()
 
-                programme.find("title").text = full_title
+                title_elem.text = full_title
                 root.append(programme)
                 seen_programmes.add(key)
 
