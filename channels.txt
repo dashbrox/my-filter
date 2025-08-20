@@ -1,1 +1,9 @@
-[MX]HBO
+site_id="hbo_2_latinoamerica" xmltv_id="HBO2LatinAmerica.us" name="HBO 2 LATAM" site="gatotv.com"
+site_id="hbo_family_latinoamerica" xmltv_id="HBOFamilyLatinAmerica.us" name="HBO Family LATAM" site="gatotv.com"
+site_id="hbo_latinoamerica" xmltv_id="HBOLatinAmerica.us" name="HBO Latinoamérica" site="gatotv.com"
+site_id="hbo_latino_este" xmltv_id="HBOLatinoEast.us" name="HBO Latino Este" site="gatotv.com"
+site_id="hbo_mundi" xmltv_id="HBOMundiLatinAmerica.us" name="HBO Mundi" site="gatotv.com"
+site_id="hbo_plus" xmltv_id="HBOPlusLatinAmerica.us" name="HBO Plus" site="gatotv.com"
+site_id="hbo_pop" xmltv_id="HBOPopLatinAmerica.us" name="HBOPopLatinAmerica.us" site="gatotv.com"
+site_id="hbo_signature_latinoamerica" xmltv_id="HBOSignatureLatinAmerica.us" name="HBO Signature LATAM" site="gatotv.com"
+site_id="hbo_xtreme" xmltv_id="HBOXtremeLatinAmerica.us" name="HBO Xtreme" site="gatotv.com"
