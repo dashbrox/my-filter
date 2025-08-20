@@ -10,14 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Instalar dependencias
+      - name: Instalar Node
         run: npm install
-
       - name: Generar guía 72h
         run: node generate_72h.js
-
-      - name: Commit y Push
+      - name: Subir guía a GitHub
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
