@@ -1,52 +1,42 @@
 name: Update EPG
 
-# Cuándo se ejecuta
 on:
   schedule:
     - cron: '0 0 * * *' # Cada 24 horas
-  workflow_dispatch:     # También se puede ejecutar manualmente
+  workflow_dispatch:
 
 jobs:
   update:
     runs-on: ubuntu-latest
-
     steps:
-      # 1️⃣ Clonar el repositorio y permitir push
+      # 1️⃣ Clonar repo con credenciales
       - name: Clonar repo
         uses: actions/checkout@v3
         with:
-          persist-credentials: true  # Permite usar GITHUB_TOKEN para push
+          persist-credentials: true
 
-      # 2️⃣ Instalar Node.js
-      - name: Configurar Node.js
-        uses: actions/setup-node@v3
+      # 2️⃣ Configurar Node.js
+      - uses: actions/setup-node@v3
         with:
-          node-version: '18'  # Ajusta a la versión que necesites
+          node-version: '18'
 
-      # 3️⃣ Instalar dependencias de tu proyecto
-      - name: Instalar dependencias
-        run: npm install fast-xml-parser
+      # 3️⃣ Instalar dependencias
+      - run: npm install fast-xml-parser
 
-      # 4️⃣ Listar archivos (opcional, para depuración)
-      - name: Listar archivos
-        run: ls -R sites/
+      # 4️⃣ Generar guía 72h
+      - run: node generate_72h.js
 
-      # 5️⃣ Generar guía 72h
-      - name: Generar guía 72h
-        run: node generate_72h.js
-
-      # 6️⃣ Hacer commit automático si hay cambios
-      - name: Commit cambios
-        run: |
+      # 5️⃣ Configurar Git para commit
+      - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # 6️⃣ Hacer commit solo si hay cambios
+      - run: |
           git add .
           git diff-index --quiet HEAD || git commit -m "Actualizar guía 72h automáticamente"
 
-      # 7️⃣ Subir guía a GitHub
-      - name: Push a GitHub
-        uses: ad-m/github-push-action@v0.6.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: main
-          force: true
+      # 7️⃣ Hacer push usando token seguro
+      - name: Push cambios
+        run: |
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git main
