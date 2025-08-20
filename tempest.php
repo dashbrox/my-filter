@@ -1,42 +1,32 @@
 <?php
-// tempest.php - Simulación de generación de EPG
+// Archivo XML de los canales
+$xmlFile = __DIR__ . '/Tempest-EPG-Generator/Siteconfigs/Multi Nation/[ENC][EX]/mi.tv_1.channel.xml';
 
-$options = getopt("", ["engine:", "createxmlgz:", "output:"]);
-
-$engine = $options['engine'] ?? null;
-$createxmlgz = $options['createxmlgz'] ?? null;
-$output = $options['output'] ?? 'guide.xml';
-
-if ($engine !== 'Generate') {
-    echo "Error: engine no soportado\n";
-    exit(1);
+// Verificar que existe
+if (!file_exists($xmlFile)) {
+    die("Error: no se encontró el archivo XML en $xmlFile\n");
 }
 
-// Simulamos contenido XML básico
-$xmlContent = <<<XML
-<?xml version="1.0" encoding="UTF-8"?>
-<tv>
-    <channel id="Canal1">
-        <display-name>Canal 1</display-name>
-    </channel>
-    <programme channel="Canal1" start="20250819060000 +0000" stop="20250819070000 +0000">
-        <title>Película de prueba</title>
-        <desc>Descripción de ejemplo</desc>
-    </programme>
-</tv>
-XML;
+// Cargar el XML
+$xml = simplexml_load_file($xmlFile);
 
-// Guardar XML
-file_put_contents($output, $xmlContent);
-echo "Archivo '$output' generado correctamente.\n";
-
-// Opcional: generar .gz si se pidió
-if ($createxmlgz === 'on') {
-    $gzFile = $output . '.gz';
-    $gz = gzopen($gzFile, 'w9');
-    gzwrite($gz, $xmlContent);
-    gzclose($gz);
-    echo "Archivo comprimido '$gzFile' generado correctamente.\n";
+// Abrir archivo para guardar listado
+$outputFile = __DIR__ . '/channels_list.txt';
+$fh = fopen($outputFile, 'w');
+if (!$fh) {
+    die("Error: no se pudo crear $outputFile\n");
 }
 
-exit(0);
+echo "Listado de canales:\n\n";
+
+// Recorrer los canales
+foreach ($xml->channel as $channel) {
+    $id = (string) $channel['id'];
+    $name = (string) $channel->{'display-name'};
+    $line = "$id - $name\n";
+    echo $line;
+    fwrite($fh, $line);
+}
+
+fclose($fh);
+echo "\nArchivo guardado en $outputFile\n";
