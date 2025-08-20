@@ -4,9 +4,9 @@
 import re, urllib.request, xml.etree.ElementTree as ET, io, os, hashlib, copy
 
 # -------------------- Configuración --------------------
+# ⚠️ Aquí ahora apuntamos a la salida que genera Tempest (ya con <programme>)
 URLS = [
-    "https://raw.githubusercontent.com/K-vanc/Tempest-EPG-Generator/refs/heads/main/Siteconfigs/Multi%20Nation/%5BENC%5D%5BEX%5Dmi.tv_1.channel.xml",
-    "https://raw.githubusercontent.com/K-vanc/Tempest-EPG-Generator/refs/heads/main/Siteconfigs/Multi%20Nation/%5BENC%5D%5BEX%5Dmi.tv_2.channel.xml",
+    "https://raw.githubusercontent.com/K-vanc/Tempest-EPG-Generator/gh-pages/xmltv.xml"
 ]
 
 PATTERNS = [
