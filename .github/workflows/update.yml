@@ -1,4 +1,4 @@
-name: Generar EPG con epg-grabber
+name: Generar y Publicar EPG con epg-grabber
 
 on:
   workflow_dispatch:
@@ -24,8 +24,12 @@ jobs:
       - name: Generar guía EPG
         run: npm run grab
 
-      - name: Subir guía como artifact
-        uses: actions/upload-artifact@v3
+      - name: Subir a GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          name: guide
-          path: guide.xml
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
+          keep_files: true
+          force_orphan: true
+          enable_jekyll: false
