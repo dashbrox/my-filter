@@ -2,8 +2,8 @@ const fs = require('fs');
 const { XMLParser } = require('fast-xml-parser');
 const parser = new XMLParser();
 
-// Leer canales de gatotv.com
-const channelsXml = fs.readFileSync('sites/gatotv.com/channels.xml', 'utf8');
+// Cambiado a la ruta correcta del archivo de canales
+const channelsXml = fs.readFileSync('sites/gatotv.com/gatotv.com.channels.xml', 'utf8');
 const parsed = parser.parse(channelsXml);
 
 const channels = parsed.site.channels.channel.map(c => ({
