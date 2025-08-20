@@ -1,5 +1,4 @@
 {
-  "channels": ["./channels.txt"],
-  "output": "guide_custom.xml",
-  "site": "./sites"
+  "channels": "channels.xml",
+  "output": "guide_custom.xml"
 }
