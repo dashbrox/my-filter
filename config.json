@@ -1,4 +1,9 @@
 {
+  "name": "MiEPG",
+  "language": "es",
   "channels": "channels.xml",
-  "output": "guide_custom.xml"
+  "output": {
+    "file": "guide_custom.xml",
+    "format": "xml"
+  }
 }
