@@ -2,30 +2,32 @@ name: Update EPG
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Ejecuta cada 24 horas a medianoche
-  workflow_dispatch:      # Permite ejecutarlo manualmente
+    - cron: '0 0 * * *'  # Cada 24 horas
+  workflow_dispatch:      # Permite ejecutar manualmente
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Clonar el repositorio
+      # 1️⃣ Clonar el repo
       - uses: actions/checkout@v3
 
-      # 2️⃣ Instalar dependencias de Node (incluyendo fast-xml-parser)
+      # 2️⃣ Instalar librerías de Node
       - name: Instalar Node y dependencias
-        run: |
-          npm install fast-xml-parser
+        run: npm install fast-xml-parser
 
-      # 3️⃣ Generar guía 72h
+      # 3️⃣ Verificar archivos (opcional para debug)
+      - name: Listar archivos
+        run: ls -R sites/
+
+      # 4️⃣ Generar guía 72h
       - name: Generar guía 72h
         run: node generate_72h.js
 
-      # 4️⃣ Subir guía generada a GitHub
+      # 5️⃣ Subir guía usando token seguro
       - name: Subir guía a GitHub
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add guide_custom.xml
-          git commit -m "Actualizar guía automáticamente" || echo "No hay cambios"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/dashbrox/my-filter.git HEAD:main
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
+          force: true
