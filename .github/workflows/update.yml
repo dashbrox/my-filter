@@ -20,18 +20,11 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Instalar PHP
+        run: sudo apt-get update && sudo apt-get install -y php-cli
 
-      - name: Instalar dependencias
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Ejecutar filtro HBO
-        run: python filter_hbo.py
+      - name: Ejecutar Tempest EPG Generator
+        run: php tempest.php engine=Generate createxmlgz=on output=guide_custom.xml
 
       - name: Commit y push de cambios
         env:
