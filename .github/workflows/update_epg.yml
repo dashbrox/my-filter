@@ -2,8 +2,8 @@ name: Update EPG
 
 on:
   schedule:
-    - cron: '0 0 * * *' # cada 24 horas
-  workflow_dispatch:
+    - cron: '0 0 * * *'  # Cada 24 horas a medianoche
+  workflow_dispatch:      # Permite ejecutar manualmente
 
 jobs:
   update:
