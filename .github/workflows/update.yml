@@ -1,32 +1,31 @@
-name: Generar Tempest EPG
+name: Generar EPG con epg-grabber
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 */12 * * *" # cada 12 horas (00:00 y 12:00 UTC)
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Instalar PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: '8.2'
+      - name: Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
 
-    - name: Clonar Tempest EPG
-      run: git clone https://github.com/K-vanc/Tempest-EPG-Generator.git tempest
+      - name: Instalar dependencias
+        run: npm install
 
-    - name: Crear carpeta output
-      run: mkdir -p output
+      - name: Generar guía EPG
+        run: npm run grab
 
-    - name: Generar guía
-      run: |
-        cd tempest
-        # Asegúrate de que tempest.php exista o usa tu versión simplificada
-        php tempest.php engine=Generate createxmlgz=on output=../output/guide_custom.xml
-
-    - name: Verificar output
-      run: ls -l output
+      - name: Subir guía como artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: guide
+          path: guide.xml
