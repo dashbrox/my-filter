@@ -1,70 +1,20 @@
 {
-  "name": "epg",
+  "name": "my-filter",
+  "version": "1.0.0",
+  "description": "Generador de guía EPG con epg-grabber",
+  "main": "index.js",
   "scripts": {
-    "channels:validate": "node scripts/commands/channels/validate.js",
-    "channels:lint": "node scripts/commands/channels/lint.js",
-    "channels:parse": "node scripts/commands/channels/parse.js",
-    "channels:editor": "node scripts/commands/channels/editor.js",
-    "api:load": "./scripts/commands/api/load.sh",
-    "lint": "npx eslint ./scripts/**/*.js",
-    "test": "TZ=Pacific/Nauru npx jest --runInBand",
-    "test:commands": "npx jest --runInBand -- commands",
-    "test:sites": "TZ=Pacific/Nauru npx jest --runInBand -- sites",
-    "check": "npm run api:load && npm run channels:lint sites/**/*.js && npm run channels:validate sites/**/*.xml",
-    "grab": "cross-var epg-grabber --config=sites/$SITE/$SITE.config.js --channels=sites/$SITE/$SITE.channels.xml --output=guides/{lang}/{site}.xml",
-    "serve": "npx serve"
+    "grab": "epg-grabber --config=config.json"
   },
-  "private": true,
-  "author": "Arhey",
+  "keywords": [
+    "epg",
+    "xmltv",
+    "iptv",
+    "guide"
+  ],
+  "author": "dashbrox",
   "license": "MIT",
-  "jest": {
-    "modulePathIgnorePatterns": [
-      "<rootDir>/.jenkins/"
-    ],
-    "testRegex": "(sites|tests)/(.*?/)?.*test.js$",
-    "setupFilesAfterEnv": [
-      "@alex_neo/jest-expect-message"
-    ]
-  },
   "dependencies": {
-    "@alex_neo/jest-expect-message": "^1.0.5",
-    "@octokit/core": "^4.1.0",
-    "axios": "^0.21.1",
-    "chalk": "^4.1.2",
-    "cheerio": "^1.0.0-rc.10",
-    "commander": "^8.2.0",
-    "cross-var": "^1.1.0",
-    "csv-parser": "^3.0.0",
-    "dayjs": "^1.11.7",
-    "epg-grabber": "^0.31.0",
-    "epg-parser": "^0.2.0",
-    "form-data": "^4.0.0",
-    "fs-extra": "^10.0.1",
-    "glob": "^7.2.0",
-    "iconv-lite": "^0.4.24",
-    "inquirer": "^8.2.0",
-    "jest": "^29.5.0",
-    "langs": "^2.0.0",
-    "libxmljs2": "^0.32.0",
-    "lodash": "^4.17.21",
-    "luxon": "^3.3.0",
-    "markdown-include": "^0.4.3",
-    "mockdate": "^3.0.5",
-    "nedb-promises": "^6.0.3",
-    "node-cleanup": "^2.1.2",
-    "node-gzip": "^1.1.2",
-    "parse-duration": "^1.0.0",
-    "pdf-parse": "^1.1.1",
-    "serve": "^14.2.0",
-    "signale": "^1.4.0",
-    "srcset": "^4.0.0",
-    "table2array": "^0.0.2",
-    "tabletojson": "^2.0.7",
-    "transliteration": "^2.2.0",
-    "unzipit": "^1.4.0",
-    "wildcard-match": "^5.1.2"
-  },
-  "devDependencies": {
-    "eslint": "^8.17.0"
+    "epg-grabber": "^0.38.0"
   }
 }
