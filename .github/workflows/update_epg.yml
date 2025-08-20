@@ -2,7 +2,7 @@ name: Update EPG
 
 on:
   schedule:
-    - cron: '0 0 * * *' # cada 24 horas a medianoche
+    - cron: '0 0 * * *' # cada 24 horas
   workflow_dispatch:
 
 jobs:
@@ -10,14 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Instalar Node
         run: npm install
+
       - name: Generar guía 72h
         run: node generate_72h.js
+
       - name: Subir guía a GitHub
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add guide_custom.xml
           git commit -m "Actualizar guía automáticamente" || echo "No hay cambios"
-          git push
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/dashbrox/my-filter.git HEAD:main
