@@ -1,33 +1,50 @@
 name: Update EPG
 
+# Cuándo se ejecuta
 on:
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 0 * * *' # Cada 24 horas
+  workflow_dispatch:     # También se puede ejecutar manualmente
 
 jobs:
   update:
     runs-on: ubuntu-latest
-    steps:
-      # 1️⃣ Clonar el repo y permitir push
-      - uses: actions/checkout@v3
-        with:
-          persist-credentials: true
 
-      # 2️⃣ Instalar librerías de Node
-      - name: Instalar Node y dependencias
+    steps:
+      # 1️⃣ Clonar el repositorio y permitir push
+      - name: Clonar repo
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true  # Permite usar GITHUB_TOKEN para push
+
+      # 2️⃣ Instalar Node.js
+      - name: Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'  # Ajusta a la versión que necesites
+
+      # 3️⃣ Instalar dependencias de tu proyecto
+      - name: Instalar dependencias
         run: npm install fast-xml-parser
 
-      # 3️⃣ Verificar archivos
+      # 4️⃣ Listar archivos (opcional, para depuración)
       - name: Listar archivos
         run: ls -R sites/
 
-      # 4️⃣ Generar guía 72h
+      # 5️⃣ Generar guía 72h
       - name: Generar guía 72h
         run: node generate_72h.js
 
-      # 5️⃣ Subir guía usando token seguro
-      - name: Subir guía a GitHub
+      # 6️⃣ Hacer commit automático si hay cambios
+      - name: Commit cambios
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff-index --quiet HEAD || git commit -m "Actualizar guía 72h automáticamente"
+
+      # 7️⃣ Subir guía a GitHub
+      - name: Push a GitHub
         uses: ad-m/github-push-action@v0.6.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
