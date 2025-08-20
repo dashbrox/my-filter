@@ -2,21 +2,23 @@ name: Update EPG
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Cada 24 horas
-  workflow_dispatch:      # Permite ejecutar manualmente
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Clonar el repo
+      # 1️⃣ Clonar el repo y permitir push
       - uses: actions/checkout@v3
+        with:
+          persist-credentials: true
 
       # 2️⃣ Instalar librerías de Node
       - name: Instalar Node y dependencias
         run: npm install fast-xml-parser
 
-      # 3️⃣ Verificar archivos (opcional para debug)
+      # 3️⃣ Verificar archivos
       - name: Listar archivos
         run: ls -R sites/
 
