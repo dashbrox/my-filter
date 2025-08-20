@@ -1,82 +1,32 @@
-name: Actualizar guía HBO
+name: Generar Tempest EPG
 
 on:
-  push:
-    branches:
-      - main
-  schedule:
-    - cron: "0 */12 * * *"   # cada 12 horas
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      # ------------------------------
-      # Paso 1: Instalar PHP para Tempest
-      # ------------------------------
-      - name: Instalar PHP
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y php-cli php-xml php-curl git
+    - name: Instalar PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
 
-      # ------------------------------
-      # Paso 2: Clonar Tempest EPG Generator
-      # ------------------------------
-      - name: Clonar Tempest
-        run: |
-          git clone https://github.com/K-vanc/Tempest-EPG-Generator.git tempest
-          cd tempest
-          php tempest.php engine=Generate config=Siteconfigs/Multi\ Nation/\[ENC\]\[EX\]mi.tv_1.channel.xml
-          php tempest.php engine=Generate config=Siteconfigs/Multi\ Nation/\[ENC\]\[EX\]mi.tv_2.channel.xml
-          # Esto te genera la guía combinada en output/xmltv.xml
-          ls -lh output
+    - name: Clonar Tempest EPG
+      run: git clone https://github.com/K-vanc/Tempest-EPG-Generator.git tempest
 
-      # ------------------------------
-      # Paso 3: Mover salida de Tempest
-      # ------------------------------
-      - name: Copiar xmltv.xml al repo
-        run: |
-          mkdir -p data
-          cp tempest/output/xmltv.xml data/xmltv.xml
+    - name: Crear carpeta output
+      run: mkdir -p output
 
-      # ------------------------------
-      # Paso 4: Configurar Python
-      # ------------------------------
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+    - name: Generar guía
+      run: |
+        cd tempest
+        # Asegúrate de que tempest.php exista o usa tu versión simplificada
+        php tempest.php engine=Generate createxmlgz=on output=../output/guide_custom.xml
 
-      - name: Instalar dependencias Python
-        run: |
-          python -m pip install --upgrade pip
-
-      # ------------------------------
-      # Paso 5: Ejecutar tu script de filtro
-      # ------------------------------
-      - name: Ejecutar filtro HBO
-        run: |
-          python filter_hbo.py
-
-      # ------------------------------
-      # Paso 6: Commit y push de cambios
-      # ------------------------------
-      - name: Commit y push de cambios
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/xmltv.xml guide_custom.xml
-          git commit -m "Actualizar guía $(date '+%Y-%m-%d %H:%M')" || echo "No hay cambios"
-          git pull --rebase origin main || echo "No hay cambios remotos"
-          git push
+    - name: Verificar output
+      run: ls -l output
