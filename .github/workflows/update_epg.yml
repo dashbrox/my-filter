@@ -1,0 +1,26 @@
+name: Update EPG
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # cada 24 horas a medianoche
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Generar guía 72h
+        run: node generate_72h.js
+
+      - name: Commit y Push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add guide_custom.xml
+          git commit -m "Actualizar guía automáticamente" || echo "No hay cambios"
+          git push
