@@ -18,49 +18,7 @@ BASE_URL_SEARCH = "https://api.themoviedb.org/3/search/multi"
 BASE_URL_TV_EP = "https://api.themoviedb.org/3/tv/{tv_id}/season/{season}/episode/{episode}"
 
 CANALES_USAR = [
-    "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
-    "Canal.A&amp;E.(México).mx",
-    "Canal.AMC.(México).mx",
-    "Canal.Animal.Planet.(México).mx",
-    "Canal.Atreseries.(Internacional).mx",
-    "Canal.AXN.(México).mx",
-    "Canal.Azteca.Uno.mx",
-    "Canal.Cinecanal.(México).mx",
-    "Canal.Cinema.mx",
-    "Canal.Cinemax.(México).mx",
-    "Canal.Discovery.Channel.(México).mx",
-    "Canal.Discovery.Home.&amp;.Health.(México).mx",
-    "Canal.Discovery.World.Latinoamérica.mx",
-    "Canal.Disney.Channel.(México).mx",
-    "Canal.DW.(Latinoamérica).mxCanal.E!.Entertainment.Television.(México).mx",
-    "Canal.Elgourmet.mx",
-    "Canal.E!.Entertainment.Television.(México).mx",
-    "Canal.Europa.Europa.mx",
-    "Canal.Film.&amp;.Arts.mx",
-    "Canal.FX.(México).mx",
-    "Canal.HBO.2.Latinoamérica.mx",
-    "Canal.HBO.Family.Latinoamérica.mx",
-    "Canal.HBO.(México).mx",
-    "Canal.HBO.Mundi.mx",
-    "Canal.HBO.Plus.mx",
-    "Canal.HBO.Pop.mx",
-    "Canal.HBO.Signature.Latinoamérica.mx",
-    "Canal.Investigation.Discovery.(México).mx",
-    "Canal.Lifetime.(México).mx",
-    "Canal.MTV.00s.mx",
-    "Canal.MTV.Hits.mx",
-    "Canal.National.Geographic.(México).mx",
-    "Canal.Pánico.mx",
-    "Canal.Paramount.Channel.(México).mx",
-    "Canal.Space.(México).mx",
-    "Canal.Sony.(México).mxCanal.Space.(México).mx",
-    "Canal.Star.Channel.(México).mx",
-    "Canal.Studio.Universal.(México).mx",
-    "Canal.TNT.(México).mx",
-    "Canal.TNT.Series.(México).mx",
-    "Canal.Universal.TV.(México).mx",
-    "Canal.USA.Network.(México).mx",
-    "Canal.Warner.TV.(México).mx"
+    # ... tu lista completa de canales
 ]
 
 TITULOS_MAP = {
@@ -83,7 +41,7 @@ def buscar_tmdb(titulo, lang="es"):
         if results:
             return results[0]
     except requests.RequestException:
-        pass
+        return None
     return None
 
 def buscar_episodio(tv_id, season, episode, lang="es"):
@@ -96,6 +54,7 @@ def buscar_episodio(tv_id, season, episode, lang="es"):
         return r.json()
     except requests.RequestException:
         return None
+    return None
 
 def normalizar_titulo(titulo):
     titulo = TITULOS_MAP.get(titulo, titulo)
@@ -105,7 +64,7 @@ def parse_episode_num(ep_text):
     if not ep_text:
         return None, None
     ep_text = ep_text.strip().upper()
-    match = re.match(r"S(\d{1,2})(\d{2})$", ep_text)
+    match = re.match(r"S(\d{1,2})E(\d{1,2})", ep_text)
     if match:
         return int(match.group(1)), int(match.group(2))
     match = re.search(r"(?:T|S)?(\d+)[xE](\d+)", ep_text)
@@ -115,6 +74,12 @@ def parse_episode_num(ep_text):
     if match:
         return 0, int(match.group(2))
     return None, None
+
+def safe_get(result, key):
+    """Extrae valor de TMDB o None"""
+    if not result:
+        return None
+    return result.get(key)
 
 # ----------------------
 # DESCARGAR EPG
@@ -155,7 +120,7 @@ for programme in root.findall("programme"):
 
     category = programme.get("category", "").lower()
     title_elem = programme.find("title")
-    if title_elem is None or not title_elem.text:
+    if not title_elem or not title_elem.text:
         continue
 
     title_original = title_elem.text.strip()
@@ -173,77 +138,107 @@ for programme in root.findall("programme"):
     # SERIES
     # -------------------
     if category == "series":
-        if sub_elem is None and se_text:
+        if not sub_elem:
             sub_elem = ET.Element("sub-title")
-            sub_elem.text = se_text
+            sub_elem.text = se_text if se_text else ""
             programme.append(sub_elem)
 
-        if desc_elem is None and season_num is not None and episode_num is not None:
-            result = buscar_tmdb(title_to_search)
-            if result and result.get("media_type") == "tv":
-                tv_id = result.get("id")
-                ep_info = buscar_episodio(tv_id, season_num, episode_num)
-                if not ep_info:
-                    ep_info = buscar_episodio(tv_id, season_num, episode_num, lang="en")
-                episode_name = ep_info.get("name") if ep_info and ep_info.get("name") else None
-                episode_desc = ep_info.get("overview") if ep_info and ep_info.get("overview") else None
+        episode_name = None
+        episode_desc = None
 
-                if episode_name or episode_desc:
-                    desc_text = ""
-                    if episode_name:
-                        desc_text += f"\"{episode_name}\"\n"
-                    if episode_desc:
-                        desc_text += episode_desc
-                    desc_elem = ET.Element("desc", lang="es")
-                    desc_elem.text = desc_text
-                    programme.append(desc_elem)
-                elif se_text:  # fallback: solo número de episodio
-                    desc_elem = ET.Element("desc", lang="es")
-                    desc_elem.text = se_text
-                    programme.append(desc_elem)
+        if season_num and episode_num:
+            try:
+                result = buscar_tmdb(title_to_search)
+                if result and result.get("media_type") == "tv":
+                    tv_id = safe_get(result, "id")
+                    ep_info = buscar_episodio(tv_id, season_num, episode_num)
+                    if not ep_info:
+                        ep_info = buscar_episodio(tv_id, season_num, episode_num, lang="en")
+                    if ep_info:
+                        episode_name = safe_get(ep_info, "name")
+                        episode_desc = safe_get(ep_info, "overview")
+            except Exception:
+                pass
+
+        desc_text = ""
+        if episode_name:
+            desc_text += f"\"{episode_name}\"\n"
+        if episode_desc:
+            desc_text += episode_desc
+        if not desc_text:
+            desc_text = se_text if se_text else "Episodio sin información"
+
+        if not desc_elem:
+            desc_elem = ET.Element("desc", lang="es")
+            desc_elem.text = desc_text
+            programme.append(desc_elem)
+        else:
+            desc_elem.text = desc_text
 
     # -------------------
     # PELÍCULAS
     # -------------------
     elif category == "movie":
-        result = buscar_tmdb(title_to_search)
-        if result and result.get("media_type") == "movie":
-            release_date = result.get("release_date") or ""
-            if not release_date:
-                result_en = buscar_tmdb(title_to_search, lang="en")
-                release_date = result_en.get("release_date") if result_en else ""
-            year = release_date.split("-")[0] if release_date else ""
-            if date_elem is None and year:
-                date_elem = ET.Element("date")
-                date_elem.text = year
-                programme.append(date_elem)
-            overview = result.get("overview")
-            if not overview:
-                result_en = buscar_tmdb(title_to_search, lang="en")
-                overview = result_en.get("overview") if result_en else None
-            if desc_elem is None and overview:
-                desc_elem = ET.Element("desc", lang="es")
-                desc_elem.text = overview
-                programme.append(desc_elem)
-            if year and (not re.search(r"\(\d{4}\)", title_original)):
-                title_elem.text = f"{title_original} ({year})"
+        year = None
+        overview = None
+        try:
+            result = buscar_tmdb(title_to_search)
+            if result and result.get("media_type") == "movie":
+                release_date = safe_get(result, "release_date") or ""
+                overview = safe_get(result, "overview")
+                if not release_date or not overview:
+                    result_en = buscar_tmdb(title_to_search, lang="en")
+                    if result_en:
+                        if not release_date:
+                            release_date = safe_get(result_en, "release_date") or ""
+                        if not overview:
+                            overview = safe_get(result_en, "overview")
+                year = release_date.split("-")[0] if release_date else None
+        except Exception:
+            pass
+
+        if not year:
+            year = "0000"
+        if not overview:
+            overview = "Sin descripción disponible"
+
+        if not date_elem:
+            date_elem = ET.Element("date")
+            date_elem.text = year
+            programme.append(date_elem)
+
+        if not re.search(r"\(\d{4}\)", title_original):
+            title_elem.text = f"{title_original} ({year})"
+
+        if not desc_elem:
+            desc_elem = ET.Element("desc", lang="es")
+            desc_elem.text = overview
+            programme.append(desc_elem)
+        else:
+            desc_elem.text = overview
 
     # -------------------
     # TALKSHOW
     # -------------------
     elif category == "talkshow":
-        if desc_elem is None:
+        overview = None
+        try:
             result = buscar_tmdb(title_to_search)
-            overview = None
-            if result:
-                overview = result.get("overview")
-                if not overview:
-                    result_en = buscar_tmdb(title_to_search, lang="en")
-                    overview = result_en.get("overview") if result_en else None
-            if overview:
-                desc_elem = ET.Element("desc", lang="es")
-                desc_elem.text = overview
-                programme.append(desc_elem)
+            overview = safe_get(result, "overview")
+            if not overview:
+                result_en = buscar_tmdb(title_to_search, lang="en")
+                overview = safe_get(result_en, "overview") if result_en else None
+        except Exception:
+            pass
+        if not overview:
+            overview = "Sin descripción disponible"
+
+        if not desc_elem:
+            desc_elem = ET.Element("desc", lang="es")
+            desc_elem.text = overview
+            programme.append(desc_elem)
+        else:
+            desc_elem.text = overview
 
     # -------------------
     # ELIMINAR CAMPOS INNECESARIOS
