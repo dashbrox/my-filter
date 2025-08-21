@@ -183,24 +183,29 @@ def procesar_epg(input_file, output_file):
                         title_el.text = f"{titulo} (S{temporada:02d}E{episodio:02d}) - {nombre_ep}"
 
             # --- PELÍCULAS ---
-            elif "pel" in categoria or "movie" in categoria:
-                # Consultar TMDB solo si falta año o sinopsis
-                if (date_el is None or not date_el.text.strip()) or (desc_el is None or not desc_el.text.strip()):
-                    search_res = buscar_tmdb(titulo_norm, "movie")
-                    if search_res:
-                        anio = (search_res.get("release_date") or "????")[:4]
-                        overview = search_res.get("overview") or ""
-                        if date_el is None or not date_el.text.strip():
-                            if date_el is None:
-                                date_el = ET.SubElement(elem, "date")
-                            date_el.text = anio
-                        if desc_el is None or not desc_el.text.strip():
-                            if desc_el is None:
-                                desc_el = ET.SubElement(elem, "desc")
-                            desc_el.text = overview
-                        # Formato título final
-                        if f"({anio})" not in titulo:
-                            title_el.text = f"{titulo} ({anio})"
+elif "pel" in categoria or "movie" in categoria:
+    # Consultar TMDB solo si falta año o sinopsis
+    if (date_el is None or not date_el.text.strip()) or (desc_el is None or not desc_el.text.strip()):
+        search_res = buscar_tmdb(titulo_norm, "movie")
+        if search_res:
+            anio = (search_res.get("release_date") or "????")[:4]
+            overview = search_res.get("overview") or ""
+
+            # Completar año si falta
+            if date_el is None or not date_el.text.strip():
+                if date_el is None:
+                    date_el = ET.SubElement(elem, "date")
+                date_el.text = anio
+
+            # Completar descripción si falta
+            if desc_el is None or not desc_el.text.strip():
+                if desc_el is None:
+                    desc_el = ET.SubElement(elem, "desc")
+                desc_el.text = overview
+
+            # Solo añadir año al título si aún no tiene
+            if f"({anio})" not in titulo:
+                title_el.text = f"{titulo} ({anio})"
 
             # --- LIMPIEZA ---
             for tag in ["credits", "rating", "star-rating"]:
