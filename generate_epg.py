@@ -183,12 +183,11 @@ for programme in root.findall("programme"):
             if result and result.get("media_type") == "tv":
                 tv_id = result.get("id")
                 ep_info = buscar_episodio(tv_id, season_num, episode_num)
-                # fallback inglés si overview/name vacío
                 if not ep_info:
                     ep_info = buscar_episodio(tv_id, season_num, episode_num, lang="en")
                 episode_name = ep_info.get("name") if ep_info and ep_info.get("name") else None
                 episode_desc = ep_info.get("overview") if ep_info and ep_info.get("overview") else None
-                # Crear desc solo si hay texto real
+
                 if episode_name or episode_desc:
                     desc_text = ""
                     if episode_name:
@@ -198,6 +197,10 @@ for programme in root.findall("programme"):
                     desc_elem = ET.Element("desc", lang="es")
                     desc_elem.text = desc_text
                     programme.append(desc_elem)
+                elif se_text:  # fallback: solo número de episodio
+                    desc_elem = ET.Element("desc", lang="es")
+                    desc_elem.text = se_text
+                    programme.append(desc_elem)
 
     # -------------------
     # PELÍCULAS
@@ -206,7 +209,6 @@ for programme in root.findall("programme"):
         result = buscar_tmdb(title_to_search)
         if result and result.get("media_type") == "movie":
             release_date = result.get("release_date") or ""
-            # fallback inglés si release_date vacío
             if not release_date:
                 result_en = buscar_tmdb(title_to_search, lang="en")
                 release_date = result_en.get("release_date") if result_en else ""
@@ -215,11 +217,15 @@ for programme in root.findall("programme"):
                 date_elem = ET.Element("date")
                 date_elem.text = year
                 programme.append(date_elem)
-            if desc_elem is None and result.get("overview"):
+            overview = result.get("overview")
+            if not overview:
+                result_en = buscar_tmdb(title_to_search, lang="en")
+                overview = result_en.get("overview") if result_en else None
+            if desc_elem is None and overview:
                 desc_elem = ET.Element("desc", lang="es")
-                desc_elem.text = result["overview"]
+                desc_elem.text = overview
                 programme.append(desc_elem)
-            if "(" not in title_original and year:
+            if year and (not re.search(r"\(\d{4}\)", title_original)):
                 title_elem.text = f"{title_original} ({year})"
 
     # -------------------
