@@ -4,8 +4,11 @@ import lxml.etree as ET
 import os
 import re
 import sys
+import unicodedata
 
-# API TMDB
+# ----------------------
+# CONFIGURACIÓN
+# ----------------------
 API_KEY = os.getenv("TMDB_API_KEY")
 if not API_KEY:
     print("❌ TMDB_API_KEY no está definido como secreto en GitHub")
@@ -13,7 +16,7 @@ if not API_KEY:
 
 BASE_URL = "https://api.themoviedb.org/3/search/multi"
 
-# Canales a procesar
+# Canales HBO que queremos procesar
 CANALES_USAR = [
     "Canal.HBO.2.Latinoamérica.mx",
     "Canal.HBO.Family.Latinoamérica.mx",
@@ -24,33 +27,17 @@ CANALES_USAR = [
     "Canal.HBO.Signature.Latinoamérica.mx"
 ]
 
-# Descargar EPG base
+# Mapeo manual de títulos problemáticos
+TITULOS_MAP = {
+    "Madagascar 2Escape de África": "Madagascar: Escape 2 Africa",
+    "H.Potter y la cámara secreta": "Harry Potter and the Chamber of Secrets"
+}
+
 EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
-print("📥 Descargando EPG base...")
-try:
-    r = requests.get(EPG_URL, timeout=60)
-    r.raise_for_status()
-except requests.RequestException as e:
-    print(f"❌ Error al descargar la guía: {e}")
-    sys.exit(1)
 
-with open("epg_original.xml.gz", "wb") as f:
-    f.write(r.content)
-
-# Abrir archivo comprimido y parsear XML
-try:
-    with gzip.open("epg_original.xml.gz", "rb") as f:
-        tree = ET.parse(f)
-except (ET.XMLSyntaxError, OSError) as e:
-    print(f"❌ Error al parsear XML: {e}")
-    sys.exit(1)
-
-root = tree.getroot()
-if root is None:
-    print("❌ XML vacío")
-    sys.exit(1)
-
-# Función para buscar datos en TMDB
+# ----------------------
+# FUNCIONES
+# ----------------------
 def buscar_tmdb(titulo):
     try:
         params = {"api_key": API_KEY, "query": titulo, "language": "es"}
@@ -63,7 +50,45 @@ def buscar_tmdb(titulo):
         pass
     return None
 
-# Recorrer todos los programas
+def normalizar_titulo(titulo):
+    # Reemplaza con mapeo manual si existe
+    titulo = TITULOS_MAP.get(titulo, titulo)
+    # Eliminar acentos y caracteres especiales
+    titulo_normalized = unicodedata.normalize('NFKD', titulo).encode('ascii', 'ignore').decode()
+    return titulo_normalized
+
+# ----------------------
+# DESCARGAR EPG
+# ----------------------
+print("📥 Descargando EPG base...")
+try:
+    r = requests.get(EPG_URL, timeout=60)
+    r.raise_for_status()
+except requests.RequestException as e:
+    print(f"❌ Error al descargar la guía: {e}")
+    sys.exit(1)
+
+with open("epg_original.xml.gz", "wb") as f:
+    f.write(r.content)
+
+# ----------------------
+# PARSEAR XML
+# ----------------------
+try:
+    with gzip.open("epg_original.xml.gz", "rb") as f:
+        tree = ET.parse(f)
+except (ET.XMLSyntaxError, OSError) as e:
+    print(f"❌ Error al parsear XML: {e}")
+    sys.exit(1)
+
+root = tree.getroot()
+if root is None:
+    print("❌ XML vacío")
+    sys.exit(1)
+
+# ----------------------
+# PROCESAR PROGRAMAS
+# ----------------------
 for programme in root.findall("programme"):
     channel = programme.get("channel", "")
     if channel not in CANALES_USAR:
@@ -74,7 +99,8 @@ for programme in root.findall("programme"):
         continue
 
     title = title_elem.text.strip()
-    print(f"Procesando: {title} ({channel})")
+    title_to_search = normalizar_titulo(title)
+    print(f"Procesando: {title} ({channel}) → Buscando como: {title_to_search}")
 
     # Subtítulo: temporada/episodio
     sub_elem = programme.find("sub-title")
@@ -85,25 +111,35 @@ for programme in root.findall("programme"):
             sub_elem.text = match.group(0)
             programme.append(sub_elem)
 
-    # Descripción y datos desde TMDB
+    # Buscar en TMDB si falta info
     if programme.find("desc") is None or programme.find("date") is None or programme.find("category") is None:
-        result = buscar_tmdb(title)
+        result = buscar_tmdb(title_to_search)
         if result:
-            # Sinopsis
+            # --- FORMATO DE TÍTULO ---
+            if result.get("media_type") == "movie":
+                release_date = result.get("release_date") or ""
+                year = release_date.split("-")[0] if release_date else ""
+                title_elem.text = f"{result['title']} ({year})" if year else result['title']
+            elif result.get("media_type") == "tv":
+                se_text = ""
+                sub_elem = programme.find("sub-title")
+                if sub_elem is not None and sub_elem.text:
+                    se_text = sub_elem.text.strip()
+                title_elem.text = f"{result['name']} ({se_text})" if se_text else result['name']
+
+            # --- DESCRIPCIÓN ---
             if programme.find("desc") is None and result.get("overview"):
                 desc = ET.Element("desc", lang="es")
                 desc.text = result["overview"]
                 programme.append(desc)
 
-            # Fecha
-            if programme.find("date") is None:
-                release_date = result.get("release_date") or result.get("first_air_date")
-                if release_date:
-                    date_elem = ET.Element("date")
-                    date_elem.text = release_date.split("-")[0]
-                    programme.append(date_elem)
+            # --- FECHA (solo películas) ---
+            if programme.find("date") is None and result.get("release_date"):
+                date_elem = ET.Element("date")
+                date_elem.text = result["release_date"].split("-")[0]
+                programme.append(date_elem)
 
-            # Categoría
+            # --- CATEGORÍA ---
             if programme.find("category") is None:
                 cat_elem = ET.Element("category", lang="es")
                 media_type = result.get("media_type")
@@ -113,7 +149,9 @@ for programme in root.findall("programme"):
         else:
             print(f"⚠️ No encontrado en TMDB: {title}")
 
-# Guardar XML final
+# ----------------------
+# GUARDAR XML FINAL
+# ----------------------
 try:
     tree.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
     print("✅ guide_custom.xml generado correctamente")
