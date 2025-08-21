@@ -1,221 +1,198 @@
-import gzip
-import requests
-import lxml.etree as ET
 import os
 import re
-import sys
+import gzip
+import requests
 import unicodedata
+import lxml.etree as ET
 
 # ----------------------
 # CONFIGURACIÓN
 # ----------------------
 API_KEY = os.getenv("TMDB_API_KEY")
 if not API_KEY:
-    print("❌ TMDB_API_KEY no está definido como secreto en GitHub")
-    sys.exit(1)
+    raise RuntimeError("❌ TMDB_API_KEY no está definido en el entorno.")
 
-BASE_URL_SEARCH = "https://api.themoviedb.org/3/search/multi"
-BASE_URL_TV_EP = "https://api.themoviedb.org/3/tv/{tv_id}/season/{season}/episode/{episode}"
-
-CANALES_USAR = [
-    # tu lista de canales
-]
-
-TITULOS_MAP = {
-    "Madagascar 2Escape de África": "Madagascar: Escape 2 Africa",
-    "H.Potter y la cámara secreta": "Harry Potter and the Chamber of Secrets"
+# Canales a procesar
+CANALES_USAR = {
+    "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
+    "Canal.A&E.(México).mx",
+    "Canal.AMC.(México).mx",
+    "Canal.Animal.Planet.(México).mx",
+    "Canal.Atreseries.(Internacional).mx",
+    "Canal.AXN.(México).mx",
+    "Canal.Azteca.Uno.mx",
+    "Canal.Cinecanal.(México).mx",
+    "Canal.Cinemax.(México).mx",
+    "Canal.Discovery.Channel.(México).mx",
+    "Canal.Discovery.Home.&.Health.(México).mx",
+    "Canal.Discovery.World.Latinoamérica.mx",
+    "Canal.Disney.Channel.(México).mx",
+    "Canal.DW.(Latinoamérica).mx",
+    "Canal.E!.Entertainment.Television.(México).mx",
+    "Canal.Elgourmet.mx",
+    "Canal.Europa.Europa.mx",
+    "Canal.Film.&.Arts.mx",
+    "Canal.FX.(México).mx",
+    "Canal.HBO.2.Latinoamérica.mx",
+    "Canal.HBO.Family.Latinoamérica.mx",
+    "Canal.HBO.(México).mx",
+    "Canal.HBO.Mundi.mx",
+    "Canal.HBO.Plus.mx",
+    "Canal.HBO.Pop.mx",
+    "Canal.HBO.Signature.Latinoamérica.mx",
+    "Canal.Investigation.Discovery.(México).mx",
+    "Canal.Lifetime.(México).mx",
+    "Canal.MTV.00s.mx",
+    "Canal.MTV.Hits.mx",
+    "Canal.National.Geographic.(México).mx",
+    "Canal.Pánico.mx",
+    "Canal.Paramount.Channel.(México).mx",
+    "Canal.Space.(México).mx",
+    "Canal.Sony.(México).mx",
+    "Canal.Star.Channel.(México).mx",
+    "Canal.Studio.Universal.(México).mx",
+    "Canal.TNT.(México).mx",
+    "Canal.TNT.Series.(México).mx",
+    "Canal.Universal.TV.(México).mx",
+    "Canal.USA.Network.(México).mx",
+    "Canal.Warner.TV.(México).mx",
 }
 
-EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
-
 # ----------------------
-# FUNCIONES
+# FUNCIONES AUXILIARES
 # ----------------------
-def buscar_tmdb(titulo, lang="es"):
-    try:
-        params = {"api_key": API_KEY, "query": titulo, "language": lang}
-        r = requests.get(BASE_URL_SEARCH, params=params, timeout=10)
-        r.raise_for_status()
-        results = r.json().get("results")
-        if results:
-            return results[0]
-    except Exception:
-        pass
-    return None
 
-def buscar_episodio(tv_id, season, episode, lang="es"):
-    try:
-        url = BASE_URL_TV_EP.format(tv_id=tv_id, season=season, episode=episode)
-        params = {"api_key": API_KEY, "language": lang}
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        return r.json()
-    except Exception:
+def normalizar_texto(texto):
+    """Quita acentos y normaliza espacios"""
+    if not texto:
+        return ""
+    texto = unicodedata.normalize("NFD", texto)
+    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+    return texto.strip()
+
+def buscar_tmdb(titulo, year=None, tipo="movie"):
+    """Busca en TMDB con fallback a inglés"""
+    base = "https://api.themoviedb.org/3/search/"
+    params = {
+        "api_key": API_KEY,
+        "query": titulo,
+        "language": "es-MX",
+    }
+    if year:
+        params["year"] = year
+
+    r = requests.get(base + tipo, params=params)
+    if r.status_code != 200:
+        return None
+    data = r.json()
+    results = data.get("results", [])
+    if not results:
+        # Fallback a inglés
+        params["language"] = "en-US"
+        r = requests.get(base + tipo, params=params)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        results = data.get("results", [])
+    return results[0] if results else None
+
+def obtener_info_tmdb(titulo, year=None, es_serie=False, temporada=None, episodio=None):
+    """Obtiene info de película o serie con fallback"""
+    tipo = "tv" if es_serie else "movie"
+    info = buscar_tmdb(titulo, year, tipo)
+    if not info:
         return None
 
-def normalizar_titulo(titulo):
-    titulo = TITULOS_MAP.get(titulo, titulo)
-    return unicodedata.normalize('NFKD', titulo).encode('ascii', 'ignore').decode()
+    # Película
+    if not es_serie:
+        return {
+            "titulo": info.get("title") or info.get("original_title") or titulo,
+            "anio": (info.get("release_date") or "????")[:4],
+            "descripcion": info.get("overview") or "Sin descripción.",
+        }
 
-def parse_episode_num(ep_text):
-    if not ep_text:
-        return None, None
-    ep_text = ep_text.strip().upper()
-    match = re.match(r"S(\d{1,2})E(\d{2})$", ep_text)
-    if match:
-        return int(match.group(1)), int(match.group(2))
-    match = re.search(r"(?:T|S)?(\d+)[xE](\d+)", ep_text)
-    if match:
-        return int(match.group(1)), int(match.group(2))
-    match = re.search(r"(SPECIAL|ESPECIAL)[\s-]?(\d+)", ep_text)
-    if match:
-        return 0, int(match.group(2))
-    return None, None
+    # Serie (básica)
+    data = {
+        "titulo": info.get("name") or info.get("original_name") or titulo,
+        "anio": (info.get("first_air_date") or "????")[:4],
+        "descripcion": info.get("overview") or "Sin descripción.",
+    }
 
-# ----------------------
-# DESCARGAR EPG
-# ----------------------
-print("📥 Descargando EPG base...")
-try:
-    r = requests.get(EPG_URL, timeout=60)
-    r.raise_for_status()
-except Exception as e:
-    print(f"❌ Error al descargar la guía: {e}")
-    sys.exit(1)
-
-with open("epg_original.xml.gz", "wb") as f:
-    f.write(r.content)
+    # Episodio específico si hay temporada+episodio
+    if temporada and episodio:
+        url = f"https://api.themoviedb.org/3/tv/{info['id']}/season/{temporada}/episode/{episodio}"
+        params = {"api_key": API_KEY, "language": "es-MX"}
+        r = requests.get(url, params=params)
+        if r.status_code == 200:
+            epi = r.json()
+            data["titulo"] = f"{data['titulo']} (S{int(temporada):02d}E{int(episodio):02d})"
+            data["descripcion"] = epi.get("overview") or data["descripcion"]
+    return data
 
 # ----------------------
-# PARSEAR XML
+# PROCESAMIENTO STREAMING
 # ----------------------
-try:
-    with gzip.open("epg_original.xml.gz", "rb") as f:
-        tree = ET.parse(f)
-except Exception as e:
-    print(f"❌ Error al parsear XML: {e}")
-    sys.exit(1)
 
-root = tree.getroot()
-if root is None:
-    print("❌ XML vacío")
-    sys.exit(1)
+def procesar_epg(input_file, output_file):
+    context = ET.iterparse(input_file, events=("end",), tag="programme")
 
-# ----------------------
-# PROCESAR PROGRAMAS
-# ----------------------
-for programme in root.findall("programme"):
-    channel = programme.get("channel", "")
-    if channel not in CANALES_USAR:
-        continue
+    with open(output_file, "wb") as f:
+        f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
-    # categoría correcta
-    category_elem = programme.find("category")
-    category = category_elem.text.strip().lower() if category_elem is not None and category_elem.text else ""
+        for _, elem in context:
+            canal = elem.get("channel")
+            if canal not in CANALES_USAR:
+                elem.clear()
+                continue
 
-    title_elem = programme.find("title")
-    if title_elem is None or not title_elem.text:
-        continue
-    title_original = title_elem.text.strip()
-    title_to_search = normalizar_titulo(title_original)
+            # Extraer título
+            title_el = elem.find("title")
+            titulo = title_el.text if title_el is not None else "Sin título"
+            titulo_norm = normalizar_texto(titulo)
 
-    ep_num_elem = programme.find("episode-num")
-    se_text = ep_num_elem.text.strip() if ep_num_elem is not None and ep_num_elem.text else ""
-    season_num, episode_num = parse_episode_num(se_text)
+            # Detectar año entre paréntesis
+            year_match = re.search(r"\((\d{4})\)", titulo)
+            year = year_match.group(1) if year_match else None
 
-    sub_elem = programme.find("sub-title")
-    desc_elem = programme.find("desc")
-    date_elem = programme.find("date")
+            # Detectar serie con SxxExx
+            match_se = re.search(r"S(\d{1,2})E(\d{1,2})", titulo, re.IGNORECASE)
+            es_serie = bool(match_se)
+            temporada = match_se.group(1) if match_se else None
+            episodio = match_se.group(2) if match_se else None
 
-    # -------------------
-    # SERIES
-    # -------------------
-    if category == "serie" or category == "series":
-        if sub_elem is None and se_text:
-            sub_elem = ET.Element("sub-title")
-            sub_elem.text = se_text
-            programme.append(sub_elem)
+            # Obtener info de TMDB
+            info = obtener_info_tmdb(
+                titulo_norm, year, es_serie, temporada, episodio
+            )
 
-        if desc_elem is None and season_num is not None and episode_num is not None:
-            result = buscar_tmdb(title_to_search)
-            if result and result.get("media_type") == "tv":
-                tv_id = result.get("id")
-                ep_info = buscar_episodio(tv_id, season_num, episode_num)
-                if not ep_info:
-                    ep_info = buscar_episodio(tv_id, season_num, episode_num, lang="en")
-                episode_name = ep_info.get("name") if ep_info and ep_info.get("name") else None
-                episode_desc = ep_info.get("overview") if ep_info and ep_info.get("overview") else None
+            if info:
+                # Reemplazar título
+                title_el.text = f"{info['titulo']} ({info['anio']})"
 
-                # Crear desc solo si hay info real
-                if episode_name or episode_desc:
-                    desc_text = ""
-                    if episode_name:
-                        desc_text += f"\"{episode_name}\"\n"
-                    if episode_desc:
-                        desc_text += episode_desc
-                    desc_elem = ET.Element("desc", lang="es")
-                    desc_elem.text = desc_text
-                    programme.append(desc_elem)
-                elif se_text:  # fallback: solo número de episodio
-                    desc_elem = ET.Element("desc", lang="es")
-                    desc_elem.text = se_text
-                    programme.append(desc_elem)
+                # Reemplazar descripción
+                desc_el = elem.find("desc")
+                if desc_el is None:
+                    desc_el = ET.SubElement(elem, "desc")
+                desc_el.text = info["descripcion"]
 
-    # -------------------
-    # PELÍCULAS
-    # -------------------
-    elif category == "película" or category == "movie":
-        result = buscar_tmdb(title_to_search)
-        if result and result.get("media_type") == "movie":
-            release_date = result.get("release_date") or ""
-            if not release_date:
-                result_en = buscar_tmdb(title_to_search, lang="en")
-                release_date = result_en.get("release_date") if result_en else ""
-            year = release_date.split("-")[0] if release_date else ""
-            if date_elem is None and year:
-                date_elem = ET.Element("date")
-                date_elem.text = year
-                programme.append(date_elem)
-            overview = result.get("overview")
-            if not overview:
-                result_en = buscar_tmdb(title_to_search, lang="en")
-                overview = result_en.get("overview") if result_en else None
-            if desc_elem is None and overview:
-                desc_elem = ET.Element("desc", lang="es")
-                desc_elem.text = overview
-                programme.append(desc_elem)
-            if year and (not re.search(r"\(\d{4}\)", title_original)):
-                title_elem.text = f"{title_original} ({year})"
+            # Guardar nodo en el archivo
+            f.write(ET.tostring(elem, encoding="utf-8"))
 
-    # -------------------
-    # TALKSHOW
-    # -------------------
-    elif category == "talkshow":
-        if desc_elem is None:
-            result = buscar_tmdb(title_to_search)
-            overview = result.get("overview") if result else None
-            if not overview:
-                result_en = buscar_tmdb(title_to_search, lang="en")
-                overview = result_en.get("overview") if result_en else None
-            if overview:
-                desc_elem = ET.Element("desc", lang="es")
-                desc_elem.text = overview
-                programme.append(desc_elem)
+            # Liberar memoria
+            elem.clear()
+            while elem.getprevious() is not None:
+                del elem.getparent()[0]
 
-    # -------------------
-    # ELIMINAR CAMPOS INNECESARIOS
-    # -------------------
-    for tag in ["credits", "rating", "star-rating"]:
-        elem = programme.find(tag)
-        if elem is not None:
-            programme.remove(elem)
+        f.write(b"</tv>")
+
+    # Generar versión comprimida .gz
+    with open(output_file, "rb") as f_in, gzip.open(output_file + ".gz", "wb") as f_out:
+        f_out.writelines(f_in)
 
 # ----------------------
-# GUARDAR XML FINAL
+# EJECUCIÓN
 # ----------------------
-try:
-    tree.write("guide_custom.xml", encoding="utf-8", xml_declaration=True)
-    print("✅ guide_custom.xml generado correctamente")
-except Exception as e:
-    print(f"❌ Error al guardar XML: {e}")
-    sys.exit(1)
+
+if __name__ == "__main__":
+    procesar_epg("guide.xml", "guide_custom.xml")
+    print("✅ Guía personalizada generada: guide_custom.xml y guide_custom.xml.gz")
