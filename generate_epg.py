@@ -205,8 +205,8 @@ def procesar_epg(input_file, output_file):
                         if f"({anio})" not in titulo:
                             title_el.text = f"{titulo} ({anio})"
 
-            # --- LIMPIEZA ---
-            for tag in ["credits", "rating", "star-rating"]:
+        # --- LIMPIEZA ---
+        for tag in ["credits", "rating", "star-rating"]:
                 t = elem.find(tag)
                 if t is not None:
                     elem.remove(t)
