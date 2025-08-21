@@ -12,8 +12,14 @@ API_KEY = os.getenv("TMDB_API_KEY")
 if not API_KEY:
     raise RuntimeError("❌ TMDB_API_KEY no está definido en el entorno.")
 
+EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
+EPG_FILE = "epg_original.xml"
+OUTPUT_FILE = "guide_custom.xml"
+
+# ----------------------
+# CANALES
+# ----------------------
 CANALES_USAR = {
-    # Lista completa de tus canales
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&E.(México).mx",
     "Canal.AMC.(México).mx",
@@ -60,12 +66,9 @@ CANALES_USAR = {
 
 # Map de títulos especiales si aplica
 TITULOS_MAP = {
-    "Madagascar 2Escape de África": "Madagascar: Escape 2 Africa",
-    "H.Potter y la cámara secreta": "Harry Potter and the Chamber of Secrets"
+    "Madagascar 2Escape de África": "Madagascar 2: Escape de África",
+    "H.Potter y la cámara secreta": "Harry Potter y la Cámara Secreta”
 }
-
-EPG_FILE = "guide.xml"
-OUTPUT_FILE = "guide_custom.xml"
 
 # ----------------------
 # FUNCIONES AUXILIARES
@@ -110,7 +113,22 @@ def parse_episode_num(ep_text):
     match = re.match(r"S(\d{1,2})E(\d{1,2})", ep_text)
     if match:
         return int(match.group(1)), int(match.group(2))
+    match = re.search(r"(\d{1,2})[xE](\d{1,2})", ep_text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
     return None, None
+
+# ----------------------
+# DESCARGAR GUIA ORIGINAL
+# ----------------------
+if not os.path.exists(EPG_FILE):
+    print("📥 Descargando guía original...")
+    r = requests.get(EPG_URL, timeout=60)
+    r.raise_for_status()
+    with gzip.open(r.content, 'rb') as f_in:
+        with open(EPG_FILE, 'wb') as f_out:
+            f_out.write(f_in.read())
+    print("✅ Guía original descargada.")
 
 # ----------------------
 # PROCESAMIENTO
@@ -164,21 +182,22 @@ def procesar_epg(input_file, output_file):
             # --- PELÍCULAS ---
             elif "pel" in categoria or "movie" in categoria:
                 # Consultar TMDB solo si falta año o sinopsis
-                search_res = buscar_tmdb(titulo_norm, "movie")
-                if search_res:
-                    anio = (search_res.get("release_date") or "????")[:4]
-                    overview = search_res.get("overview") or ""
-                    if date_el is None or not date_el.text.strip():
-                        if date_el is None:
-                            date_el = ET.SubElement(elem, "date")
-                        date_el.text = anio
-                    if desc_el is None or not desc_el.text.strip():
-                        if desc_el is None:
-                            desc_el = ET.SubElement(elem, "desc")
-                        desc_el.text = overview
-                    # Formato título final
-                    if f"({anio})" not in titulo:
-                        title_el.text = f"{titulo} ({anio})"
+                if (date_el is None or not date_el.text.strip()) or (desc_el is None or not desc_el.text.strip()):
+                    search_res = buscar_tmdb(titulo_norm, "movie")
+                    if search_res:
+                        anio = (search_res.get("release_date") or "????")[:4]
+                        overview = search_res.get("overview") or ""
+                        if date_el is None or not date_el.text.strip():
+                            if date_el is None:
+                                date_el = ET.SubElement(elem, "date")
+                            date_el.text = anio
+                        if desc_el is None or not desc_el.text.strip():
+                            if desc_el is None:
+                                desc_el = ET.SubElement(elem, "desc")
+                            desc_el.text = overview
+                        # Formato título final
+                        if f"({anio})" not in titulo:
+                            title_el.text = f"{titulo} ({anio})"
 
             # --- LIMPIEZA ---
             for tag in ["credits", "rating", "star-rating"]:
