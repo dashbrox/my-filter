@@ -121,14 +121,17 @@ def parse_episode_num(ep_text):
 # ----------------------
 # DESCARGAR GUIA ORIGINAL
 # ----------------------
+import io  # asegúrate de importarlo arriba
+
 if not os.path.exists(EPG_FILE):
     print("📥 Descargando guía original...")
     r = requests.get(EPG_URL, timeout=60)
     r.raise_for_status()
-    with gzip.open(r.content, 'rb') as f_in:
+    with gzip.open(io.BytesIO(r.content), 'rb') as f_in:
         with open(EPG_FILE, 'wb') as f_out:
             f_out.write(f_in.read())
     print("✅ Guía original descargada.")
+
 
 # ----------------------
 # PROCESAMIENTO
