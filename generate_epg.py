@@ -67,7 +67,7 @@ CANALES_USAR = {
 # Map de títulos especiales si aplica
 TITULOS_MAP = {
     "Madagascar 2Escape de África": "Madagascar 2: Escape de África",
-    "H.Potter y la cámara secreta": "Harry Potter y la Cámara Secreta”
+    "H.Potter y la cámara secreta": "Harry Potter y la Cámara Secreta"
 }
 
 # ----------------------
