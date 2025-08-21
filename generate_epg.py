@@ -16,7 +16,6 @@ if not API_KEY:
 
 BASE_URL = "https://api.themoviedb.org/3/search/multi"
 
-# Canales HBO que queremos procesar
 CANALES_USAR = [
     "Canal.HBO.2.Latinoamérica.mx",
     "Canal.HBO.Family.Latinoamérica.mx",
@@ -27,7 +26,6 @@ CANALES_USAR = [
     "Canal.HBO.Signature.Latinoamérica.mx"
 ]
 
-# Mapeo manual de títulos problemáticos
 TITULOS_MAP = {
     "Madagascar 2Escape de África": "Madagascar: Escape 2 Africa",
     "H.Potter y la cámara secreta": "Harry Potter and the Chamber of Secrets"
@@ -90,7 +88,7 @@ if root is None:
 for programme in root.findall("programme"):
     channel = programme.get("channel", "")
     if channel not in CANALES_USAR:
-        continue  # Ignorar canales que no necesitamos
+        continue
 
     title_elem = programme.find("title")
     if title_elem is None or not title_elem.text:
@@ -120,23 +118,35 @@ for programme in root.findall("programme"):
                 title_elem.text = f"{result['title']} ({year})" if year else result['title']
 
             elif result.get("media_type") == "tv":
-                # Usar <episode-num> si existe
+                # 1️⃣ Usar <episode-num>
                 ep_num_elem = programme.find("episode-num")
                 se_text = ""
                 if ep_num_elem is not None and ep_num_elem.text:
                     se_text = ep_num_elem.text.strip()
                 else:
-                    # Fallback: usar <sub-title>
+                    # 2️⃣ Fallback: <sub-title>
                     sub_elem = programme.find("sub-title")
                     if sub_elem is not None and sub_elem.text:
                         se_text = sub_elem.text.strip()
+                    else:
+                        # 3️⃣ Fallback: regex sobre título
+                        match = re.search(r"S(\d+)E(\d+)", title, re.IGNORECASE)
+                        if match:
+                            se_text = match.group(0)
+                            sub_elem = ET.Element("sub-title")
+                            sub_elem.text = se_text
+                            programme.append(sub_elem)
+
+                # Título final
                 title_elem.text = f"{result['name']} ({se_text})" if se_text else result['name']
 
-            # --- DESCRIPCIÓN ---
-            if programme.find("desc") is None and result.get("overview"):
-                desc = ET.Element("desc", lang="es")
-                desc.text = result["overview"]
-                programme.append(desc)
+                # --- DESCRIPCIÓN CON NOMBRE DEL EPISODIO EN PRIMERA LÍNEA ---
+                if programme.find("desc") is None and result.get("overview"):
+                    ep_name = se_text
+                    desc_text = f"\"{ep_name}\"\n{result['overview']}" if ep_name else result['overview']
+                    desc = ET.Element("desc", lang="es")
+                    desc.text = desc_text
+                    programme.append(desc)
 
             # --- FECHA (solo películas) ---
             if programme.find("date") is None and result.get("release_date"):
