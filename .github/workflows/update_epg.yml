@@ -2,7 +2,7 @@ name: Update EPG
 
 on:
   schedule:
-    - cron: '0 0 * * *'   # Cada 24 horas
+    - cron: '0 */12 * * *'   # Cada 12 horas
   workflow_dispatch:       # Permite ejecutar manualmente
 
 jobs:
@@ -10,40 +10,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Clonar el repositorio y permitir push
       - name: Clonar repo
         uses: actions/checkout@v3
         with:
-          persist-credentials: false  # Desactivamos el token automático
-          fetch-depth: 0             # Traer todo el historial
+          persist-credentials: false
+          fetch-depth: 0
 
-      # 2️⃣ Configurar Git para push con PAT
       - name: Configurar Git con PAT
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${{ secrets.MY_PAT }}@github.com/${{ github.repository }}.git
 
-      # 3️⃣ Configurar Node.js
-      - name: Configurar Node.js
-        uses: actions/setup-node@v3
+      - name: Configurar Python
+        uses: actions/setup-python@v4
         with:
-          node-version: '18'
+          python-version: "3.x"
 
-      # 4️⃣ Instalar dependencias
       - name: Instalar dependencias
-        run: npm install fast-xml-parser
+        run: pip install -r requirements.txt
 
-      # 5️⃣ Generar guía 72h
       - name: Generar guía 72h
-        run: node generate_72h.js
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: python generate_epg.py
 
-      # 6️⃣ Hacer commit solo si hay cambios
       - name: Hacer commit si hay cambios
         run: |
-          git add .
+          git add guide_custom.xml
           git diff-index --quiet HEAD || git commit -m "Actualizar guía 72h automáticamente"
 
-      # 7️⃣ Hacer push usando PAT
       - name: Push cambios
         run: git push origin main
