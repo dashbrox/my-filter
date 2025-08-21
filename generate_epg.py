@@ -51,9 +51,7 @@ def buscar_tmdb(titulo):
     return None
 
 def normalizar_titulo(titulo):
-    # Reemplaza con mapeo manual si existe
     titulo = TITULOS_MAP.get(titulo, titulo)
-    # Eliminar acentos y caracteres especiales
     titulo_normalized = unicodedata.normalize('NFKD', titulo).encode('ascii', 'ignore').decode()
     return titulo_normalized
 
@@ -120,11 +118,18 @@ for programme in root.findall("programme"):
                 release_date = result.get("release_date") or ""
                 year = release_date.split("-")[0] if release_date else ""
                 title_elem.text = f"{result['title']} ({year})" if year else result['title']
+
             elif result.get("media_type") == "tv":
+                # Usar <episode-num> si existe
+                ep_num_elem = programme.find("episode-num")
                 se_text = ""
-                sub_elem = programme.find("sub-title")
-                if sub_elem is not None and sub_elem.text:
-                    se_text = sub_elem.text.strip()
+                if ep_num_elem is not None and ep_num_elem.text:
+                    se_text = ep_num_elem.text.strip()
+                else:
+                    # Fallback: usar <sub-title>
+                    sub_elem = programme.find("sub-title")
+                    if sub_elem is not None and sub_elem.text:
+                        se_text = sub_elem.text.strip()
                 title_elem.text = f"{result['name']} ({se_text})" if se_text else result['name']
 
             # --- DESCRIPCIÓN ---
