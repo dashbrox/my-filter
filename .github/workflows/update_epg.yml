@@ -2,39 +2,48 @@ name: Update EPG
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 0 * * *'   # Cada 24 horas
+  workflow_dispatch:       # Permite ejecutar manualmente
 
 jobs:
   update:
     runs-on: ubuntu-latest
+
     steps:
+      # 1️⃣ Clonar el repositorio y permitir push
       - name: Clonar repo
         uses: actions/checkout@v3
         with:
-          persist-credentials: true
+          persist-credentials: false  # Desactivamos el token automático
+          fetch-depth: 0             # Traer todo el historial
 
+      # 2️⃣ Configurar Git para push con PAT
+      - name: Configurar Git con PAT
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.MY_PAT }}@github.com/${{ github.repository }}.git
+
+      # 3️⃣ Configurar Node.js
       - name: Configurar Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
 
+      # 4️⃣ Instalar dependencias
       - name: Instalar dependencias
         run: npm install fast-xml-parser
 
+      # 5️⃣ Generar guía 72h
       - name: Generar guía 72h
         run: node generate_72h.js
 
-      - name: Configurar Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
+      # 6️⃣ Hacer commit solo si hay cambios
       - name: Hacer commit si hay cambios
         run: |
           git add .
           git diff-index --quiet HEAD || git commit -m "Actualizar guía 72h automáticamente"
 
-      - name: Push cambios con PAT
-        run: |
-          git push https://x-access-token:${{ secrets.MY_PAT }}@github.com/${{ github.repository }}.git main
+      # 7️⃣ Hacer push usando PAT
+      - name: Push cambios
+        run: git push origin main
