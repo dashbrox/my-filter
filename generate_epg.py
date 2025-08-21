@@ -17,14 +17,54 @@ if not API_KEY:
 BASE_URL_SEARCH = "https://api.themoviedb.org/3/search/multi"
 BASE_URL_TV_EP = "https://api.themoviedb.org/3/tv/{tv_id}/season/{season}/episode/{episode}"
 
-# Lista de canales a procesar
+# Lista de canales actualizada
 CANALES_USAR = [
+    "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
+    "Canal.A&amp;E.(México).mx",
+    "Canal.AMC.(México).mx",
+    "Canal.Animal.Planet.(México).mx",
+    "Canal.Atreseries.(Internacional).mx",
+    "Canal.AXN.(México).mx",
     "Canal.Azteca.Uno.mx",
+    "Canal.Cinecanal.(México).mx",
+    "Canal.Cinema.mx",
+    "Canal.Cinemax.(México).mx",
+    "Canal.Discovery.Channel.(México).mx",
+    "Canal.Discovery.Home.&amp;.Health.(México).mx",
+    "Canal.Discovery.World.Latinoamérica.mx",
+    "Canal.Disney.Channel.(México).mx",
+    "Canal.DW.(Latinoamérica).mxCanal.E!.Entertainment.Television.(México).mx",
+    "Canal.Elgourmet.mx",
+    "Canal.E!.Entertainment.Television.(México).mx",
+    "Canal.Europa.Europa.mx",
+    "Canal.Film.&amp;.Arts.mx",
+    "Canal.FX.(México).mx",
+    "Canal.HBO.2.Latinoamérica.mx",
+    "Canal.HBO.Family.Latinoamérica.mx",
+    "Canal.HBO.(México).mx",
+    "Canal.HBO.Mundi.mx",
+    "Canal.HBO.Plus.mx",
+    "Canal.HBO.Pop.mx",
     "Canal.HBO.Signature.Latinoamérica.mx",
-    # Agrega los demás canales aquí
+    "Canal.Investigation.Discovery.(México).mx",
+    "Canal.Lifetime.(México).mx",
+    "Canal.MTV.00s.mx",
+    "Canal.MTV.Hits.mx",
+    "Canal.National.Geographic.(México).mx",
+    "Canal.Pánico.mx",
+    "Canal.Paramount.Channel.(México).mx",
+    "Canal.Space.(México).mx",
+    "Canal.Sony.(México).mxCanal.Space.(México).mx",
+    "Canal.Star.Channel.(México).mx",
+    "Canal.Studio.Universal.(México).mx",
+    "Canal.TNT.(México).mx",
+    "Canal.TNT.Series.(México).mx",
+    "Canal.Universal.TV.(México).mx",
+    "Canal.USA.Network.(México).mx",
+    "Canal.Warner.TV.(México).mx"
 ]
 
-# Mapa de títulos especiales
+# Map de títulos abreviados o pegados
 TITULOS_MAP = {
     "Madagascar 2Escape de África": "Madagascar: Escape 2 Africa",
     "H.Potter y la cámara secreta": "Harry Potter and the Chamber of Secrets"
@@ -61,20 +101,27 @@ def buscar_episodio(tv_id, season, episode):
 
 def normalizar_titulo(titulo):
     titulo = TITULOS_MAP.get(titulo, titulo)
-    return unicodedata.normalize('NFKD', titulo).encode('ascii', 'ignore').decode()
+    titulo_normalized = unicodedata.normalize('NFKD', titulo).encode('ascii', 'ignore').decode()
+    return titulo_normalized
 
 def parse_episode_num(ep_text):
-    """Convierte S122 o S01E02 a temporada y episodio"""
+    """Normaliza episodios raros a SXX EXX"""
     if not ep_text:
         return None, None
-    # Formato pegado S122 -> S1 E22
-    m = re.match(r"S(\d{1,2})(\d{2})$", ep_text)
-    if m:
-        return int(m.group(1)), int(m.group(2))
-    # Formato normal S01E02
-    m = re.search(r"S(\d+)E(\d+)", ep_text, re.IGNORECASE)
-    if m:
-        return int(m.group(1)), int(m.group(2))
+    # Ejemplos: S122, 1x12, T1E12, Especial 3
+    ep_text = ep_text.strip().upper()
+    # S122 -> S1 E22
+    match = re.match(r"S(\d{1,2})(\d{2})$", ep_text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    # T1E12, S1E12, 1x12
+    match = re.search(r"(?:T|S)?(\d+)[xE](\d+)", ep_text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    # Special 1, Especial 3
+    match = re.search(r"(SPECIAL|ESPECIAL)[\s-]?(\d+)", ep_text)
+    if match:
+        return 0, int(match.group(2))
     return None, None
 
 # ----------------------
@@ -121,46 +168,48 @@ for programme in root.findall("programme"):
     title_original = title_elem.text.strip()
     title_to_search = normalizar_titulo(title_original)
 
+    # --- EXTRAER EPISODIO ---
     ep_num_elem = programme.find("episode-num")
     se_text = ep_num_elem.text.strip() if ep_num_elem is not None and ep_num_elem.text else ""
     season_num, episode_num = parse_episode_num(se_text)
 
-    # Sub-title solo si falta
+    # --- SUBTÍTULO SI FALTA ---
     sub_elem = programme.find("sub-title")
     if sub_elem is None and se_text:
         sub_elem = ET.Element("sub-title")
         sub_elem.text = se_text
         programme.append(sub_elem)
 
+    # --- DESCRIPCIÓN Y AÑO SI FALTAN ---
     desc_elem = programme.find("desc")
     date_elem = programme.find("date")
-    category_elem = programme.find("category")
 
-    # Solo rellenar campos faltantes
-    if desc_elem is None or date_elem is None or (season_num and episode_num and (sub_elem is None or not sub_elem.text)):
+    # Solo completar si falta info
+    if (desc_elem is None or (season_num and episode_num and (sub_elem is None or not sub_elem.text))) or (date_elem is None and "(" not in title_original):
         result = buscar_tmdb(title_to_search)
         if result:
             media_type = result.get("media_type")
+            # --- Películas ---
             if media_type == "movie":
-                # Películas
-                if date_elem is None and result.get("release_date"):
-                    year = result["release_date"].split("-")[0]
+                release_date = result.get("release_date") or ""
+                year = release_date.split("-")[0] if release_date else ""
+                if date_elem is None and year:
                     date_elem = ET.Element("date")
                     date_elem.text = year
                     programme.append(date_elem)
-                    if "(" not in title_original and year:
-                        title_elem.text = f"{title_original} ({year})"
                 if desc_elem is None and result.get("overview"):
                     desc_elem = ET.Element("desc", lang="es")
                     desc_elem.text = result["overview"]
                     programme.append(desc_elem)
+                if "(" not in title_original and year:
+                    title_elem.text = f"{title_original} ({year})"
+            # --- Series ---
             elif media_type == "tv":
-                # Series
                 tv_id = result.get("id")
                 ep_info = None
-                if season_num and episode_num:
+                if season_num is not None and episode_num is not None:
                     ep_info = buscar_episodio(tv_id, season_num, episode_num)
-
+                # Nombre episodio y sinopsis
                 episode_name = se_text
                 episode_desc = ""
                 if ep_info:
@@ -168,8 +217,6 @@ for programme in root.findall("programme"):
                         episode_name = ep_info["name"]
                     if ep_info.get("overview"):
                         episode_desc = ep_info["overview"]
-
-                # Solo completar si falta
                 if desc_elem is None:
                     desc_text = f"\"{episode_name}\"\n{episode_desc}" if episode_desc else f"\"{episode_name}\""
                     desc_elem = ET.Element("desc", lang="es")
@@ -180,7 +227,7 @@ for programme in root.findall("programme"):
                     sub_elem.text = se_text
                     programme.append(sub_elem)
 
-    # Eliminar fields no deseados
+    # --- ELIMINAR campos innecesarios ---
     for tag in ["credits", "rating", "star-rating"]:
         elem = programme.find(tag)
         if elem is not None:
