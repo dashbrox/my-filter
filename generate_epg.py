@@ -136,36 +136,31 @@ if not os.path.exists(EPG_FILE):
 # PROCESAMIENTO
 # ----------------------
 def procesar_epg(input_file, output_file):
-    context = ET.iterparse(input_file, events=("end",), tag="programme")
+    tree = ET.parse(input_file)
+    root = tree.getroot()
+
     with open(output_file, "wb") as f:
         f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
+
+        # --- Guardar todos los canales intactos ---
+        for ch in root.findall("channel"):
+            f.write(ET.tostring(ch, encoding="utf-8"))
+
+        # --- Procesar programas ---
+        context = ET.iterparse(input_file, events=("end",), tag="programme")
         for _, elem in context:
             canal = elem.get("channel")
             if canal not in CANALES_USAR:
                 elem.clear()
                 continue
 
-            # Obtener título original del programa
-            title_el = elem.find("title")
-            titulo = title_el.text.strip() if title_el is not None else "Sin título"
-            titulo_norm = normalizar_texto(titulo)
+            # Aquí se hace todo lo de TMDB, SOLO en <programme>
+            # ...
 
-            # TMDB solo se consulta con el título del programa
-            # Esto es seguro: solo afecta la búsqueda en TMDB y nunca modifica el nombre del canal
-            # Nunca se modifica 'canal', solo se completa información de <title>, <desc> y <date>
+            f.write(ET.tostring(elem, encoding="utf-8"))
+            elem.clear()
 
-            # Obtener categoría
-            category_el = elem.find("category")
-            categoria = category_el.text.strip().lower() if category_el is not None else ""
-
-            # Obtener número de temporada y episodio si aplica
-            ep_el = elem.find("episode-num")
-            ep_text = ep_el.text.strip() if ep_el is not None else ""
-            temporada, episodio = parse_episode_num(ep_text)
-
-            # Elementos existentes en el XML
-            desc_el = elem.find("desc")
-            date_el = elem.find("date")
+        f.write(b"</tv>")
 
             # --- SERIES ---
             if "serie" in categoria and temporada and episodio:
