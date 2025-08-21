@@ -205,17 +205,17 @@ def procesar_epg(input_file, output_file):
                         if f"({anio})" not in titulo:
                             title_el.text = f"{titulo} ({anio})"
 
-        # --- LIMPIEZA ---
+                # --- LIMPIEZA ---
         for tag in ["credits", "rating", "star-rating"]:
-                t = elem.find(tag)
-                if t is not None:
-                    elem.remove(t)
+            t = elem.find(tag)
+            if t is not None:
+                elem.remove(t)
 
-            # Guardar nodo
-            f.write(ET.tostring(elem, encoding="utf-8"))
-            elem.clear()
-            while elem.getprevious() is not None:
-                del elem.getparent()[0]
+        # Guardar nodo
+        f.write(ET.tostring(elem, encoding="utf-8"))
+        elem.clear()
+        while elem.getprevious() is not None:
+            del elem.getparent()[0]
 
         f.write(b"</tv>")
         
