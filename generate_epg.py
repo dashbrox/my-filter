@@ -218,7 +218,7 @@ def procesar_epg(input_file, output_file):
                 del elem.getparent()[0]
 
         f.write(b"</tv>")
-
+        
     # Comprimir XML
     with open(output_file, "rb") as f_in, gzip.open(output_file + ".gz", "wb") as f_out:
         f_out.writelines(f_in)
