@@ -13,6 +13,17 @@ if not API_KEY:
 
 BASE_URL = "https://api.themoviedb.org/3/search/multi"
 
+# Canales a procesar
+CANALES_USAR = [
+    "Canal.HBO.2.Latinoamérica.mx",
+    "Canal.HBO.Family.Latinoamérica.mx",
+    "Canal.HBO.(México).mx",
+    "Canal.HBO.Mundi.mx",
+    "Canal.HBO.Plus.mx",
+    "Canal.HBO.Pop.mx",
+    "Canal.HBO.Signature.Latinoamérica.mx"
+]
+
 # Descargar EPG base
 EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 print("📥 Descargando EPG base...")
@@ -54,12 +65,16 @@ def buscar_tmdb(titulo):
 
 # Recorrer todos los programas
 for programme in root.findall("programme"):
+    channel = programme.get("channel", "")
+    if channel not in CANALES_USAR:
+        continue  # Ignorar canales que no necesitamos
+
     title_elem = programme.find("title")
     if title_elem is None or not title_elem.text:
         continue
 
     title = title_elem.text.strip()
-    print(f"Procesando: {title}")
+    print(f"Procesando: {title} ({channel})")
 
     # Subtítulo: temporada/episodio
     sub_elem = programme.find("sub-title")
