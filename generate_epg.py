@@ -14,7 +14,8 @@ if not API_KEY:
     print("❌ TMDB_API_KEY no está definido como secreto en GitHub")
     sys.exit(1)
 
-BASE_URL = "https://api.themoviedb.org/3/search/multi"
+BASE_URL_SEARCH = "https://api.themoviedb.org/3/search/multi"
+BASE_URL_TV_EP = "https://api.themoviedb.org/3/tv/{tv_id}/season/{season}/episode/{episode}"
 
 CANALES_USAR = [
     "Canal.HBO.2.Latinoamérica.mx",
@@ -37,9 +38,10 @@ EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 # FUNCIONES
 # ----------------------
 def buscar_tmdb(titulo):
+    """Buscar serie o película en TMDB"""
     try:
         params = {"api_key": API_KEY, "query": titulo, "language": "es"}
-        r = requests.get(BASE_URL, params=params, timeout=10)
+        r = requests.get(BASE_URL_SEARCH, params=params, timeout=10)
         r.raise_for_status()
         results = r.json().get("results")
         if results:
@@ -48,10 +50,28 @@ def buscar_tmdb(titulo):
         pass
     return None
 
+def buscar_episodio(tv_id, season, episode):
+    """Obtener info de episodio específico"""
+    try:
+        url = BASE_URL_TV_EP.format(tv_id=tv_id, season=season, episode=episode)
+        params = {"api_key": API_KEY, "language": "es"}
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        return r.json()
+    except requests.RequestException:
+        return None
+
 def normalizar_titulo(titulo):
     titulo = TITULOS_MAP.get(titulo, titulo)
     titulo_normalized = unicodedata.normalize('NFKD', titulo).encode('ascii', 'ignore').decode()
     return titulo_normalized
+
+def parse_episode_num(ep_text):
+    """Extraer temporada y episodio de formato S01 E02"""
+    match = re.search(r"S(\d+)E(\d+)", ep_text, re.IGNORECASE)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    return None, None
 
 # ----------------------
 # DESCARGAR EPG
@@ -101,6 +121,7 @@ for programme in root.findall("programme"):
     # --- EXTRAER EPISODIO ---
     ep_num_elem = programme.find("episode-num")
     se_text = ep_num_elem.text.strip() if ep_num_elem is not None and ep_num_elem.text else ""
+    season_num, episode_num = parse_episode_num(se_text)
 
     # --- ACTUALIZAR TÍTULO ORIGINAL CON EPISODIO ---
     title_elem.text = f"{title_original} ({se_text})" if se_text else title_original
@@ -113,52 +134,52 @@ for programme in root.findall("programme"):
         programme.append(sub_elem)
 
     # --- BUSCAR TMDB PARA COMPLETAR INFO ---
-    if programme.find("desc") is None or programme.find("date") is None or programme.find("category") is None:
-        result = buscar_tmdb(title_to_search)
-        if result:
-            # Películas
-            if result.get("media_type") == "movie":
-                release_date = result.get("release_date") or ""
-                year = release_date.split("-")[0] if release_date else ""
-                title_elem.text = f"{result['title']} ({year})" if year else result['title']
-
-            # Series
-            elif result.get("media_type") == "tv":
-                # Actualizar título con episodio si no se agregó
-                tv_se_text = se_text
-                if not tv_se_text:
-                    if programme.find("sub-title") is not None and programme.find("sub-title").text:
-                        tv_se_text = programme.find("sub-title").text.strip()
-                if tv_se_text:
-                    title_elem.text = f"{result['name']} ({tv_se_text})"
-                else:
-                    title_elem.text = result['name']
-
-                # Descripción con primera línea: nombre del episodio
-                if programme.find("desc") is None and result.get("overview"):
-                    desc_text = f"\"{tv_se_text}\"\n{result['overview']}" if tv_se_text else result['overview']
-                    desc = ET.Element("desc", lang="es")
-                    desc.text = desc_text
-                    programme.append(desc)
-
-            # Fecha (solo películas)
-            if programme.find("date") is None and result.get("release_date"):
+    result = buscar_tmdb(title_to_search)
+    if result:
+        media_type = result.get("media_type")
+        # --- Películas ---
+        if media_type == "movie":
+            release_date = result.get("release_date") or ""
+            year = release_date.split("-")[0] if release_date else ""
+            title_elem.text = f"{result['title']} ({year})" if year else result['title']
+            # Descripción
+            if programme.find("desc") is None and result.get("overview"):
+                desc = ET.Element("desc", lang="es")
+                desc.text = result["overview"]
+                programme.append(desc)
+            # Fecha
+            if programme.find("date") is None and release_date:
                 date_elem = ET.Element("date")
-                date_elem.text = result["release_date"].split("-")[0]
+                date_elem.text = year
                 programme.append(date_elem)
-
-            # Categoría: SOLO si TMDB es confiable y no existe
+        # --- Series ---
+        elif media_type == "tv":
+            tv_id = result.get("id")
+            ep_info = None
+            if season_num and episode_num:
+                ep_info = buscar_episodio(tv_id, season_num, episode_num)
+            # Nombre episodio y sinopsis
+            episode_name = se_text
+            episode_desc = ""
+            if ep_info:
+                if ep_info.get("name"):
+                    episode_name = ep_info["name"]
+                if ep_info.get("overview"):
+                    episode_desc = ep_info["overview"]
+            # Actualizar título con episodio
+            title_elem.text = f"{result['name']} ({se_text})" if se_text else result['name']
+            # Actualizar descripción
+            if programme.find("desc") is None:
+                desc_text = f"\"{episode_name}\"\n{episode_desc}" if episode_desc else f"\"{episode_name}\""
+                desc = ET.Element("desc", lang="es")
+                desc.text = desc_text
+                programme.append(desc)
+            # Categoría
             existing_cat = programme.find("category")
-            if existing_cat is None and result.get("media_type"):
+            if existing_cat is None:
                 cat_elem = ET.Element("category", lang="es")
-                media_type = result.get("media_type")
-                if media_type == "movie":
-                    cat_elem.text = "Película"
-                elif media_type == "tv":
-                    cat_elem.text = "Serie"
+                cat_elem.text = "Serie"
                 programme.append(cat_elem)
-        else:
-            print(f"⚠️ No encontrado en TMDB: {title_original}")
 
 # ----------------------
 # GUARDAR XML FINAL
