@@ -145,17 +145,25 @@ def procesar_epg(input_file, output_file):
                 elem.clear()
                 continue
 
+            # Obtener título original del programa
             title_el = elem.find("title")
             titulo = title_el.text.strip() if title_el is not None else "Sin título"
             titulo_norm = normalizar_texto(titulo)
 
+            # TMDB solo se consulta con el título del programa
+            # Esto es seguro: solo afecta la búsqueda en TMDB y nunca modifica el nombre del canal
+            # Nunca se modifica 'canal', solo se completa información de <title>, <desc> y <date>
+
+            # Obtener categoría
             category_el = elem.find("category")
             categoria = category_el.text.strip().lower() if category_el is not None else ""
 
+            # Obtener número de temporada y episodio si aplica
             ep_el = elem.find("episode-num")
             ep_text = ep_el.text.strip() if ep_el is not None else ""
             temporada, episodio = parse_episode_num(ep_text)
 
+            # Elementos existentes en el XML
             desc_el = elem.find("desc")
             date_el = elem.find("date")
 
