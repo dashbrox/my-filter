@@ -163,7 +163,7 @@ def procesar_epg(input_file, output_file):
         f.write(b"</tv>")
 
         # --- SERIES ---
-            if "serie" in categoria and temporada and episodio:
+        if "serie" in categoria and temporada and episodio:
                 # Subtítulo
                 sub_el = elem.find("sub-title")
                 if sub_el is None:
@@ -184,7 +184,7 @@ def procesar_epg(input_file, output_file):
                         title_el.text = f"{titulo} (S{temporada:02d}E{episodio:02d}) - {nombre_ep}"
 
         # --- PELÍCULAS ---
-            elif "pel" in categoria or "movie" in categoria:
+        elif "pel" in categoria or "movie" in categoria:
                 # Consultar TMDB solo si falta año o sinopsis
                 if (date_el is None or not date_el.text.strip()) or (desc_el is None or not desc_el.text.strip()):
                     search_res = buscar_tmdb(titulo_norm, "movie")
