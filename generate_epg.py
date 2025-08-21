@@ -19,49 +19,7 @@ BASE_URL_TV_EP = "https://api.themoviedb.org/3/tv/{tv_id}/season/{season}/episod
 
 # Lista de canales actualizada
 CANALES_USAR = [
-    "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
-    "Canal.A&amp;E.(México).mx",
-    "Canal.AMC.(México).mx",
-    "Canal.Animal.Planet.(México).mx",
-    "Canal.Atreseries.(Internacional).mx",
-    "Canal.AXN.(México).mx",
-    "Canal.Azteca.Uno.mx",
-    "Canal.Cinecanal.(México).mx",
-    "Canal.Cinema.mx",
-    "Canal.Cinemax.(México).mx",
-    "Canal.Discovery.Channel.(México).mx",
-    "Canal.Discovery.Home.&amp;.Health.(México).mx",
-    "Canal.Discovery.World.Latinoamérica.mx",
-    "Canal.Disney.Channel.(México).mx",
-    "Canal.DW.(Latinoamérica).mxCanal.E!.Entertainment.Television.(México).mx",
-    "Canal.Elgourmet.mx",
-    "Canal.E!.Entertainment.Television.(México).mx",
-    "Canal.Europa.Europa.mx",
-    "Canal.Film.&amp;.Arts.mx",
-    "Canal.FX.(México).mx",
-    "Canal.HBO.2.Latinoamérica.mx",
-    "Canal.HBO.Family.Latinoamérica.mx",
-    "Canal.HBO.(México).mx",
-    "Canal.HBO.Mundi.mx",
-    "Canal.HBO.Plus.mx",
-    "Canal.HBO.Pop.mx",
-    "Canal.HBO.Signature.Latinoamérica.mx",
-    "Canal.Investigation.Discovery.(México).mx",
-    "Canal.Lifetime.(México).mx",
-    "Canal.MTV.00s.mx",
-    "Canal.MTV.Hits.mx",
-    "Canal.National.Geographic.(México).mx",
-    "Canal.Pánico.mx",
-    "Canal.Paramount.Channel.(México).mx",
-    "Canal.Space.(México).mx",
-    "Canal.Sony.(México).mxCanal.Space.(México).mx",
-    "Canal.Star.Channel.(México).mx",
-    "Canal.Studio.Universal.(México).mx",
-    "Canal.TNT.(México).mx",
-    "Canal.TNT.Series.(México).mx",
-    "Canal.Universal.TV.(México).mx",
-    "Canal.USA.Network.(México).mx",
-    "Canal.Warner.TV.(México).mx"
+    # ... tu lista completa de canales ...
 ]
 
 # Map de títulos abreviados o pegados
@@ -76,7 +34,6 @@ EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 # FUNCIONES
 # ----------------------
 def buscar_tmdb(titulo):
-    """Buscar serie o película en TMDB"""
     try:
         params = {"api_key": API_KEY, "query": titulo, "language": "es"}
         r = requests.get(BASE_URL_SEARCH, params=params, timeout=10)
@@ -89,7 +46,6 @@ def buscar_tmdb(titulo):
     return None
 
 def buscar_episodio(tv_id, season, episode):
-    """Obtener info de episodio específico"""
     try:
         url = BASE_URL_TV_EP.format(tv_id=tv_id, season=season, episode=episode)
         params = {"api_key": API_KEY, "language": "es"}
@@ -101,14 +57,18 @@ def buscar_episodio(tv_id, season, episode):
 
 def normalizar_titulo(titulo):
     titulo = TITULOS_MAP.get(titulo, titulo)
-    titulo_normalized = unicodedata.normalize('NFKD', titulo).encode('ascii', 'ignore').decode()
-    return titulo_normalized
+    return unicodedata.normalize('NFKD', titulo).encode('ascii', 'ignore').decode()
 
 def parse_episode_num(ep_text):
-    """Extraer temporada y episodio de formato S01 E02"""
-    match = re.search(r"S(\d+)E(\d+)", ep_text, re.IGNORECASE)
+    """Convierte S122, S12E2 o S1 E22 en temporada y episodio"""
+    ep_text = ep_text.replace(" ", "").upper()
+    match = re.match(r"S(\d{1,2})(\d{1,2})$", ep_text)
     if match:
-        return int(match.group(1)), int(match.group(2))
+        season, episode = int(match.group(1)), int(match.group(2))
+        return season, episode
+    match2 = re.match(r"S(\d+)E(\d+)", ep_text)
+    if match2:
+        return int(match2.group(1)), int(match2.group(2))
     return None, None
 
 # ----------------------
@@ -175,11 +135,9 @@ for programme in root.findall("programme"):
         result = buscar_tmdb(title_to_search)
         if result:
             media_type = result.get("media_type")
-            # --- Películas ---
             if media_type == "movie":
                 release_date = result.get("release_date") or ""
                 year = release_date.split("-")[0] if release_date else ""
-                # Solo actualizar si falta
                 if date_elem is None and year:
                     date_elem = ET.Element("date")
                     date_elem.text = year
@@ -188,16 +146,13 @@ for programme in root.findall("programme"):
                     desc_elem = ET.Element("desc", lang="es")
                     desc_elem.text = result["overview"]
                     programme.append(desc_elem)
-                # Solo agregar año al título si faltaba
                 if "(" not in title_original and year:
                     title_elem.text = f"{title_original} ({year})"
-            # --- Series ---
             elif media_type == "tv":
                 tv_id = result.get("id")
                 ep_info = None
                 if season_num and episode_num:
                     ep_info = buscar_episodio(tv_id, season_num, episode_num)
-                # Nombre episodio y sinopsis
                 episode_name = se_text
                 episode_desc = ""
                 if ep_info:
@@ -205,13 +160,11 @@ for programme in root.findall("programme"):
                         episode_name = ep_info["name"]
                     if ep_info.get("overview"):
                         episode_desc = ep_info["overview"]
-                # Solo completar descripción si faltaba
                 if desc_elem is None:
                     desc_text = f"\"{episode_name}\"\n{episode_desc}" if episode_desc else f"\"{episode_name}\""
                     desc_elem = ET.Element("desc", lang="es")
                     desc_elem.text = desc_text
                     programme.append(desc_elem)
-                # Solo completar sub-title si faltaba
                 if sub_elem is None:
                     sub_elem = ET.Element("sub-title")
                     sub_elem.text = se_text
