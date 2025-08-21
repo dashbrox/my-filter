@@ -15,6 +15,7 @@
   "author": "dashbrox",
   "license": "MIT",
   "dependencies": {
-    "epg-grabber": "^0.38.0"
+    "epg-grabber": "^0.38.0",
+    "fast-xml-parser": "^5.2.5"
   }
 }
