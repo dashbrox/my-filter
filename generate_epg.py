@@ -78,11 +78,11 @@ def normalizar_texto(texto):
     return texto.strip()
 
 def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
-    """ChatGPT genera descripción si TMDB no la proporciona"""
+    """Genera descripción genérica si TMDB no la proporciona"""
     if tipo == "pelicula":
-        return f"Sinopsis de la película '{titulo}' generada automáticamente."
+        return f"Sinopsis no disponible para la película '{titulo}'."
     else:
-        return f"Sinopsis del episodio {temporada}-{episodio} de '{titulo}' generada automáticamente."
+        return f"Sinopsis no disponible para el episodio {temporada}-{episodio} de '{titulo}'."
 
 def traducir_a_espanol(texto):
     """Traduce automáticamente texto en inglés a español (simulado)"""
@@ -98,7 +98,19 @@ def buscar_tmdb(titulo, tipo="multi", lang="es-MX"):
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
         results = r.json().get("results", [])
-        return results[0] if results else None
+        if results:
+            return results[0]
+
+        # Fallback: si contiene "Making of", buscar quitando esa parte
+        if "making of" in titulo.lower():
+            titulo_base = titulo.lower().replace("making of", "").strip()
+            params["query"] = titulo_base
+            r2 = requests.get(url, params=params, timeout=10)
+            r2.raise_for_status()
+            results2 = r2.json().get("results", [])
+            return results2[0] if results2 else None
+
+        return None
     except Exception:
         if lang != "en-US":
             return buscar_tmdb(titulo, tipo, "en-US")
@@ -202,13 +214,13 @@ def procesar_epg(input_file, output_file):
                 print(f"[SERIE] Canal: {canal}, Episodio: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
             elif es_pelicula:
-                anio, overview = "????", ""
+                anio, overview = "", ""
                 if search_res:
-                    anio = (search_res.get("release_date") or "")[:4] or "????"
+                    anio = (search_res.get("release_date") or "")[:4]
                     overview = search_res.get("overview") or rellenar_descripcion(titulo_original, "pelicula")
                     overview = traducir_a_espanol(overview)
                 else:
-                    anio = "????"
+                    anio = ""
                     overview = rellenar_descripcion(titulo_original, "pelicula")
 
                 if date_el is None:
@@ -221,7 +233,8 @@ def procesar_epg(input_file, output_file):
 
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
-                title_el.text = f"{titulo_original} ({anio})"
+                # título con año solo si hay año
+                title_el.text = f"{titulo_original} ({anio})" if anio else titulo_original
 
                 print(f"[PELÍCULA] Canal: {canal}, Título: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
