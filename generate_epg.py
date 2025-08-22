@@ -31,6 +31,7 @@ EPG_FILES_TEMP = []
 
 # Canales a usar (MX + internacionales)
 CANALES_USAR = {
+    # Canales originales de México
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
@@ -73,6 +74,8 @@ CANALES_USAR = {
     "Canal.Universal.TV.(México).mx",
     "Canal.USA.Network.(México).mx",
     "Canal.Warner.TV.(México).mx",
+
+    # Nuevos canales internacionales
     "plex.tv.T2.plex",
     "TSN1.ca",
     "TSN2.ca",
@@ -151,10 +154,15 @@ def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
         return f"Sinopsis no disponible para el episodio {temporada}-{episodio} de '{titulo}'."
 
 def traducir_a_espanol(texto):
+    # 🔄 Placeholder: aquí podrías integrar un traductor real si lo deseas.
+    # De momento solo retorna el mismo texto para no agregar dependencias externas.
     if not texto:
         return ""
     return texto
 
+# ----------------------
+# BUSQUEDAS TMDB
+# ----------------------
 def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
     titulo = TITULOS_MAP.get(titulo, titulo)
     url = f"https://api.themoviedb.org/3/search/{tipo}"
@@ -195,6 +203,9 @@ def obtener_info_serie(tv_id, temporada, episodio, lang="es-MX"):
     except Exception:
         return {}
 
+# ----------------------
+# PARSEO DE EPISODIOS
+# ----------------------
 def parse_episode_num(ep_text):
     if not ep_text:
         return None, None
@@ -236,6 +247,17 @@ for idx, url in enumerate(NUEVAS_EPGS, start=1):
 # ----------------------
 # PROCESAR UNA EPG
 # ----------------------
+
+def _get_desc_text(desc_el):
+    """Obtiene TODO el texto de <desc> sin perder fragmentos."""
+    if desc_el is None:
+        return ""
+    try:
+        return "".join(desc_el.itertext()).strip()
+    except Exception:
+        return (desc_el.text or "").strip()
+
+
 def procesar_epg(input_file, output_file, escribir_raiz=False):
     tree = ET.parse(input_file)
     root = tree.getroot()
@@ -245,32 +267,33 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
         if escribir_raiz:
             f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
-        # Escribir solo nodos permitidos
+        # Escribir solo nodos permitidos (channels)
         for ch in root.findall("channel"):
             if ch.get("id") in CANALES_USAR:
                 f.write(ET.tostring(ch, encoding="utf-8"))
 
+        # Programación
         for elem in root.findall("programme"):
             canal = elem.get("channel")
             if canal not in CANALES_USAR:
                 continue
 
             title_el = elem.find("title")
+            sub_el = elem.find("sub-title")
             desc_el = elem.find("desc")
             date_el = elem.find("date")
             ep_el = elem.find("episode-num")
-            ep_text = ep_el.text.strip() if ep_el is not None else ""
+            ep_text = ep_el.text.strip() if ep_el is not None and ep_el.text else ""
             temporada, episodio = parse_episode_num(ep_text)
-            categorias = [c.text.lower() for c in elem.findall("category")]
+            categorias = [(c.text or "").lower() for c in elem.findall("category")]
+
+            # NO borrar info existente
+            existing_desc = _get_desc_text(desc_el)
 
             es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
             es_pelicula = not es_serie
 
-            sub_el = elem.find("sub-title")
-            if sub_el is None:
-                sub_el = ET.SubElement(elem, "sub-title")
-
-            titulo_original = title_el.text.strip() if title_el is not None else "Sin título"
+            titulo_original = title_el.text.strip() if title_el is not None and title_el.text else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
 
             if es_serie and temporada and episodio:
@@ -284,18 +307,31 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
                     nombre_ep = traducir_a_espanol(nombre_ep)
                     overview = traducir_a_espanol(overview)
 
-                sub_el.text = nombre_ep
+                # sub-title: solo rellenar si no existe
+                if sub_el is None or not (sub_el.text or "").strip():
+                    if sub_el is None:
+                        sub_el = ET.SubElement(elem, "sub-title")
+                    sub_el.text = nombre_ep
 
-                if desc_el is None:
-                    desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = f"{nombre_ep}\n{overview}".strip()
+                # desc: conservar existente; si no hay, usar TMDB/fallback
+                if existing_desc:
+                    # Traducir (placeholder) pero NO borrar contenido existente
+                    desc_text = traducir_a_espanol(existing_desc)
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = desc_text
+                else:
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = (f"{nombre_ep}\n{overview}".strip() if overview else nombre_ep)
 
+                # título con SxxExx como ya lo hacías
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f'{titulo_original} (S{temporada:02d}E{episodio:02d})'
 
             elif es_pelicula:
-                anio_epg = date_el.text.strip() if date_el is not None else ""
+                anio_epg = date_el.text.strip() if (date_el is not None and date_el.text) else ""
                 search_res = buscar_tmdb(titulo_norm, "movie", year=anio_epg if anio_epg else None)
 
                 anio, overview, titulo_es = "", "", titulo_original
@@ -305,34 +341,46 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
                     overview = search_res.get("overview") or rellenar_descripcion(titulo_original, "pelicula")
                     titulo_es = traducir_a_espanol(titulo_es)
                     overview = traducir_a_espanol(overview)
+
+                # date: solo si falta
+                if (date_el is None or not (date_el.text or "").strip()) and anio:
+                    if date_el is None:
+                        date_el = ET.SubElement(elem, "date")
+                    date_el.text = anio
+
+                # desc: conservar existente; si no hay, usar TMDB/fallback
+                if existing_desc:
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = traducir_a_espanol(existing_desc)
                 else:
-                    overview = rellenar_descripcion(titulo_original, "pelicula")
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = overview if overview else rellenar_descripcion(titulo_original, "pelicula")
 
-                if date_el is None:
-                    date_el = ET.SubElement(elem, "date")
-                date_el.text = anio
-
-                if desc_el is None:
-                    desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = overview
-
+                # title: mantener tu lógica de título en español/año
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_es} ({anio})" if anio else titulo_es
 
+            # Escribir el programme tal como quedó (sin perder otros nodos)
             f.write(ET.tostring(elem, encoding="utf-8"))
 
 # ----------------------
 # EJECUTAR
 # ----------------------
+# Procesar guía principal con raíz (modo wb)
 procesar_epg(EPG_FILE, OUTPUT_FILE, escribir_raiz=True)
 
+# Procesar nuevas EPGs (append)
 for temp_file in EPG_FILES_TEMP:
     procesar_epg(temp_file, OUTPUT_FILE, escribir_raiz=False)
 
+# Cerrar la raíz al final
 with open(OUTPUT_FILE, "ab") as f:
     f.write(b"</tv>")
 
+# Comprimir resultado
 with open(OUTPUT_FILE, "rb") as f_in, gzip.open(OUTPUT_FILE + ".gz", "wb") as f_out:
     f_out.writelines(f_in)
 
