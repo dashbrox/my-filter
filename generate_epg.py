@@ -78,23 +78,28 @@ def normalizar_texto(texto):
     return texto.strip()
 
 def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
-    """Genera descripción genérica si TMDB no la proporciona"""
     if tipo == "pelicula":
         return f"Sinopsis no disponible para la película '{titulo}'."
     else:
         return f"Sinopsis no disponible para el episodio {temporada}-{episodio} de '{titulo}'."
 
 def traducir_a_espanol(texto):
-    """Traduce automáticamente texto en inglés a español (simulado)"""
     if not texto:
         return ""
-    # Aquí se puede usar una API de traducción real
-    return texto
+    return texto  # Aquí podrías integrar un traductor real
 
-def buscar_tmdb(titulo, tipo="multi", lang="es-MX"):
+def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
     titulo = TITULOS_MAP.get(titulo, titulo)
     url = f"https://api.themoviedb.org/3/search/{tipo}"
     params = {"api_key": API_KEY, "query": titulo, "language": lang}
+
+    # 🔹 Si es película y no hay año, no hacemos búsqueda
+    if tipo == "movie" and not year:
+        return None
+
+    if year and tipo == "movie":
+        params["year"] = year
+
     try:
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
@@ -113,7 +118,7 @@ def buscar_tmdb(titulo, tipo="multi", lang="es-MX"):
         return None
     except Exception:
         if lang != "en-US":
-            return buscar_tmdb(titulo, tipo, "en-US")
+            return buscar_tmdb(titulo, tipo, "en-US", year)
     return None
 
 def obtener_info_serie(tv_id, temporada, episodio, lang="es-MX"):
@@ -188,10 +193,8 @@ def procesar_epg(input_file, output_file):
             titulo_original = title_el.text.strip() if title_el is not None else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
 
-            tipo_busqueda = "tv" if es_serie else "movie"
-            search_res = buscar_tmdb(titulo_norm, tipo_busqueda)
-
             if es_serie and temporada and episodio:
+                search_res = buscar_tmdb(titulo_norm, "tv")
                 nombre_ep, overview = ep_text, ""
                 if search_res:
                     tv_id = search_res.get("id")
@@ -214,6 +217,9 @@ def procesar_epg(input_file, output_file):
                 print(f"[SERIE] Canal: {canal}, Episodio: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
             elif es_pelicula:
+                anio_epg = date_el.text.strip() if date_el is not None else ""
+                search_res = buscar_tmdb(titulo_norm, "movie", year=anio_epg if anio_epg else None)
+
                 anio, overview, titulo_es = "", "", titulo_original
                 if search_res:
                     anio = (search_res.get("release_date") or "")[:4]
