@@ -13,10 +13,23 @@ API_KEY = os.getenv("TMDB_API_KEY")
 if not API_KEY:
     raise RuntimeError("❌ TMDB_API_KEY no está definido en el entorno.")
 
+# Guía principal
 EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_FILE = "epg_original.xml"
 OUTPUT_FILE = "guide_custom.xml"
 
+# Nuevas fuentes
+NUEVAS_EPGS = [
+    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz",
+]
+
+EPG_FILES_TEMP = []
+
+# Canales a usar
 CANALES_USAR = {
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
@@ -93,7 +106,6 @@ def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
     url = f"https://api.themoviedb.org/3/search/{tipo}"
     params = {"api_key": API_KEY, "query": titulo, "language": lang}
 
-    # 🔹 Si es película y no hay año, no hacemos búsqueda
     if tipo == "movie" and not year:
         return None
 
@@ -158,14 +170,30 @@ if not os.path.exists(EPG_FILE):
     print("✅ Guía original descargada.")
 
 # ----------------------
+# DESCARGAR NUEVAS EPGS
+# ----------------------
+for idx, url in enumerate(NUEVAS_EPGS, start=1):
+    temp_file = f"epg_nueva_{idx}.xml"
+    if not os.path.exists(temp_file):
+        print(f"📥 Descargando EPG desde {url}...")
+        r = requests.get(url, timeout=60)
+        r.raise_for_status()
+        with gzip.open(io.BytesIO(r.content), 'rb') as f_in:
+            with open(temp_file, 'wb') as f_out:
+                f_out.write(f_in.read())
+        print(f"✅ EPG descargada: {temp_file}")
+    EPG_FILES_TEMP.append(temp_file)
+
+# ----------------------
 # PROCESAR EPG
 # ----------------------
 def procesar_epg(input_file, output_file):
     tree = ET.parse(input_file)
     root = tree.getroot()
 
-    with open(output_file, "wb") as f:
-        f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
+    with open(output_file, "ab") as f:  # append mode para agregar nuevas EPGs
+        if os.path.getsize(output_file) == 0:
+            f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
         for ch in root.findall("channel"):
             f.write(ET.tostring(ch, encoding="utf-8"))
@@ -247,11 +275,23 @@ def procesar_epg(input_file, output_file):
 
             f.write(ET.tostring(elem, encoding="utf-8"))
 
+# ----------------------
+# EJECUTAR PROCESAMIENTO
+# ----------------------
+if __name__ == "__main__":
+    # Procesar guía original
+    procesar_epg(EPG_FILE, OUTPUT_FILE)
+
+    # Procesar nuevas EPGs
+    for epg_temp in EPG_FILES_TEMP:
+        procesar_epg(epg_temp, OUTPUT_FILE)
+
+    # Cerrar XML
+    with open(OUTPUT_FILE, "ab") as f:
         f.write(b"</tv>")
 
-    with open(output_file, "rb") as f_in, gzip.open(output_file + ".gz", "wb") as f_out:
+    # Comprimir guía final
+    with open(OUTPUT_FILE, "rb") as f_in, gzip.open(OUTPUT_FILE + ".gz", "wb") as f_out:
         f_out.writelines(f_in)
 
-if __name__ == "__main__":
-    procesar_epg(EPG_FILE, OUTPUT_FILE)
-    print(f"✅ Guía generada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
+    print(f"✅ Guía final generada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
