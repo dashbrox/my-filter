@@ -88,7 +88,8 @@ def traducir_a_espanol(texto):
     """Traduce automáticamente texto en inglés a español (simulado)"""
     if not texto:
         return ""
-    return texto  # En producción se implementa GPT API real
+    # Aquí se puede usar una API de traducción real
+    return texto
 
 def buscar_tmdb(titulo, tipo="multi", lang="es-MX"):
     titulo = TITULOS_MAP.get(titulo, titulo)
@@ -101,7 +102,6 @@ def buscar_tmdb(titulo, tipo="multi", lang="es-MX"):
         if results:
             return results[0]
 
-        # Fallback: si contiene "Making of", buscar quitando esa parte
         if "making of" in titulo.lower():
             titulo_base = titulo.lower().replace("making of", "").strip()
             params["query"] = titulo_base
@@ -198,14 +198,14 @@ def procesar_epg(input_file, output_file):
                     epi_info = obtener_info_serie(tv_id, temporada, episodio)
                     nombre_ep = epi_info.get("name") or ep_text
                     overview = epi_info.get("overview") or rellenar_descripcion(titulo_original, "serie", temporada, episodio)
+                    nombre_ep = traducir_a_espanol(nombre_ep)
                     overview = traducir_a_espanol(overview)
 
-                nombre_ep_formateado = f'**"{nombre_ep}"**'
-                sub_el.text = nombre_ep_formateado
+                sub_el.text = nombre_ep
 
                 if desc_el is None:
                     desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = f"{nombre_ep_formateado}\n{overview}".strip()
+                desc_el.text = f"{nombre_ep}\n{overview}".strip()
 
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
@@ -214,13 +214,14 @@ def procesar_epg(input_file, output_file):
                 print(f"[SERIE] Canal: {canal}, Episodio: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
             elif es_pelicula:
-                anio, overview = "", ""
+                anio, overview, titulo_es = "", "", titulo_original
                 if search_res:
                     anio = (search_res.get("release_date") or "")[:4]
+                    titulo_es = search_res.get("title") or titulo_original
                     overview = search_res.get("overview") or rellenar_descripcion(titulo_original, "pelicula")
+                    titulo_es = traducir_a_espanol(titulo_es)
                     overview = traducir_a_espanol(overview)
                 else:
-                    anio = ""
                     overview = rellenar_descripcion(titulo_original, "pelicula")
 
                 if date_el is None:
@@ -233,8 +234,8 @@ def procesar_epg(input_file, output_file):
 
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
-                # título con año solo si hay año
-                title_el.text = f"{titulo_original} ({anio})" if anio else titulo_original
+
+                title_el.text = f"{titulo_es} ({anio})" if anio else titulo_es
 
                 print(f"[PELÍCULA] Canal: {canal}, Título: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
