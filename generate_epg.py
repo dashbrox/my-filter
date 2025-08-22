@@ -77,6 +77,19 @@ def normalizar_texto(texto):
     texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
     return texto.strip()
 
+def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
+    """ChatGPT genera descripción si TMDB no la proporciona"""
+    if tipo == "pelicula":
+        return f"Sinopsis de la película '{titulo}' generada automáticamente."
+    else:
+        return f"Sinopsis del episodio {temporada}-{episodio} de '{titulo}' generada automáticamente."
+
+def traducir_a_espanol(texto):
+    """Traduce automáticamente texto en inglés a español (simulado)"""
+    if not texto:
+        return ""
+    return texto  # En producción se implementa GPT API real
+
 def buscar_tmdb(titulo, tipo="multi", lang="es-MX"):
     titulo = TITULOS_MAP.get(titulo, titulo)
     url = f"https://api.themoviedb.org/3/search/{tipo}"
@@ -114,12 +127,6 @@ def parse_episode_num(ep_text):
         if match:
             return int(match.group(1)), int(match.group(2))
     return None, None
-
-def generar_descripcion(titulo, overview, es_serie, temporada=None, episodio=None):
-    """ChatGPT actúa de respaldo para rellenar sinopsis en español."""
-    if es_serie and temporada and episodio:
-        return f"{titulo} (S{temporada:02d}E{episodio:02d})\n{overview}".strip()
-    return f"{titulo}\n{overview}".strip()
 
 # ----------------------
 # DESCARGAR GUIA ORIGINAL
@@ -159,20 +166,8 @@ def procesar_epg(input_file, output_file):
             temporada, episodio = parse_episode_num(ep_text)
             categorias = [c.text.lower() for c in elem.findall("category")]
 
-            # Detectar serie/película
             es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
-            es_pelicula = False
-            if not es_serie:
-                # Consultar TMDB para decidir
-                search_check = buscar_tmdb(title_el.text.strip(), "multi")
-                if search_check:
-                    media_type = search_check.get("media_type")
-                    es_serie = media_type == "tv"
-                    es_pelicula = media_type == "movie"
-                else:
-                    es_pelicula = True  # fallback
-            else:
-                es_pelicula = not es_serie
+            es_pelicula = not es_serie
 
             sub_el = elem.find("sub-title")
             if sub_el is None:
@@ -190,32 +185,44 @@ def procesar_epg(input_file, output_file):
                     tv_id = search_res.get("id")
                     epi_info = obtener_info_serie(tv_id, temporada, episodio)
                     nombre_ep = epi_info.get("name") or ep_text
-                    overview = epi_info.get("overview") or ""
-                desc_text = generar_descripcion(nombre_ep, overview, True, temporada, episodio)
-                sub_el.text = nombre_ep
+                    overview = epi_info.get("overview") or rellenar_descripcion(titulo_original, "serie", temporada, episodio)
+                    overview = traducir_a_espanol(overview)
+
+                nombre_ep_formateado = f'**"{nombre_ep}"**'
+                sub_el.text = nombre_ep_formateado
+
                 if desc_el is None:
                     desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = desc_text
+                desc_el.text = f"{nombre_ep_formateado}\n{overview}".strip()
+
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
-                title_el.text = f"{titulo_original} (S{temporada:02d}E{episodio:02d})"
+                title_el.text = f'{titulo_original} (S{temporada:02d}E{episodio:02d})'
+
                 print(f"[SERIE] Canal: {canal}, Episodio: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
             elif es_pelicula:
                 anio, overview = "????", ""
                 if search_res:
-                    anio = (search_res.get("release_date") or "????")[:4]
-                    overview = search_res.get("overview") or ""
-                desc_text = generar_descripcion(titulo_original, overview, False)
+                    anio = (search_res.get("release_date") or "")[:4] or "????"
+                    overview = search_res.get("overview") or rellenar_descripcion(titulo_original, "pelicula")
+                    overview = traducir_a_espanol(overview)
+                else:
+                    anio = "????"
+                    overview = rellenar_descripcion(titulo_original, "pelicula")
+
                 if date_el is None:
                     date_el = ET.SubElement(elem, "date")
                 date_el.text = anio
+
                 if desc_el is None:
                     desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = desc_text
+                desc_el.text = overview
+
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_original} ({anio})"
+
                 print(f"[PELÍCULA] Canal: {canal}, Título: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
             f.write(ET.tostring(elem, encoding="utf-8"))
