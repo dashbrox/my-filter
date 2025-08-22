@@ -21,48 +21,48 @@ OUTPUT_FILE = "guide_custom.xml"
 # CANALES
 # ----------------------
 CANALES_USAR = {
-"Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
-"Canal.A&amp;E.(México).mx",
-"Canal.AMC.(México).mx",
-"Canal.Animal.Planet.(México).mx",
-"Canal.Atreseries.(Internacional).mx",
-"Canal.AXN.(México).mx",
-"Canal.Azteca.Uno.mx",
-"Canal.Cinecanal.(México).mx",
-"Canal.Cinemax.(México).mx",
-"Canal.Discovery.Channel.(México).mx",
-"Canal.Discovery.Home.&amp;.Health.(México).mx",
-"Canal.Discovery.World.Latinoamérica.mx",
-"Canal.Disney.Channel.(México).mx",
-"Canal.DW.(Latinoamérica).mx",
-"Canal.E!.Entertainment.Television.(México).mx",
-"Canal.Elgourmet.mx",
-"Canal.Europa.Europa.mx",
-"Canal.Film.&amp;.Arts.mx",
-"Canal.FX.(México).mx",
-"Canal.HBO.2.Latinoamérica.mx",
-"Canal.HBO.Family.Latinoamérica.mx",
-"Canal.HBO.(México).mx",
-"Canal.HBO.Mundi.mx",
-"Canal.HBO.Plus.mx",
-"Canal.HBO.Pop.mx",
-"Canal.HBO.Signature.Latinoamérica.mx",
-"Canal.Investigation.Discovery.(México).mx",
-"Canal.Lifetime.(México).mx",
-"Canal.MTV.00s.mx",
-"Canal.MTV.Hits.mx",
-"Canal.National.Geographic.(México).mx",
-"Canal.Pánico.mx",
-"Canal.Paramount.Channel.(México).mx",
-"Canal.Space.(México).mx",
-"Canal.Sony.(México).mx",
-"Canal.Star.Channel.(México).mx",
-"Canal.Studio.Universal.(México).mx",
-"Canal.TNT.(México).mx",
-"Canal.TNT.Series.(México).mx",
-"Canal.Universal.TV.(México).mx",
-"Canal.USA.Network.(México).mx",
-"Canal.Warner.TV.(México).mx",
+    "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
+    "Canal.A&amp;E.(México).mx",
+    "Canal.AMC.(México).mx",
+    "Canal.Animal.Planet.(México).mx",
+    "Canal.Atreseries.(Internacional).mx",
+    "Canal.AXN.(México).mx",
+    "Canal.Azteca.Uno.mx",
+    "Canal.Cinecanal.(México).mx",
+    "Canal.Cinemax.(México).mx",
+    "Canal.Discovery.Channel.(México).mx",
+    "Canal.Discovery.Home.&amp;.Health.(México).mx",
+    "Canal.Discovery.World.Latinoamérica.mx",
+    "Canal.Disney.Channel.(México).mx",
+    "Canal.DW.(Latinoamérica).mx",
+    "Canal.E!.Entertainment.Television.(México).mx",
+    "Canal.Elgourmet.mx",
+    "Canal.Europa.Europa.mx",
+    "Canal.Film.&amp;.Arts.mx",
+    "Canal.FX.(México).mx",
+    "Canal.HBO.2.Latinoamérica.mx",
+    "Canal.HBO.Family.Latinoamérica.mx",
+    "Canal.HBO.(México).mx",
+    "Canal.HBO.Mundi.mx",
+    "Canal.HBO.Plus.mx",
+    "Canal.HBO.Pop.mx",
+    "Canal.HBO.Signature.Latinoamérica.mx",
+    "Canal.Investigation.Discovery.(México).mx",
+    "Canal.Lifetime.(México).mx",
+    "Canal.MTV.00s.mx",
+    "Canal.MTV.Hits.mx",
+    "Canal.National.Geographic.(México).mx",
+    "Canal.Pánico.mx",
+    "Canal.Paramount.Channel.(México).mx",
+    "Canal.Space.(México).mx",
+    "Canal.Sony.(México).mx",
+    "Canal.Star.Channel.(México).mx",
+    "Canal.Studio.Universal.(México).mx",
+    "Canal.TNT.(México).mx",
+    "Canal.TNT.Series.(México).mx",
+    "Canal.Universal.TV.(México).mx",
+    "Canal.USA.Network.(México).mx",
+    "Canal.Warner.TV.(México).mx",
 }
 
 # Map de títulos especiales si aplica
@@ -132,7 +132,7 @@ if not os.path.exists(EPG_FILE):
     print("✅ Guía original descargada.")
 
 # ----------------------
-# PROCESAMIENTO
+# PROCESAR EPG
 # ----------------------
 def procesar_epg(input_file, output_file):
     tree = ET.parse(input_file)
@@ -141,11 +141,11 @@ def procesar_epg(input_file, output_file):
     with open(output_file, "wb") as f:
         f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
-        # --- GUARDAR TODOS LOS <channel> INTACTOS ---
+        # --- Guardar todos los canales intactos ---
         for ch in root.findall("channel"):
             f.write(ET.tostring(ch, encoding="utf-8"))
 
-        # --- PROCESAR <programme> ---
+        # --- Procesar programas ---
         context = ET.iterparse(input_file, events=("end",), tag="programme")
         for _, elem in context:
             canal = elem.get("channel")
@@ -153,68 +153,67 @@ def procesar_epg(input_file, output_file):
                 elem.clear()
                 continue
 
-            # --- OBTENER DATOS EXISTENTES ---
+            # --- Elementos existentes ---
             title_el = elem.find("title")
             titulo = title_el.text.strip() if title_el is not None else "Sin título"
             titulo_norm = normalizar_texto(titulo)
 
-            category_el = elem.find("category")
-            categoria = category_el.text.strip().lower() if category_el is not None else ""
-
+            desc_el = elem.find("desc")
+            date_el = elem.find("date")
             ep_el = elem.find("episode-num")
             ep_text = ep_el.text.strip() if ep_el is not None else ""
             temporada, episodio = parse_episode_num(ep_text)
 
-            desc_el = elem.find("desc")
-            date_el = elem.find("date")
+            # --- Determinar categoría sin modificarla ---
+            categorias = [c.text.lower() for c in elem.findall("category")]
+            es_serie = any("serie" in c for c in categorias)
+            es_pelicula = any("pel" in c or "movie" in c for c in categorias)
+
+            # --- SUB-TITLE EXISTENTE ---
             sub_el = elem.find("sub-title")
+            if sub_el is None:
+                sub_el = ET.Element("sub-title")
+                sub_el.text = ep_text
+                elem.append(sub_el)
 
-            # --- SERIES ---
-            if "serie" in categoria and temporada and episodio:
-                if sub_el is None:
-                    sub_el = ET.SubElement(elem, "sub-title")
-                    sub_el.text = ep_text
-
-                if desc_el is None or not desc_el.text.strip():
-                    search_res = buscar_tmdb(titulo_norm, "tv")
+            # --- CONSULTAR TMDB ---
+            if (es_serie and temporada and episodio) or es_pelicula:
+                if (desc_el is None or not desc_el.text.strip()) or (es_pelicula and (date_el is None or not date_el.text.strip())):
+                    tipo_busqueda = "tv" if es_serie else "movie"
+                    search_res = buscar_tmdb(titulo_norm, tipo_busqueda)
                     if search_res:
-                        tv_id = search_res.get("id")
-                        epi_info = obtener_info_serie(tv_id, temporada, episodio)
-                        nombre_ep = epi_info.get("name") or ep_text
-                        desc_text = f"{nombre_ep}\n{epi_info.get('overview') or ''}".strip()
-                        if desc_el is None:
-                            desc_el = ET.SubElement(elem, "desc")
-                        desc_el.text = desc_text
-                        title_el.text = f"{titulo} (S{temporada:02d}E{episodio:02d}) - {nombre_ep}"
+                        # --- SERIES ---
+                        if es_serie:
+                            tv_id = search_res.get("id")
+                            epi_info = obtener_info_serie(tv_id, temporada, episodio)
+                            nombre_ep = epi_info.get("name") or ep_text
+                            desc_text = f"{nombre_ep}\n{epi_info.get('overview') or ''}".strip()
+                            if desc_el is None:
+                                desc_el = ET.SubElement(elem, "desc")
+                            desc_el.text = desc_text
+                            title_el.text = f"{titulo} (S{temporada:02d}E{episodio:02d}) - {nombre_ep}"
+                            sub_el.text = ep_text
 
-            # --- PELÍCULAS ---
-            elif "pel" in categoria or "movie" in categoria:
-                if (date_el is None or not date_el.text.strip()) or (desc_el is None or not desc_el.text.strip()):
-                    search_res = buscar_tmdb(titulo_norm, "movie")
-                    if search_res:
-                        anio = (search_res.get("release_date") or "????")[:4]
-                        overview = search_res.get("overview") or ""
-
-                        if date_el is None or not date_el.text.strip():
+                        # --- PELÍCULAS ---
+                        else:
+                            anio = (search_res.get("release_date") or "????")[:4]
+                            overview = search_res.get("overview") or ""
                             if date_el is None:
                                 date_el = ET.SubElement(elem, "date")
                             date_el.text = anio
-
-                        if desc_el is None or not desc_el.text.strip():
                             if desc_el is None:
                                 desc_el = ET.SubElement(elem, "desc")
                             desc_el.text = overview
+                            if f"({anio})" not in titulo:
+                                title_el.text = f"{titulo} ({anio})"
 
-                        if f"({anio})" not in titulo:
-                            title_el.text = f"{titulo} ({anio})"
-
-            # --- GUARDAR NODO ---
+            # Guardar nodo
             f.write(ET.tostring(elem, encoding="utf-8"))
             elem.clear()
 
         f.write(b"</tv>")
 
-    # --- COMPRIMIR XML ---
+    # --- Comprimir XML ---
     with open(output_file, "rb") as f_in, gzip.open(output_file + ".gz", "wb") as f_out:
         f_out.writelines(f_in)
 
