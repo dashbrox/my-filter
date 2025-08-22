@@ -139,80 +139,81 @@ def procesar_epg(input_file, output_file):
     with open(output_file, "wb") as f:
         f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
+        # Guardar canales intactos
         for ch in root.findall("channel"):
             f.write(ET.tostring(ch, encoding="utf-8"))
 
+        # Procesar programas
         for elem in root.findall("programme"):
             canal = elem.get("channel")
             if canal not in CANALES_USAR:
                 continue
 
+            # Leer nodos existentes
             title_el = elem.find("title")
-            titulo_original = title_el.text.strip() if title_el is not None else "Sin título"
-            titulo_norm = normalizar_texto(titulo_original)
-
             desc_el = elem.find("desc")
             date_el = elem.find("date")
             ep_el = elem.find("episode-num")
             ep_text = ep_el.text.strip() if ep_el is not None else ""
             temporada, episodio = parse_episode_num(ep_text)
-
             categorias = [c.text.lower() for c in elem.findall("category")]
 
-            # Clasificación
+            # Determinar serie/película
             es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
             es_pelicula = not es_serie
 
-            # Sub-title
+            # Crear sub-title si no existe
             sub_el = elem.find("sub-title")
             if sub_el is None:
                 sub_el = ET.SubElement(elem, "sub-title")
 
-            # Buscar TMDB
+            # Normalizar título original
+            titulo_original = title_el.text.strip() if title_el is not None else "Sin título"
+            titulo_norm = normalizar_texto(titulo_original)
+
+            # Buscar en TMDB
             tipo_busqueda = "tv" if es_serie else "movie"
             search_res = buscar_tmdb(titulo_norm, tipo_busqueda)
-            if search_res:
-                if es_serie and temporada and episodio:
+
+            # --- Actualización forzada ---
+            if es_serie and temporada and episodio:
+                nombre_ep, overview = ep_text, ""
+                if search_res:
                     tv_id = search_res.get("id")
                     epi_info = obtener_info_serie(tv_id, temporada, episodio)
                     nombre_ep = epi_info.get("name") or ep_text
                     overview = epi_info.get("overview") or ""
+                sub_el.text = nombre_ep
+                if desc_el is None:
+                    desc_el = ET.SubElement(elem, "desc")
+                desc_el.text = f"{nombre_ep}\n{overview}".strip()
+                if title_el is None:
+                    title_el = ET.SubElement(elem, "title")
+                title_el.text = f"{titulo_original} (S{temporada:02d}E{episodio:02d})"
+                print(f"[SERIE] Canal: {canal}, Episodio: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
-                    # Forzar sub-title
-                    sub_el.text = nombre_ep
-
-                    # Forzar desc: primera línea nombre episodio + overview
-                    if desc_el is None:
-                        desc_el = ET.SubElement(elem, "desc")
-                    desc_el.text = f"{nombre_ep}\n{overview}".strip()
-
-                    # Forzar title: serie original + (Sxx Exx)
-                    if title_el is None:
-                        title_el = ET.SubElement(elem, "title")
-                    title_el.text = f"{titulo_original} (S{temporada:02d} E{episodio:02d})"
-
-                elif es_pelicula:
+            elif es_pelicula:
+                anio, overview = "????", ""
+                if search_res:
                     anio = (search_res.get("release_date") or "????")[:4]
                     overview = search_res.get("overview") or ""
+                if date_el is None:
+                    date_el = ET.SubElement(elem, "date")
+                date_el.text = anio
+                if desc_el is None:
+                    desc_el = ET.SubElement(elem, "desc")
+                desc_el.text = overview
+                if title_el is None:
+                    title_el = ET.SubElement(elem, "title")
+                title_el.text = f"{titulo_original} ({anio})"
+                print(f"[PELÍCULA] Canal: {canal}, Título: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
-                    if date_el is None:
-                        date_el = ET.SubElement(elem, "date")
-                    date_el.text = anio
-
-                    if desc_el is None:
-                        desc_el = ET.SubElement(elem, "desc")
-                    desc_el.text = overview
-
-                    if title_el is None:
-                        title_el = ET.SubElement(elem, "title")
-                    title_el.text = f"{titulo_original} ({anio})"
-
-            # Guardar el programa
+            # Guardar programa
             f.write(ET.tostring(elem, encoding="utf-8"))
 
         f.write(b"</tv>")
 
-    # Comprimir
+    # Comprimir XML
     with open(output_file, "rb") as f_in, gzip.open(output_file + ".gz", "wb") as f_out:
         f_out.writelines(f_in)
 
