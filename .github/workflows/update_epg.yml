@@ -3,7 +3,7 @@ name: Update EPG
 on:
   schedule:
     - cron: '0 */12 * * *'   # Cada 12 horas
-  workflow_dispatch:
+  workflow_dispatch:         # Permite ejecutar manualmente
 
 jobs:
   update:
@@ -31,13 +31,15 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Generar guía 72h
+        # Pasamos las llaves de API de TMDB y OpenAI de forma segura
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python generate_epg.py
 
       - name: Hacer commit si hay cambios
         run: |
-          git add guide_custom.xml
+          git add guide_custom.xml guide_custom.xml.gz
           git diff-index --quiet HEAD || git commit -m "Actualizar guía 72h automáticamente"
 
       - name: Push cambios
