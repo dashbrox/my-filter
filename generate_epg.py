@@ -31,7 +31,6 @@ EPG_FILES_TEMP = []
 
 # Canales a usar (MX + internacionales)
 CANALES_USAR = {
-    # Canales originales de México
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
@@ -74,8 +73,6 @@ CANALES_USAR = {
     "Canal.Universal.TV.(México).mx",
     "Canal.USA.Network.(México).mx",
     "Canal.Warner.TV.(México).mx",
-
-    # Nuevos canales internacionales
     "plex.tv.T2.plex",
     "TSN1.ca",
     "TSN2.ca",
@@ -243,7 +240,8 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
     tree = ET.parse(input_file)
     root = tree.getroot()
 
-    with open(output_file, "ab") as f:
+    mode = "wb" if escribir_raiz else "ab"
+    with open(output_file, mode) as f:
         if escribir_raiz:
             f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
@@ -327,18 +325,14 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
 # ----------------------
 # EJECUTAR
 # ----------------------
-# Procesar guía principal con raíz
 procesar_epg(EPG_FILE, OUTPUT_FILE, escribir_raiz=True)
 
-# Procesar nuevas EPGs sin raíz
 for temp_file in EPG_FILES_TEMP:
     procesar_epg(temp_file, OUTPUT_FILE, escribir_raiz=False)
 
-# Cerrar la raíz al final
 with open(OUTPUT_FILE, "ab") as f:
     f.write(b"</tv>")
 
-# Comprimir resultado
 with open(OUTPUT_FILE, "rb") as f_in, gzip.open(OUTPUT_FILE + ".gz", "wb") as f_out:
     f_out.writelines(f_in)
 
