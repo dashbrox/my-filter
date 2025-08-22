@@ -135,25 +135,29 @@ if not os.path.exists(EPG_FILE):
 # PROCESAR EPG
 # ----------------------
 def procesar_epg(input_file, output_file):
+    """
+    Procesa la guía EPG:
+    - LEE <programme> y <category> para obtener información
+    - NO modifica información existente en estos nodos
+    - Rellena solo <title>, <desc>, <date> y <sub-title> si están vacíos
+    """
     tree = ET.parse(input_file)
     root = tree.getroot()
 
     with open(output_file, "wb") as f:
         f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
-        # --- Guardar todos los canales intactos ---
+        # Guardar todos los canales intactos
         for ch in root.findall("channel"):
             f.write(ET.tostring(ch, encoding="utf-8"))
 
-        # --- Procesar programas ---
-        context = ET.iterparse(input_file, events=("end",), tag="programme")
-        for _, elem in context:
+        # Procesar programas
+        for elem in root.findall("programme"):
             canal = elem.get("channel")
             if canal not in CANALES_USAR:
-                elem.clear()
                 continue
 
-            # --- Elementos existentes ---
+            # --- LEER datos existentes ---
             title_el = elem.find("title")
             titulo = title_el.text.strip() if title_el is not None else "Sin título"
             titulo_norm = normalizar_texto(titulo)
@@ -164,52 +168,62 @@ def procesar_epg(input_file, output_file):
             ep_text = ep_el.text.strip() if ep_el is not None else ""
             temporada, episodio = parse_episode_num(ep_text)
 
-            # --- Determinar categoría sin modificarla ---
             categorias = [c.text.lower() for c in elem.findall("category")]
             es_serie = any("serie" in c for c in categorias)
             es_pelicula = any("pel" in c or "movie" in c for c in categorias)
 
-            # --- SUB-TITLE EXISTENTE ---
+            # --- SUB-TITLE ---
             sub_el = elem.find("sub-title")
             if sub_el is None:
-                sub_el = ET.Element("sub-title")
+                sub_el = ET.SubElement(elem, "sub-title")
                 sub_el.text = ep_text
-                elem.append(sub_el)
 
-            # --- CONSULTAR TMDB ---
+            # --- CONSULTAR TMDB solo si es serie/película ---
             if (es_serie and temporada and episodio) or es_pelicula:
-                if (desc_el is None or not desc_el.text.strip()) or (es_pelicula and (date_el is None or not date_el.text.strip())):
-                    tipo_busqueda = "tv" if es_serie else "movie"
-                    search_res = buscar_tmdb(titulo_norm, tipo_busqueda)
-                    if search_res:
-                        # --- SERIES ---
-                        if es_serie:
-                            tv_id = search_res.get("id")
-                            epi_info = obtener_info_serie(tv_id, temporada, episodio)
-                            nombre_ep = epi_info.get("name") or ep_text
-                            desc_text = f"{nombre_ep}\n{epi_info.get('overview') or ''}".strip()
-                            if desc_el is None:
-                                desc_el = ET.SubElement(elem, "desc")
-                            desc_el.text = desc_text
+                tipo_busqueda = "tv" if es_serie else "movie"
+                search_res = buscar_tmdb(titulo_norm, tipo_busqueda)
+                if search_res:
+                    # --- SERIES ---
+                    if es_serie:
+                        tv_id = search_res.get("id")
+                        epi_info = obtener_info_serie(tv_id, temporada, episodio)
+                        nombre_ep = epi_info.get("name") or ep_text
+                        overview = epi_info.get("overview") or ""
+
+                        if desc_el is None:
+                            desc_el = ET.SubElement(elem, "desc")
+                        if not desc_el.text or not desc_el.text.strip():
+                            desc_el.text = f"{nombre_ep}\n{overview}".strip()
+
+                        if title_el is None:
+                            title_el = ET.SubElement(elem, "title")
+                        if not title_el.text or not title_el.text.strip():
                             title_el.text = f"{titulo} (S{temporada:02d}E{episodio:02d}) - {nombre_ep}"
-                            sub_el.text = ep_text
 
-                        # --- PELÍCULAS ---
-                        else:
-                            anio = (search_res.get("release_date") or "????")[:4]
-                            overview = search_res.get("overview") or ""
-                            if date_el is None:
-                                date_el = ET.SubElement(elem, "date")
+                        sub_el.text = ep_text
+
+                    # --- PELÍCULAS ---
+                    else:
+                        anio = (search_res.get("release_date") or "????")[:4]
+                        overview = search_res.get("overview") or ""
+
+                        if date_el is None:
+                            date_el = ET.SubElement(elem, "date")
+                        if not date_el.text or not date_el.text.strip():
                             date_el.text = anio
-                            if desc_el is None:
-                                desc_el = ET.SubElement(elem, "desc")
-                            desc_el.text = overview
-                            if f"({anio})" not in titulo:
-                                title_el.text = f"{titulo} ({anio})"
 
-            # Guardar nodo
+                        if desc_el is None:
+                            desc_el = ET.SubElement(elem, "desc")
+                        if not desc_el.text or not desc_el.text.strip():
+                            desc_el.text = overview
+
+                        if title_el is None:
+                            title_el = ET.SubElement(elem, "title")
+                        if not title_el.text or not title_el.text.strip():
+                            title_el.text = f"{titulo} ({anio})"
+
+            # Guardar el programa
             f.write(ET.tostring(elem, encoding="utf-8"))
-            elem.clear()
 
         f.write(b"</tv>")
 
