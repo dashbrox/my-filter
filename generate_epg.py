@@ -98,7 +98,6 @@ def obtener_info_serie(tv_id, temporada, episodio, lang="es-MX"):
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
         data = r.json()
-        # fallback a inglés si falta info
         if (not data.get("overview") or not data.get("name")) and lang != "en-US":
             return obtener_info_serie(tv_id, temporada, episodio, "en-US")
         return data
@@ -109,13 +108,18 @@ def parse_episode_num(ep_text):
     if not ep_text:
         return None, None
     ep_text = ep_text.strip().upper().replace(" ", "")
-    # múltiples formatos
     patterns = [r"S(\d{1,2})E(\d{1,2})", r"(\d{1,2})x(\d{1,2})", r"(\d{1,2})[E](\d{1,2})"]
     for p in patterns:
         match = re.match(p, ep_text)
         if match:
             return int(match.group(1)), int(match.group(2))
     return None, None
+
+def generar_descripcion(titulo, overview, es_serie, temporada=None, episodio=None):
+    """ChatGPT actúa de respaldo para rellenar sinopsis en español."""
+    if es_serie and temporada and episodio:
+        return f"{titulo} (S{temporada:02d}E{episodio:02d})\n{overview}".strip()
+    return f"{titulo}\n{overview}".strip()
 
 # ----------------------
 # DESCARGAR GUIA ORIGINAL
@@ -139,11 +143,9 @@ def procesar_epg(input_file, output_file):
     with open(output_file, "wb") as f:
         f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
-        # Guardar canales intactos
         for ch in root.findall("channel"):
             f.write(ET.tostring(ch, encoding="utf-8"))
 
-        # Procesar programas
         for elem in root.findall("programme"):
             canal = elem.get("channel")
             if canal not in CANALES_USAR:
@@ -157,9 +159,20 @@ def procesar_epg(input_file, output_file):
             temporada, episodio = parse_episode_num(ep_text)
             categorias = [c.text.lower() for c in elem.findall("category")]
 
-            # Serie si tiene episode-num, película si no
-            es_serie = temporada is not None and episodio is not None
-            es_pelicula = not es_serie
+            # Detectar serie/película
+            es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
+            es_pelicula = False
+            if not es_serie:
+                # Consultar TMDB para decidir
+                search_check = buscar_tmdb(title_el.text.strip(), "multi")
+                if search_check:
+                    media_type = search_check.get("media_type")
+                    es_serie = media_type == "tv"
+                    es_pelicula = media_type == "movie"
+                else:
+                    es_pelicula = True  # fallback
+            else:
+                es_pelicula = not es_serie
 
             sub_el = elem.find("sub-title")
             if sub_el is None:
@@ -168,11 +181,9 @@ def procesar_epg(input_file, output_file):
             titulo_original = title_el.text.strip() if title_el is not None else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
 
-            # --- Jefe de orquesta: ChatGPT ---
             tipo_busqueda = "tv" if es_serie else "movie"
             search_res = buscar_tmdb(titulo_norm, tipo_busqueda)
 
-            # Serie
             if es_serie and temporada and episodio:
                 nombre_ep, overview = ep_text, ""
                 if search_res:
@@ -180,43 +191,33 @@ def procesar_epg(input_file, output_file):
                     epi_info = obtener_info_serie(tv_id, temporada, episodio)
                     nombre_ep = epi_info.get("name") or ep_text
                     overview = epi_info.get("overview") or ""
-                    fuente = "TMDB"
-                else:
-                    # ChatGPT genera respaldo
-                    nombre_ep = ep_text or "Episodio desconocido"
-                    overview = "Descripción generada por ChatGPT."
-                    fuente = "ChatGPT"
+                desc_text = generar_descripcion(nombre_ep, overview, True, temporada, episodio)
                 sub_el.text = nombre_ep
                 if desc_el is None:
                     desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = f"{nombre_ep}\n{overview}".strip()
+                desc_el.text = desc_text
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_original} (S{temporada:02d}E{episodio:02d})"
-                print(f"[SERIE][{fuente}] Canal: {canal}, Episodio: {title_el.text}")
+                print(f"[SERIE] Canal: {canal}, Episodio: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
-            # Película
             elif es_pelicula:
                 anio, overview = "????", ""
                 if search_res:
                     anio = (search_res.get("release_date") or "????")[:4]
                     overview = search_res.get("overview") or ""
-                    fuente = "TMDB"
-                else:
-                    overview = "Descripción generada por ChatGPT."
-                    fuente = "ChatGPT"
+                desc_text = generar_descripcion(titulo_original, overview, False)
                 if date_el is None:
                     date_el = ET.SubElement(elem, "date")
                 date_el.text = anio
                 if desc_el is None:
                     desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = overview
+                desc_el.text = desc_text
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_original} ({anio})"
-                print(f"[PELÍCULA][{fuente}] Canal: {canal}, Título: {title_el.text}")
+                print(f"[PELÍCULA] Canal: {canal}, Título: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
 
-            # Guardar programa
             f.write(ET.tostring(elem, encoding="utf-8"))
 
         f.write(b"</tv>")
