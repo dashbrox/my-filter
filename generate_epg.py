@@ -156,6 +156,7 @@ def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
 def traducir_a_espanol(texto):
     if not texto:
         return ""
+    # Aquí solo placeholder, conservar palabras originales
     return texto
 
 # ----------------------
@@ -289,6 +290,16 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
             titulo_original = title_el.text.strip() if title_el is not None and title_el.text else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
 
+            # ---------- INTELIGENCIA DEL JUEFE ----------
+            # Detectar si la sinopsis existente no corresponde al episodio
+            corregir_desc = False
+            if es_serie and temporada and episodio:
+                if existing_desc:
+                    # Si la sinopsis parece general de la serie, marcar para corregir
+                    if titulo_original.lower() in existing_desc.lower() and "episodio" not in existing_desc.lower():
+                        corregir_desc = True
+
+            # -------------------- SERIES --------------------
             if es_serie and temporada and episodio:
                 search_res = buscar_tmdb(titulo_norm, "tv")
                 nombre_ep, overview = ep_text, ""
@@ -305,20 +316,18 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
                         sub_el = ET.SubElement(elem, "sub-title")
                     sub_el.text = nombre_ep
 
-                if existing_desc:
-                    desc_text = traducir_a_espanol(existing_desc)
+                if corregir_desc or not existing_desc:
                     if desc_el is None:
                         desc_el = ET.SubElement(elem, "desc")
-                    desc_el.text = desc_text
+                    desc_el.text = f"{nombre_ep}\n{overview}".strip()
                 else:
-                    if desc_el is None:
-                        desc_el = ET.SubElement(elem, "desc")
-                    desc_el.text = (f"{nombre_ep}\n{overview}".strip() if overview else nombre_ep)
+                    desc_el.text = traducir_a_espanol(existing_desc)
 
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f'{titulo_original} (S{temporada:02d}E{episodio:02d})'
 
+            # -------------------- PELÍCULAS --------------------
             elif es_pelicula:
                 anio_epg = date_el.text.strip() if (date_el is not None and date_el.text) else ""
                 search_res = buscar_tmdb(titulo_norm, "movie", year=anio_epg if anio_epg else None)
@@ -336,19 +345,18 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
                         date_el = ET.SubElement(elem, "date")
                     date_el.text = anio
 
-                if existing_desc:
-                    if desc_el is None:
-                        desc_el = ET.SubElement(elem, "desc")
-                    desc_el.text = traducir_a_espanol(existing_desc)
-                else:
+                if not existing_desc:
                     if desc_el is None:
                         desc_el = ET.SubElement(elem, "desc")
                     desc_el.text = overview if overview else rellenar_descripcion(titulo_original, "pelicula")
+                else:
+                    desc_el.text = traducir_a_espanol(existing_desc)
 
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_es} ({anio})" if anio else titulo_es
 
+            # Escribir el programme tal como quedó
             f.write(ET.tostring(elem, encoding="utf-8"))
 
 # ----------------------
