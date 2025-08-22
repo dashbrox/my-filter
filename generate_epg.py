@@ -237,18 +237,20 @@ for idx, url in enumerate(NUEVAS_EPGS, start=1):
     EPG_FILES_TEMP.append(temp_file)
 
 # ----------------------
-# PROCESAR EPG
+# PROCESAR UNA EPG
 # ----------------------
-def procesar_epg(input_file, output_file):
+def procesar_epg(input_file, output_file, escribir_raiz=False):
     tree = ET.parse(input_file)
     root = tree.getroot()
 
     with open(output_file, "ab") as f:
-        if os.path.getsize(output_file) == 0:
+        if escribir_raiz:
             f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
+        # Escribir solo nodos permitidos
         for ch in root.findall("channel"):
-            f.write(ET.tostring(ch, encoding="utf-8"))
+            if ch.get("id") in CANALES_USAR:
+                f.write(ET.tostring(ch, encoding="utf-8"))
 
         for elem in root.findall("programme"):
             canal = elem.get("channel")
@@ -294,8 +296,6 @@ def procesar_epg(input_file, output_file):
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f'{titulo_original} (S{temporada:02d}E{episodio:02d})'
 
-                print(f"[SERIE] Canal: {canal}, Episodio: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
-
             elif es_pelicula:
                 anio_epg = date_el.text.strip() if date_el is not None else ""
                 search_res = buscar_tmdb(titulo_norm, "movie", year=anio_epg if anio_epg else None)
@@ -320,27 +320,26 @@ def procesar_epg(input_file, output_file):
 
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
-
                 title_el.text = f"{titulo_es} ({anio})" if anio else titulo_es
 
-                print(f"[PELÍCULA] Canal: {canal}, Título: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
-
             f.write(ET.tostring(elem, encoding="utf-8"))
-
-    with open(output_file, "ab") as f:
-        f.write(b"</tv>")
-
-    with open(output_file, "rb") as f_in, gzip.open(output_file + ".gz", "wb") as f_out:
-        f_out.writelines(f_in)
 
 # ----------------------
 # EJECUTAR
 # ----------------------
-# Procesar guía principal
-procesar_epg(EPG_FILE, OUTPUT_FILE)
+# Procesar guía principal con raíz
+procesar_epg(EPG_FILE, OUTPUT_FILE, escribir_raiz=True)
 
-# Procesar nuevas EPGs
+# Procesar nuevas EPGs sin raíz
 for temp_file in EPG_FILES_TEMP:
-    procesar_epg(temp_file, OUTPUT_FILE)
+    procesar_epg(temp_file, OUTPUT_FILE, escribir_raiz=False)
+
+# Cerrar la raíz al final
+with open(OUTPUT_FILE, "ab") as f:
+    f.write(b"</tv>")
+
+# Comprimir resultado
+with open(OUTPUT_FILE, "rb") as f_in, gzip.open(OUTPUT_FILE + ".gz", "wb") as f_out:
+    f_out.writelines(f_in)
 
 print(f"✅ Guía generada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
