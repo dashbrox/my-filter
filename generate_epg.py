@@ -13,10 +13,12 @@ API_KEY = os.getenv("TMDB_API_KEY")
 if not API_KEY:
     raise RuntimeError("❌ TMDB_API_KEY no está definido en el entorno.")
 
+# Guía principal
 EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_FILE = "epg_original.xml"
 OUTPUT_FILE = "guide_custom.xml"
 
+# Nuevas fuentes
 NUEVAS_EPGS = [
     "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
@@ -27,14 +29,105 @@ NUEVAS_EPGS = [
 
 EPG_FILES_TEMP = []
 
-# ----------------------
 # Canales a usar (MX + internacionales)
-# ----------------------
 CANALES_USAR = {
-    # Canales MX
+    # Canales originales de México
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
-    # ... resto de canales omitidos por brevedad ...
+    "Canal.AMC.(México).mx",
+    "Canal.Animal.Planet.(México).mx",
+    "Canal.Atreseries.(Internacional).mx",
+    "Canal.AXN.(México).mx",
+    "Canal.Azteca.Uno.mx",
+    "Canal.Cinecanal.(México).mx",
+    "Canal.Cinemax.(México).mx",
+    "Canal.Discovery.Channel.(México).mx",
+    "Canal.Discovery.Home.&amp;.Health.(México).mx",
+    "Canal.Discovery.World.Latinoamérica.mx",
+    "Canal.Disney.Channel.(México).mx",
+    "Canal.DW.(Latinoamérica).mx",
+    "Canal.E!.Entertainment.Television.(México).mx",
+    "Canal.Elgourmet.mx",
+    "Canal.Europa.Europa.mx",
+    "Canal.Film.&amp;.Arts.mx",
+    "Canal.FX.(México).mx",
+    "Canal.HBO.2.Latinoamérica.mx",
+    "Canal.HBO.Family.Latinoamérica.mx",
+    "Canal.HBO.(México).mx",
+    "Canal.HBO.Mundi.mx",
+    "Canal.HBO.Plus.mx",
+    "Canal.HBO.Pop.mx",
+    "Canal.HBO.Signature.Latinoamérica.mx",
+    "Canal.Investigation.Discovery.(México).mx",
+    "Canal.Lifetime.(México).mx",
+    "Canal.MTV.00s.mx",
+    "Canal.MTV.Hits.mx",
+    "Canal.National.Geographic.(México).mx",
+    "Canal.Pánico.mx",
+    "Canal.Paramount.Channel.(México).mx",
+    "Canal.Space.(México).mx",
+    "Canal.Sony.(México).mx",
+    "Canal.Star.Channel.(México).mx",
+    "Canal.Studio.Universal.(México).mx",
+    "Canal.TNT.(México).mx",
+    "Canal.TNT.Series.(México).mx",
+    "Canal.Universal.TV.(México).mx",
+    "Canal.USA.Network.(México).mx",
+    "Canal.Warner.TV.(México).mx",
+
+    # Nuevos canales internacionales
+    "plex.tv.T2.plex",
+    "TSN1.ca",
+    "TSN2.ca",
+    "TSN3.ca",
+    "TSN4.ca",
+    "Eurosport.2.es",
+    "Eurosport.es",
+    "M+.Deportes.2.es",
+    "M+.Deportes.3.es",
+    "M+.Deportes.4.es",
+    "M+.Deportes.5.es",
+    "M+.Deportes.6.es",
+    "M+.Deportes.7.es",
+    "M+.Deportes.es",
+    "Movistar.Plus.es",
+    "ABC.(WABC).New.York,.NY.us",
+    "CBS.(WCBS).New.York,.NY.us",
+    "FOX.(WNYW).New.York,.NY.us",
+    "NBC.(WNBC).New.York,.NY.us",
+    "ABC.(KABC).Los.Angeles,.CA.us",
+    "NBC.(KNBC).Los.Angeles,.CA.us",
+    "Bravo.USA.-.Eastern.Feed.us",
+    "E!.Entertainment.USA.-.Eastern.Feed.us",
+    "Hallmark.-.Eastern.Feed.us",
+    "Hallmark.Mystery.Eastern.-.HD.us",
+    "CW.(KFMB-TV2).San.Diego,.CA.us",
+    "CNN.us",
+    "The.Tennis.Channel.us",
+    "HBO.-.Eastern.Feed.us",
+    "HBO.Latino.(HBO.7).-.Eastern.us",
+    "HBO.2.-.Eastern.Feed.us",
+    "HBO.Comedy.HD.-.East.us",
+    "HBO.Family.-.Eastern.Feed.us",
+    "HBO.Signature.(HBO.3).-.Eastern.us",
+    "HBO.Zone.HD.-.East.us",
+    "Starz.Cinema.HD.-.Eastern.us",
+    "Starz.Comedy.HD.-.Eastern.us",
+    "Starz.-.Eastern.us",
+    "Starz.Edge.-.Eastern.us",
+    "Starz.Encore.Action.-.Eastern.us",
+    "Starz.Encore.Black.-.Eastern.us",
+    "Starz.Encore.Classic.-.Eastern.us",
+    "Starz.Encore.-.Eastern.us",
+    "Starz.Encore.Family.-.Eastern.us",
+    "Starz.Encore.on.Demand.us",
+    "Starz.Encore.-.Pacific.us",
+    "Starz.Encore.Suspense.-.Eastern.us",
+    "Starz.Encore.Westerns.-.Eastern.us",
+    "Starz.In.Black.-.Eastern.us",
+    "Starz.Kids.and.Family.-.Eastern.us",
+    "Starz.On.Demand.us",
+    "Starz.-.Pacific.us",
     "MoreMax..Eastern.us",
 }
 
@@ -57,12 +150,13 @@ def normalizar_texto(texto):
 def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
     if tipo == "pelicula":
         return f"Sinopsis no disponible para la película '{titulo}'."
-    return f"Sinopsis no disponible para el episodio {temporada}-{episodio} de '{titulo}'."
+    else:
+        return f"Sinopsis no disponible para el episodio {temporada}-{episodio} de '{titulo}'."
 
 def traducir_a_espanol(texto):
     if not texto:
         return ""
-    return texto  # placeholder para traducción real
+    return texto
 
 # ----------------------
 # BUSQUEDAS TMDB
@@ -71,7 +165,9 @@ def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
     titulo = TITULOS_MAP.get(titulo, titulo)
     url = f"https://api.themoviedb.org/3/search/{tipo}"
     params = {"api_key": API_KEY, "query": titulo, "language": lang}
-    if tipo == "movie" and year:
+    if tipo == "movie" and not year:
+        return None
+    if year and tipo == "movie":
         params["year"] = year
     try:
         r = requests.get(url, params=params, timeout=10)
@@ -79,7 +175,6 @@ def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
         results = r.json().get("results", [])
         if results:
             return results[0]
-        # fallback "making of"
         if "making of" in titulo.lower():
             titulo_base = titulo.lower().replace("making of", "").strip()
             params["query"] = titulo_base
@@ -121,25 +216,36 @@ def parse_episode_num(ep_text):
     return None, None
 
 # ----------------------
-# DESCARGAR GUIAS
+# DESCARGAR GUIA ORIGINAL
 # ----------------------
-def descargar_y_guardar(url, file_name):
-    if not os.path.exists(file_name):
-        r = requests.get(url, timeout=60)
-        r.raise_for_status()
-        with gzip.open(io.BytesIO(r.content), 'rb') as f_in, open(file_name, 'wb') as f_out:
+if not os.path.exists(EPG_FILE):
+    print("📥 Descargando guía original...")
+    r = requests.get(EPG_URL, timeout=60)
+    r.raise_for_status()
+    with gzip.open(io.BytesIO(r.content), 'rb') as f_in:
+        with open(EPG_FILE, 'wb') as f_out:
             f_out.write(f_in.read())
-        print(f"✅ Descargado: {file_name}")
+    print("✅ Guía original descargada.")
 
-descargar_y_guardar(EPG_URL, EPG_FILE)
+# ----------------------
+# DESCARGAR NUEVAS EPGS
+# ----------------------
 for idx, url in enumerate(NUEVAS_EPGS, start=1):
     temp_file = f"epg_nueva_{idx}.xml"
-    descargar_y_guardar(url, temp_file)
+    if not os.path.exists(temp_file):
+        print(f"📥 Descargando EPG desde {url}...")
+        r = requests.get(url, timeout=60)
+        r.raise_for_status()
+        with gzip.open(io.BytesIO(r.content), 'rb') as f_in:
+            with open(temp_file, 'wb') as f_out:
+                f_out.write(f_in.read())
+        print(f"✅ EPG descargada: {temp_file}")
     EPG_FILES_TEMP.append(temp_file)
 
 # ----------------------
-# PROCESAR EPG
+# PROCESAR UNA EPG
 # ----------------------
+
 def _get_desc_text(desc_el):
     if desc_el is None:
         return ""
@@ -151,24 +257,22 @@ def _get_desc_text(desc_el):
 def procesar_epg(input_file, output_file, escribir_raiz=False):
     tree = ET.parse(input_file)
     root = tree.getroot()
-    mode = "wb" if escribir_raiz else "ab"
 
+    mode = "wb" if escribir_raiz else "ab"
     with open(output_file, mode) as f:
         if escribir_raiz:
             f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
-        # canales
         for ch in root.findall("channel"):
             if ch.get("id") in CANALES_USAR:
                 f.write(ET.tostring(ch, encoding="utf-8"))
 
-        # programas
         for elem in root.findall("programme"):
             canal = elem.get("channel")
             if canal not in CANALES_USAR:
                 continue
 
-            title_el = elem.find("title") or ET.Element("title")
+            title_el = elem.find("title")
             sub_el = elem.find("sub-title")
             desc_el = elem.find("desc")
             date_el = elem.find("date")
@@ -176,14 +280,15 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
             ep_text = ep_el.text.strip() if ep_el is not None and ep_el.text else ""
             temporada, episodio = parse_episode_num(ep_text)
             categorias = [(c.text or "").lower() for c in elem.findall("category")]
+
             existing_desc = _get_desc_text(desc_el)
 
-            es_serie = any("serie" in c for c in categorias) or (temporada and episodio)
+            es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
             es_pelicula = not es_serie
+
             titulo_original = title_el.text.strip() if title_el is not None and title_el.text else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
 
-            # --- SERIES ---
             if es_serie and temporada and episodio:
                 search_res = buscar_tmdb(titulo_norm, "tv")
                 nombre_ep, overview = ep_text, ""
@@ -195,21 +300,29 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
                     nombre_ep = traducir_a_espanol(nombre_ep)
                     overview = traducir_a_espanol(overview)
 
-                if sub_el is None:
-                    sub_el = ET.SubElement(elem, "sub-title")
-                if not (sub_el.text or "").strip():
+                if sub_el is None or not (sub_el.text or "").strip():
+                    if sub_el is None:
+                        sub_el = ET.SubElement(elem, "sub-title")
                     sub_el.text = nombre_ep
 
-                if desc_el is None:
-                    desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = traducir_a_espanol(existing_desc) if existing_desc else f"{nombre_ep}\n{overview}".strip()
+                if existing_desc:
+                    desc_text = traducir_a_espanol(existing_desc)
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = desc_text
+                else:
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = (f"{nombre_ep}\n{overview}".strip() if overview else nombre_ep)
 
+                if title_el is None:
+                    title_el = ET.SubElement(elem, "title")
                 title_el.text = f'{titulo_original} (S{temporada:02d}E{episodio:02d})'
 
-            # --- PELÍCULAS ---
             elif es_pelicula:
-                anio_epg = date_el.text.strip() if (date_el is not None and date_el.text) else None
-                search_res = buscar_tmdb(titulo_norm, "movie", year=anio_epg)
+                anio_epg = date_el.text.strip() if (date_el is not None and date_el.text) else ""
+                search_res = buscar_tmdb(titulo_norm, "movie", year=anio_epg if anio_epg else None)
+
                 anio, overview, titulo_es = "", "", titulo_original
                 if search_res:
                     anio = (search_res.get("release_date") or "")[:4]
@@ -218,15 +331,22 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
                     titulo_es = traducir_a_espanol(titulo_es)
                     overview = traducir_a_espanol(overview)
 
-                if date_el is None:
-                    date_el = ET.SubElement(elem, "date")
-                if not (date_el.text or "").strip() and anio:
+                if (date_el is None or not (date_el.text or "").strip()) and anio:
+                    if date_el is None:
+                        date_el = ET.SubElement(elem, "date")
                     date_el.text = anio
 
-                if desc_el is None:
-                    desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = traducir_a_espanol(existing_desc) if existing_desc else overview
+                if existing_desc:
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = traducir_a_espanol(existing_desc)
+                else:
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = overview if overview else rellenar_descripcion(titulo_original, "pelicula")
 
+                if title_el is None:
+                    title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_es} ({anio})" if anio else titulo_es
 
             f.write(ET.tostring(elem, encoding="utf-8"))
@@ -235,6 +355,7 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
 # EJECUTAR
 # ----------------------
 procesar_epg(EPG_FILE, OUTPUT_FILE, escribir_raiz=True)
+
 for temp_file in EPG_FILES_TEMP:
     procesar_epg(temp_file, OUTPUT_FILE, escribir_raiz=False)
 
