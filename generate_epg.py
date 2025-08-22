@@ -5,6 +5,7 @@ import requests
 import unicodedata
 import lxml.etree as ET
 import io
+from bs4 import BeautifulSoup
 
 # ----------------------
 # CONFIGURACIÓN
@@ -28,7 +29,7 @@ NUEVAS_EPGS = [
 EPG_FILES_TEMP = []
 
 CANALES_USAR = {
-    # Lista original de canales de México e internacionales
+    # Lista de canales (igual que la que proporcionaste)
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
@@ -71,8 +72,7 @@ CANALES_USAR = {
     "Canal.Universal.TV.(México).mx",
     "Canal.USA.Network.(México).mx",
     "Canal.Warner.TV.(México).mx",
-
-    # Nuevos canales internacionales
+    # Canales internacionales
     "plex.tv.T2.plex",
     "TSN1.ca",
     "TSN2.ca",
@@ -152,7 +152,6 @@ def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
 def traducir_a_espanol(texto):
     if not texto:
         return ""
-    # 🔹 Punto 4: placeholder, conservar palabras originales
     return texto
 
 # ----------------------
@@ -197,6 +196,49 @@ def obtener_info_serie(tv_id, temporada, episodio, lang="es-MX"):
         return data
     except Exception:
         return {}
+
+# ----------------------
+# BÚSQUEDA GOOGLE
+# ----------------------
+def buscar_google_snippet(titulo):
+    try:
+        query = "+".join(titulo.split())
+        url = f"https://www.google.com/search?q={query}+site:imdb.com+OR+site:wikipedia.org"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+        snippet = soup.select_one(".VwiC3b")
+        if snippet:
+            return snippet.text.strip()
+    except Exception:
+        return ""
+    return ""
+
+def obtener_descripcion_completa(titulo, tipo="serie", temporada=None, episodio=None, anio=None):
+    # 1. TMDb
+    if tipo == "serie" and temporada is not None and episodio is not None:
+        search_res = buscar_tmdb(titulo, "tv")
+        if search_res:
+            tv_id = search_res.get("id")
+            epi_info = obtener_info_serie(tv_id, temporada, episodio)
+            overview = epi_info.get("overview")
+            if overview:
+                return traducir_a_espanol(overview)
+    else:  # pelicula
+        search_res = buscar_tmdb(titulo, "movie", year=anio)
+        if search_res:
+            overview = search_res.get("overview")
+            if overview:
+                return traducir_a_espanol(overview)
+
+    # 2. Google (incluye Wikipedia/IMDb)
+    google_desc = buscar_google_snippet(titulo)
+    if google_desc:
+        return google_desc
+
+    # 3. Placeholder
+    return rellenar_descripcion(titulo, tipo, temporada, episodio)
 
 # ----------------------
 # PARSEO DE EPISODIOS
@@ -285,7 +327,6 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
             titulo_original = title_el.text.strip() if title_el is not None and title_el.text else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
 
-            # 🔹 Punto 1 y 3: Detectar inconsistencias y corregirlas si evidencia fuerte
             corregir_desc = False
             if es_serie and temporada and episodio:
                 if existing_desc:
@@ -294,15 +335,8 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
 
             # -------------------- SERIES --------------------
             if es_serie and temporada and episodio:
-                search_res = buscar_tmdb(titulo_norm, "tv")
-                nombre_ep, overview = ep_text, ""
-                if search_res:
-                    tv_id = search_res.get("id")
-                    epi_info = obtener_info_serie(tv_id, temporada, episodio)
-                    nombre_ep = epi_info.get("name") or ep_text
-                    overview = epi_info.get("overview") or rellenar_descripcion(titulo_original, "serie", temporada, episodio)
-                    nombre_ep = traducir_a_espanol(nombre_ep)
-                    overview = traducir_a_espanol(overview)
+                nombre_ep = ep_text
+                overview = obtener_descripcion_completa(titulo_norm, "serie", temporada, episodio)
 
                 if sub_el is None or not (sub_el.text or "").strip():
                     if sub_el is None:
@@ -323,20 +357,16 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
             # -------------------- PELÍCULAS --------------------
             elif es_pelicula:
                 anio_epg = date_el.text.strip() if (date_el is not None and date_el.text) else ""
-                search_res = buscar_tmdb(titulo_norm, "movie", year=anio_epg if anio_epg else None)
+                overview = obtener_descripcion_completa(titulo_norm, "pelicula", anio=anio_epg)
 
-                anio, overview, titulo_es = "", "", titulo_original
-                if search_res:
-                    anio = (search_res.get("release_date") or "")[:4]
-                    titulo_es = search_res.get("title") or titulo_original
-                    overview = search_res.get("overview") or rellenar_descripcion(titulo_original, "pelicula")
-                    titulo_es = traducir_a_espanol(titulo_es)
-                    overview = traducir_a_espanol(overview)
-
-                if (date_el is None or not (date_el.text or "").strip()) and anio:
-                    if date_el is None:
-                        date_el = ET.SubElement(elem, "date")
-                    date_el.text = anio
+                if (date_el is None or not (date_el.text or "").strip()) and overview:
+                    anio = ""
+                    search_res = buscar_tmdb(titulo_norm, "movie", year=anio_epg if anio_epg else None)
+                    if search_res:
+                        anio = (search_res.get("release_date") or "")[:4]
+                        if date_el is None:
+                            date_el = ET.SubElement(elem, "date")
+                        date_el.text = anio
 
                 if not existing_desc:
                     if desc_el is None:
@@ -347,9 +377,8 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
 
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
-                title_el.text = f"{titulo_es} ({anio})" if anio else titulo_es
+                title_el.text = f"{titulo_original} ({anio_epg})" if anio_epg else titulo_original
 
-            # Escribir el programme tal como quedó
             f.write(ET.tostring(elem, encoding="utf-8"))
 
 # ----------------------
