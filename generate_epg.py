@@ -13,12 +13,10 @@ API_KEY = os.getenv("TMDB_API_KEY")
 if not API_KEY:
     raise RuntimeError("❌ TMDB_API_KEY no está definido en el entorno.")
 
-# Guía principal
 EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_FILE = "epg_original.xml"
 OUTPUT_FILE = "guide_custom.xml"
 
-# Nuevas fuentes
 NUEVAS_EPGS = [
     "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
@@ -29,9 +27,8 @@ NUEVAS_EPGS = [
 
 EPG_FILES_TEMP = []
 
-# Canales a usar (MX + internacionales)
 CANALES_USAR = {
-    # Canales originales de México
+    # Lista original de canales de México e internacionales
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
@@ -131,7 +128,6 @@ CANALES_USAR = {
     "MoreMax..Eastern.us",
 }
 
-# Mapas de títulos especiales
 TITULOS_MAP = {
     "Madagascar 2Escape de África": "Madagascar 2: Escape de África",
     "H.Potter y la cámara secreta": "Harry Potter y la Cámara Secreta"
@@ -156,7 +152,8 @@ def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
 def traducir_a_espanol(texto):
     if not texto:
         return ""
-    return texto  # Mantener palabras originales
+    # 🔹 Punto 4: placeholder, conservar palabras originales
+    return texto
 
 # ----------------------
 # BUSQUEDAS TMDB
@@ -288,12 +285,10 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
             titulo_original = title_el.text.strip() if title_el is not None and title_el.text else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
 
-            # ---------- INTELIGENCIA DEL JEFE ----------
-            # Detectar si la sinopsis existente no corresponde al episodio
+            # 🔹 Punto 1 y 3: Detectar inconsistencias y corregirlas si evidencia fuerte
             corregir_desc = False
             if es_serie and temporada and episodio:
                 if existing_desc:
-                    # Si la sinopsis parece general de la serie, marcar para corregir
                     if titulo_original.lower() in existing_desc.lower() and "episodio" not in existing_desc.lower():
                         corregir_desc = True
 
