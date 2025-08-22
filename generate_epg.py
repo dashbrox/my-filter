@@ -29,8 +29,9 @@ NUEVAS_EPGS = [
 
 EPG_FILES_TEMP = []
 
-# Canales a usar
+# Canales a usar (MX + internacionales)
 CANALES_USAR = {
+    # Canales originales de México
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
@@ -73,8 +74,64 @@ CANALES_USAR = {
     "Canal.Universal.TV.(México).mx",
     "Canal.USA.Network.(México).mx",
     "Canal.Warner.TV.(México).mx",
+
+    # Nuevos canales internacionales
+    "plex.tv.T2.plex",
+    "TSN1.ca",
+    "TSN2.ca",
+    "TSN3.ca",
+    "TSN4.ca",
+    "Eurosport.2.es",
+    "Eurosport.es",
+    "M+.Deportes.2.es",
+    "M+.Deportes.3.es",
+    "M+.Deportes.4.es",
+    "M+.Deportes.5.es",
+    "M+.Deportes.6.es",
+    "M+.Deportes.7.es",
+    "M+.Deportes.es",
+    "Movistar.Plus.es",
+    "ABC.(WABC).New.York,.NY.us",
+    "CBS.(WCBS).New.York,.NY.us",
+    "FOX.(WNYW).New.York,.NY.us",
+    "NBC.(WNBC).New.York,.NY.us",
+    "ABC.(KABC).Los.Angeles,.CA.us",
+    "NBC.(KNBC).Los.Angeles,.CA.us",
+    "Bravo.USA.-.Eastern.Feed.us",
+    "E!.Entertainment.USA.-.Eastern.Feed.us",
+    "Hallmark.-.Eastern.Feed.us",
+    "Hallmark.Mystery.Eastern.-.HD.us",
+    "CW.(KFMB-TV2).San.Diego,.CA.us",
+    "CNN.us",
+    "The.Tennis.Channel.us",
+    "HBO.-.Eastern.Feed.us",
+    "HBO.Latino.(HBO.7).-.Eastern.us",
+    "HBO.2.-.Eastern.Feed.us",
+    "HBO.Comedy.HD.-.East.us",
+    "HBO.Family.-.Eastern.Feed.us",
+    "HBO.Signature.(HBO.3).-.Eastern.us",
+    "HBO.Zone.HD.-.East.us",
+    "Starz.Cinema.HD.-.Eastern.us",
+    "Starz.Comedy.HD.-.Eastern.us",
+    "Starz.-.Eastern.us",
+    "Starz.Edge.-.Eastern.us",
+    "Starz.Encore.Action.-.Eastern.us",
+    "Starz.Encore.Black.-.Eastern.us",
+    "Starz.Encore.Classic.-.Eastern.us",
+    "Starz.Encore.-.Eastern.us",
+    "Starz.Encore.Family.-.Eastern.us",
+    "Starz.Encore.on.Demand.us",
+    "Starz.Encore.-.Pacific.us",
+    "Starz.Encore.Suspense.-.Eastern.us",
+    "Starz.Encore.Westerns.-.Eastern.us",
+    "Starz.In.Black.-.Eastern.us",
+    "Starz.Kids.and.Family.-.Eastern.us",
+    "Starz.On.Demand.us",
+    "Starz.-.Pacific.us",
+    "MoreMax..Eastern.us",
 }
 
+# Mapas de títulos especiales
 TITULOS_MAP = {
     "Madagascar 2Escape de África": "Madagascar 2: Escape de África",
     "H.Potter y la cámara secreta": "Harry Potter y la Cámara Secreta"
@@ -99,26 +156,22 @@ def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
 def traducir_a_espanol(texto):
     if not texto:
         return ""
-    return texto  # Aquí podrías integrar un traductor real
+    return texto
 
 def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
     titulo = TITULOS_MAP.get(titulo, titulo)
     url = f"https://api.themoviedb.org/3/search/{tipo}"
     params = {"api_key": API_KEY, "query": titulo, "language": lang}
-
     if tipo == "movie" and not year:
         return None
-
     if year and tipo == "movie":
         params["year"] = year
-
     try:
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
         results = r.json().get("results", [])
         if results:
             return results[0]
-
         if "making of" in titulo.lower():
             titulo_base = titulo.lower().replace("making of", "").strip()
             params["query"] = titulo_base
@@ -126,7 +179,6 @@ def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
             r2.raise_for_status()
             results2 = r2.json().get("results", [])
             return results2[0] if results2 else None
-
         return None
     except Exception:
         if lang != "en-US":
@@ -191,7 +243,7 @@ def procesar_epg(input_file, output_file):
     tree = ET.parse(input_file)
     root = tree.getroot()
 
-    with open(output_file, "ab") as f:  # append mode para agregar nuevas EPGs
+    with open(output_file, "ab") as f:
         if os.path.getsize(output_file) == 0:
             f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
@@ -275,23 +327,20 @@ def procesar_epg(input_file, output_file):
 
             f.write(ET.tostring(elem, encoding="utf-8"))
 
-# ----------------------
-# EJECUTAR PROCESAMIENTO
-# ----------------------
-if __name__ == "__main__":
-    # Procesar guía original
-    procesar_epg(EPG_FILE, OUTPUT_FILE)
-
-    # Procesar nuevas EPGs
-    for epg_temp in EPG_FILES_TEMP:
-        procesar_epg(epg_temp, OUTPUT_FILE)
-
-    # Cerrar XML
-    with open(OUTPUT_FILE, "ab") as f:
+    with open(output_file, "ab") as f:
         f.write(b"</tv>")
 
-    # Comprimir guía final
-    with open(OUTPUT_FILE, "rb") as f_in, gzip.open(OUTPUT_FILE + ".gz", "wb") as f_out:
+    with open(output_file, "rb") as f_in, gzip.open(output_file + ".gz", "wb") as f_out:
         f_out.writelines(f_in)
 
-    print(f"✅ Guía final generada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
+# ----------------------
+# EJECUTAR
+# ----------------------
+# Procesar guía principal
+procesar_epg(EPG_FILE, OUTPUT_FILE)
+
+# Procesar nuevas EPGs
+for temp_file in EPG_FILES_TEMP:
+    procesar_epg(temp_file, OUTPUT_FILE)
+
+print(f"✅ Guía generada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
