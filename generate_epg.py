@@ -110,7 +110,7 @@ def obtener_info_serie(tv_id, temporada, episodio, lang="es-MX"):
 def parse_episode_num(ep_text):
     if not ep_text:
         return None, None
-    ep_text = ep_text.strip().upper()
+    ep_text = ep_text.strip().upper().replace(" ", "")  # eliminar espacios
     match = re.match(r"S(\d{1,2})E(\d{1,2})", ep_text)
     if match:
         return int(match.group(1)), int(match.group(2))
@@ -169,8 +169,9 @@ def procesar_epg(input_file, output_file):
             temporada, episodio = parse_episode_num(ep_text)
 
             categorias = [c.text.lower() for c in elem.findall("category")]
-            es_serie = any("serie" in c for c in categorias)
-            es_pelicula = any("pel" in c or "movie" in c for c in categorias)
+            # --- NUEVO: Considerar serie si tiene temporada/episodio válido ---
+            es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
+            es_pelicula = any("pel" in c or "movie" in c for c in categorias) and not es_serie
 
             # --- SUB-TITLE ---
             sub_el = elem.find("sub-title")
