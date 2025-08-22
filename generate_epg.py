@@ -17,9 +17,6 @@ EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_FILE = "epg_original.xml"
 OUTPUT_FILE = "guide_custom.xml"
 
-# ----------------------
-# CANALES
-# ----------------------
 CANALES_USAR = {
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
@@ -65,7 +62,6 @@ CANALES_USAR = {
     "Canal.Warner.TV.(México).mx",
 }
 
-# Map de títulos especiales si aplica
 TITULOS_MAP = {
     "Madagascar 2Escape de África": "Madagascar 2: Escape de África",
     "H.Potter y la cámara secreta": "Harry Potter y la Cámara Secreta"
@@ -101,22 +97,24 @@ def obtener_info_serie(tv_id, temporada, episodio, lang="es-MX"):
     try:
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
-        return r.json()
-    except Exception:
-        if lang != "en-US":
+        data = r.json()
+        # fallback a inglés si falta info
+        if (not data.get("overview") or not data.get("name")) and lang != "en-US":
             return obtener_info_serie(tv_id, temporada, episodio, "en-US")
-    return {}
+        return data
+    except Exception:
+        return {}
 
 def parse_episode_num(ep_text):
     if not ep_text:
         return None, None
-    ep_text = ep_text.strip().upper().replace(" ", "")  # eliminar espacios
-    match = re.match(r"S(\d{1,2})E(\d{1,2})", ep_text)
-    if match:
-        return int(match.group(1)), int(match.group(2))
-    match = re.search(r"(\d{1,2})[xE](\d{1,2})", ep_text)
-    if match:
-        return int(match.group(1)), int(match.group(2))
+    ep_text = ep_text.strip().upper().replace(" ", "")
+    # múltiples formatos
+    patterns = [r"S(\d{1,2})E(\d{1,2})", r"(\d{1,2})x(\d{1,2})", r"(\d{1,2})[E](\d{1,2})"]
+    for p in patterns:
+        match = re.match(p, ep_text)
+        if match:
+            return int(match.group(1)), int(match.group(2))
     return None, None
 
 # ----------------------
@@ -135,32 +133,23 @@ if not os.path.exists(EPG_FILE):
 # PROCESAR EPG
 # ----------------------
 def procesar_epg(input_file, output_file):
-    """
-    Procesa la guía EPG:
-    - LEE <programme> y <category> para obtener información
-    - NO modifica información existente en estos nodos
-    - Rellena solo <title>, <desc>, <date> y <sub-title> si están vacíos
-    """
     tree = ET.parse(input_file)
     root = tree.getroot()
 
     with open(output_file, "wb") as f:
         f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
-        # Guardar todos los canales intactos
         for ch in root.findall("channel"):
             f.write(ET.tostring(ch, encoding="utf-8"))
 
-        # Procesar programas
         for elem in root.findall("programme"):
             canal = elem.get("channel")
             if canal not in CANALES_USAR:
                 continue
 
-            # --- LEER datos existentes ---
             title_el = elem.find("title")
-            titulo = title_el.text.strip() if title_el is not None else "Sin título"
-            titulo_norm = normalizar_texto(titulo)
+            titulo_original = title_el.text.strip() if title_el is not None else "Sin título"
+            titulo_norm = normalizar_texto(titulo_original)
 
             desc_el = elem.find("desc")
             date_el = elem.find("date")
@@ -169,72 +158,64 @@ def procesar_epg(input_file, output_file):
             temporada, episodio = parse_episode_num(ep_text)
 
             categorias = [c.text.lower() for c in elem.findall("category")]
-            # --- NUEVO: Considerar serie si tiene temporada/episodio válido ---
-            es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
-            es_pelicula = any("pel" in c or "movie" in c for c in categorias) and not es_serie
 
-            # --- SUB-TITLE ---
+            # Clasificación
+            es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
+            es_pelicula = not es_serie
+
+            # Sub-title
             sub_el = elem.find("sub-title")
             if sub_el is None:
                 sub_el = ET.SubElement(elem, "sub-title")
-                sub_el.text = ep_text
 
-            # --- CONSULTAR TMDB solo si es serie/película ---
-            if (es_serie and temporada and episodio) or es_pelicula:
-                tipo_busqueda = "tv" if es_serie else "movie"
-                search_res = buscar_tmdb(titulo_norm, tipo_busqueda)
-                if search_res:
-                    # --- SERIES ---
-                    if es_serie:
-                        tv_id = search_res.get("id")
-                        epi_info = obtener_info_serie(tv_id, temporada, episodio)
-                        nombre_ep = epi_info.get("name") or ep_text
-                        overview = epi_info.get("overview") or ""
+            # Buscar TMDB
+            tipo_busqueda = "tv" if es_serie else "movie"
+            search_res = buscar_tmdb(titulo_norm, tipo_busqueda)
+            if search_res:
+                if es_serie and temporada and episodio:
+                    tv_id = search_res.get("id")
+                    epi_info = obtener_info_serie(tv_id, temporada, episodio)
+                    nombre_ep = epi_info.get("name") or ep_text
+                    overview = epi_info.get("overview") or ""
 
-                        if desc_el is None:
-                            desc_el = ET.SubElement(elem, "desc")
-                        if not desc_el.text or not desc_el.text.strip():
-                            desc_el.text = f"{nombre_ep}\n{overview}".strip()
+                    # Forzar sub-title
+                    sub_el.text = nombre_ep
 
-                        if title_el is None:
-                            title_el = ET.SubElement(elem, "title")
-                        if not title_el.text or not title_el.text.strip():
-                            title_el.text = f"{titulo} (S{temporada:02d}E{episodio:02d}) - {nombre_ep}"
+                    # Forzar desc: primera línea nombre episodio + overview
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = f"{nombre_ep}\n{overview}".strip()
 
-                        sub_el.text = ep_text
+                    # Forzar title: serie original + (Sxx Exx)
+                    if title_el is None:
+                        title_el = ET.SubElement(elem, "title")
+                    title_el.text = f"{titulo_original} (S{temporada:02d} E{episodio:02d})"
 
-                    # --- PELÍCULAS ---
-                    else:
-                        anio = (search_res.get("release_date") or "????")[:4]
-                        overview = search_res.get("overview") or ""
+                elif es_pelicula:
+                    anio = (search_res.get("release_date") or "????")[:4]
+                    overview = search_res.get("overview") or ""
 
-                        if date_el is None:
-                            date_el = ET.SubElement(elem, "date")
-                        if not date_el.text or not date_el.text.strip():
-                            date_el.text = anio
+                    if date_el is None:
+                        date_el = ET.SubElement(elem, "date")
+                    date_el.text = anio
 
-                        if desc_el is None:
-                            desc_el = ET.SubElement(elem, "desc")
-                        if not desc_el.text or not desc_el.text.strip():
-                            desc_el.text = overview
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = overview
 
-                        if title_el is None:
-                            title_el = ET.SubElement(elem, "title")
-                        if not title_el.text or not title_el.text.strip():
-                            title_el.text = f"{titulo} ({anio})"
+                    if title_el is None:
+                        title_el = ET.SubElement(elem, "title")
+                    title_el.text = f"{titulo_original} ({anio})"
 
             # Guardar el programa
             f.write(ET.tostring(elem, encoding="utf-8"))
 
         f.write(b"</tv>")
 
-    # --- Comprimir XML ---
+    # Comprimir
     with open(output_file, "rb") as f_in, gzip.open(output_file + ".gz", "wb") as f_out:
         f_out.writelines(f_in)
 
-# ----------------------
-# EJECUCIÓN
-# ----------------------
 if __name__ == "__main__":
     procesar_epg(EPG_FILE, OUTPUT_FILE)
     print(f"✅ Guía generada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
