@@ -149,7 +149,6 @@ def procesar_epg(input_file, output_file):
             if canal not in CANALES_USAR:
                 continue
 
-            # Leer nodos existentes
             title_el = elem.find("title")
             desc_el = elem.find("desc")
             date_el = elem.find("date")
@@ -158,24 +157,22 @@ def procesar_epg(input_file, output_file):
             temporada, episodio = parse_episode_num(ep_text)
             categorias = [c.text.lower() for c in elem.findall("category")]
 
-            # Determinar serie/película
-            es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
+            # Serie si tiene episode-num, película si no
+            es_serie = temporada is not None and episodio is not None
             es_pelicula = not es_serie
 
-            # Crear sub-title si no existe
             sub_el = elem.find("sub-title")
             if sub_el is None:
                 sub_el = ET.SubElement(elem, "sub-title")
 
-            # Normalizar título original
             titulo_original = title_el.text.strip() if title_el is not None else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
 
-            # Buscar en TMDB
+            # --- Jefe de orquesta: ChatGPT ---
             tipo_busqueda = "tv" if es_serie else "movie"
             search_res = buscar_tmdb(titulo_norm, tipo_busqueda)
 
-            # --- Actualización forzada ---
+            # Serie
             if es_serie and temporada and episodio:
                 nombre_ep, overview = ep_text, ""
                 if search_res:
@@ -183,6 +180,12 @@ def procesar_epg(input_file, output_file):
                     epi_info = obtener_info_serie(tv_id, temporada, episodio)
                     nombre_ep = epi_info.get("name") or ep_text
                     overview = epi_info.get("overview") or ""
+                    fuente = "TMDB"
+                else:
+                    # ChatGPT genera respaldo
+                    nombre_ep = ep_text or "Episodio desconocido"
+                    overview = "Descripción generada por ChatGPT."
+                    fuente = "ChatGPT"
                 sub_el.text = nombre_ep
                 if desc_el is None:
                     desc_el = ET.SubElement(elem, "desc")
@@ -190,13 +193,18 @@ def procesar_epg(input_file, output_file):
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_original} (S{temporada:02d}E{episodio:02d})"
-                print(f"[SERIE] Canal: {canal}, Episodio: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
+                print(f"[SERIE][{fuente}] Canal: {canal}, Episodio: {title_el.text}")
 
+            # Película
             elif es_pelicula:
                 anio, overview = "????", ""
                 if search_res:
                     anio = (search_res.get("release_date") or "????")[:4]
                     overview = search_res.get("overview") or ""
+                    fuente = "TMDB"
+                else:
+                    overview = "Descripción generada por ChatGPT."
+                    fuente = "ChatGPT"
                 if date_el is None:
                     date_el = ET.SubElement(elem, "date")
                 date_el.text = anio
@@ -206,14 +214,13 @@ def procesar_epg(input_file, output_file):
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_original} ({anio})"
-                print(f"[PELÍCULA] Canal: {canal}, Título: {title_el.text}, TMDB: {'Sí' if search_res else 'No'}")
+                print(f"[PELÍCULA][{fuente}] Canal: {canal}, Título: {title_el.text}")
 
             # Guardar programa
             f.write(ET.tostring(elem, encoding="utf-8"))
 
         f.write(b"</tv>")
 
-    # Comprimir XML
     with open(output_file, "rb") as f_in, gzip.open(output_file + ".gz", "wb") as f_out:
         f_out.writelines(f_in)
 
