@@ -23877,7 +23877,8 @@ En Vivo</title>
     <star-rating system="MX">
       <value>8.0</value>
     </star-rating>
-  <sub-title></sub-title></programme><programme start="20250824005500 -0500" stop="20250824023000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
+  <sub-title></sub-title></programme>
+  <programme start="20250824005500 -0500" stop="20250824023000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
     <title lang="es">Buzz</title>
   <sub-title></sub-title></programme>
   <programme start="20250824023000 -0500" stop="20250824040000 -0500" channel="Canal.HBO.Signature.Latinoamérica.mx">
@@ -29278,7 +29279,8 @@ En Vivo</title>
   <sub-title></sub-title></programme>
   <programme start="20250821090300 -0500" stop="20250821093000 -0500" channel="Canal.DW.(Latinoamérica).mx">
     <title lang="es">Aquí estoy</title>
-  <sub-title></sub-title></programme><programme start="20250821093000 -0500" stop="20250821100000 -0500" channel="Canal.DW.(Latinoamérica).mx">
+  <sub-title></sub-title></programme>
+  <programme start="20250821093000 -0500" stop="20250821100000 -0500" channel="Canal.DW.(Latinoamérica).mx">
     <title lang="es">Cultura.21</title>
   <sub-title></sub-title></programme>
   <programme start="20250821100000 -0500" stop="20250821100300 -0500" channel="Canal.DW.(Latinoamérica).mx">
