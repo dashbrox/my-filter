@@ -7,6 +7,7 @@ import lxml.etree as ET
 import io
 from bs4 import BeautifulSoup
 import openai
+from concurrent.futures import ThreadPoolExecutor
 
 # ----------------------
 # CONFIGURACIÓN
@@ -194,7 +195,6 @@ def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
         return None
 
 def buscar_imdb_rotten(titulo):
-    # Solo ejemplo, puedes expandir la búsqueda con scraping
     snippet = buscar_google_snippet(f"{titulo} site:imdb.com")
     if snippet:
         return snippet
@@ -208,7 +208,7 @@ def chatgpt_disponible():
     if not OPENAI_API_KEY:
         return False
     try:
-        resp = openai.usage.retrieve()  # verifica si hay cuota disponible
+        resp = openai.usage.retrieve()
         return True
     except Exception:
         return False
@@ -247,39 +247,74 @@ def obtener_descripcion_chatgpt(titulo, tipo=None, temporada=None, episodio=None
 # ----------------------
 def obtener_descripcion_completa(titulo, tipo=None, temporada=None, episodio=None, anio=None, pistas=None):
     existing_desc = pistas.get("desc", "") if pistas else ""
-
-    # Intentar ChatGPT primero solo si hay cuota
     overview = None
     if chatgpt_disponible():
-        overview = obtener_descripcion_chatgpt(titulo, tipo, temporada, episodio, anio, pistas)
-
-    # Google
+        overview = obtener_descripcion_chatgpt(titulo, tipo, temporada, episodio, anio, pistas=pistas)
     if not overview:
         overview = buscar_google_snippet(titulo)
-
-    # TMDB
     if not overview:
         overview = ""
         if tipo == "serie" and temporada and episodio:
             search_res = buscar_tmdb(titulo, "tv")
             if search_res:
-                tv_id = search_res.get("id")
-                # Solo overview de temporada/episodio
                 overview = search_res.get("overview", "")
         elif tipo == "pelicula":
             search_res = buscar_tmdb(titulo, "movie", year=anio)
             if search_res:
                 overview = search_res.get("overview", "")
-
-    # IMDb / Rotten
     if not overview:
         overview = buscar_imdb_rotten(titulo)
-
-    # Placeholder final
     if not overview:
         overview = rellenar_descripcion(titulo, tipo, temporada, episodio)
-
     return traducir_a_espanol(overview)
+
+# ----------------------
+# Cache de series (batch)
+# ----------------------
+SERIES_CACHE = {}
+
+def obtener_episodios_tmdb(titulo):
+    titulo_norm = TITULOS_MAP.get(titulo, titulo)
+    if titulo_norm in SERIES_CACHE:
+        return SERIES_CACHE[titulo_norm]
+
+    search_res = buscar_tmdb(titulo_norm, tipo="tv")
+    if not search_res:
+        SERIES_CACHE[titulo_norm] = {}
+        return {}
+
+    tv_id = search_res.get("id")
+    episodios_dict = {}
+
+    url_base = f"https://api.themoviedb.org/3/tv/{tv_id}"
+    params = {"api_key": API_KEY, "language": "es-MX"}
+
+    try:
+        r = requests.get(url_base, params=params, timeout=10)
+        r.raise_for_status()
+        tv_data = r.json()
+        for season in tv_data.get("seasons", []):
+            season_num = season.get("season_number")
+            url_season = f"https://api.themoviedb.org/3/tv/{tv_id}/season/{season_num}"
+            r_season = requests.get(url_season, params=params, timeout=10)
+            r_season.raise_for_status()
+            season_data = r_season.json()
+            for ep in season_data.get("episodes", []):
+                key = f"S{season_num:02d}E{ep.get('episode_number', 0):02d}"
+                episodios_dict[key] = ep.get("overview", "")
+    except Exception:
+        pass
+
+    SERIES_CACHE[titulo_norm] = episodios_dict
+    return episodios_dict
+
+def obtener_descripcion_completa_serie(titulo, temporada, episodio, pistas=None):
+    episodios = obtener_episodios_tmdb(titulo)
+    key = f"S{temporada:02d}E{episodio:02d}"
+    overview = episodios.get(key)
+    if overview:
+        return traducir_a_espanol(overview)
+    return obtener_descripcion_completa(titulo, "serie", temporada, episodio, pistas=pistas)
 
 # ----------------------
 # Parse de episodio
@@ -298,26 +333,26 @@ def parse_episode_num(ep_text):
 # ----------------------
 # Descarga EPG
 # ----------------------
-if not os.path.exists(EPG_FILE):
-    print("📥 Descargando guía original...")
-    r = requests.get(EPG_URL, timeout=60)
-    r.raise_for_status()
-    with gzip.open(io.BytesIO(r.content), 'rb') as f_in:
-        with open(EPG_FILE, 'wb') as f_out:
-            f_out.write(f_in.read())
-    print("✅ Guía original descargada.")
-
-for idx, url in enumerate(NUEVAS_EPGS, start=1):
-    temp_file = f"epg_nueva_{idx}.xml"
-    if not os.path.exists(temp_file):
+def descargar_epg(url, dest_file):
+    if not os.path.exists(dest_file):
         print(f"📥 Descargando EPG desde {url}...")
         r = requests.get(url, timeout=60)
         r.raise_for_status()
         with gzip.open(io.BytesIO(r.content), 'rb') as f_in:
-            with open(temp_file, 'wb') as f_out:
+            with open(dest_file, 'wb') as f_out:
                 f_out.write(f_in.read())
-        print(f"✅ EPG descargada: {temp_file}")
-    EPG_FILES_TEMP.append(temp_file)
+        print(f"✅ EPG descargada: {dest_file}")
+    return dest_file
+
+if not os.path.exists(EPG_FILE):
+    descargar_epg(EPG_URL, EPG_FILE)
+
+# Descarga concurrente de nuevas EPGs
+with ThreadPoolExecutor(max_workers=5) as executor:
+    futures = [executor.submit(descargar_epg, url, f"epg_nueva_{idx}.xml") 
+               for idx, url in enumerate(NUEVAS_EPGS, start=1)]
+    for f in futures:
+        EPG_FILES_TEMP.append(f.result())
 
 # ----------------------
 # Procesar EPG
@@ -333,20 +368,19 @@ def _get_desc_text(desc_el):
 def procesar_epg(input_file, output_file, escribir_raiz=False):
     tree = ET.parse(input_file)
     root = tree.getroot()
-
     mode = "wb" if escribir_raiz else "ab"
+
     with open(output_file, mode) as f:
         if escribir_raiz:
             f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
-        for ch in root.findall("channel"):
-            if ch.get("id") in CANALES_USAR:
-                f.write(ET.tostring(ch, encoding="utf-8"))
+        programas = root.findall("programme")
 
-        for elem in root.findall("programme"):
+        # Procesar en paralelo
+        def procesar_programa(elem):
             canal = elem.get("channel")
             if canal not in CANALES_USAR:
-                continue
+                return None
 
             title_el = elem.find("title")
             sub_el = elem.find("sub-title")
@@ -362,56 +396,44 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
             es_pelicula = not es_serie
             titulo_original = title_el.text.strip() if title_el is not None and title_el.text else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
-
             pistas = {"desc": existing_desc, "title": titulo_original, "categorias": categorias}
 
-            # -------------------- SERIES --------------------
             if es_serie and temporada and episodio:
                 nombre_ep = ep_text
-                overview = obtener_descripcion_completa(titulo_norm, "serie", temporada, episodio, pistas=pistas)
-
-                if sub_el is None or not (sub_el.text or "").strip():
-                    if sub_el is None:
-                        sub_el = ET.SubElement(elem, "sub-title")
-                    sub_el.text = nombre_ep
-
+                overview = obtener_descripcion_completa_serie(titulo_norm, temporada, episodio, pistas=pistas)
+                if sub_el is None:
+                    sub_el = ET.SubElement(elem, "sub-title")
+                sub_el.text = nombre_ep
                 if desc_el is None:
                     desc_el = ET.SubElement(elem, "desc")
                 desc_el.text = f"{nombre_ep}\n{overview}".strip()
-
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f'{titulo_original} (S{temporada:02d}E{episodio:02d})'
 
-            # -------------------- PELÍCULAS --------------------
             elif es_pelicula:
                 anio_epg = date_el.text.strip() if (date_el is not None and date_el.text) else ""
                 overview = obtener_descripcion_completa(titulo_norm, "pelicula", anio=anio_epg, pistas=pistas)
-
-                if (date_el is None or not (date_el.text or "").strip()) and overview:
-                    anio = ""
-                    search_res = buscar_tmdb(titulo_norm, "movie", year=anio_epg if anio_epg else None)
-                    if search_res:
-                        anio = (search_res.get("release_date") or "")[:4]
-                        if date_el is None:
-                            date_el = ET.SubElement(elem, "date")
-                        date_el.text = anio
-
                 if desc_el is None:
                     desc_el = ET.SubElement(elem, "desc")
                 desc_el.text = overview if overview else rellenar_descripcion(titulo_original, "pelicula")
-
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_original} ({anio_epg})" if anio_epg else titulo_original
 
-            f.write(ET.tostring(elem, encoding="utf-8"))
+            return elem
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            resultados = list(executor.map(procesar_programa, programas))
+
+        for elem in resultados:
+            if elem is not None:
+                f.write(ET.tostring(elem, encoding="utf-8"))
 
 # ----------------------
 # EJECUTAR
 # ----------------------
 procesar_epg(EPG_FILE, OUTPUT_FILE, escribir_raiz=True)
-
 for temp_file in EPG_FILES_TEMP:
     procesar_epg(temp_file, OUTPUT_FILE, escribir_raiz=False)
 
