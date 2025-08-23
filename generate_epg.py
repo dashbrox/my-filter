@@ -1,3 +1,4 @@
+
 import os
 import re
 import gzip
@@ -8,6 +9,7 @@ import io
 from bs4 import BeautifulSoup
 import openai
 from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm  # <- Barra de progreso
 
 # ----------------------
 # CONFIGURACIÓN
@@ -370,17 +372,18 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
     root = tree.getroot()
     mode = "wb" if escribir_raiz else "ab"
 
+    programas = root.findall("programme")
+    total_programas = len(programas)
+
     with open(output_file, mode) as f:
         if escribir_raiz:
             f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
-        programas = root.findall("programme")
-
-        # Procesar en paralelo
-        def procesar_programa(elem):
+        # Procesar con barra de progreso
+        for elem in tqdm(programas, desc=f"Procesando {input_file}", unit="prog"):
             canal = elem.get("channel")
             if canal not in CANALES_USAR:
-                return None
+                continue
 
             title_el = elem.find("title")
             sub_el = elem.find("sub-title")
@@ -421,14 +424,7 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_original} ({anio_epg})" if anio_epg else titulo_original
 
-            return elem
-
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            resultados = list(executor.map(procesar_programa, programas))
-
-        for elem in resultados:
-            if elem is not None:
-                f.write(ET.tostring(elem, encoding="utf-8"))
+            f.write(ET.tostring(elem, encoding="utf-8"))
 
 # ----------------------
 # EJECUTAR
