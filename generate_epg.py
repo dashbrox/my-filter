@@ -215,30 +215,59 @@ def buscar_google_snippet(titulo):
         return ""
     return ""
 
-def obtener_descripcion_completa(titulo, tipo="serie", temporada=None, episodio=None, anio=None):
-    # 1. TMDb
-    if tipo == "serie" and temporada is not None and episodio is not None:
-        search_res = buscar_tmdb(titulo, "tv")
-        if search_res:
-            tv_id = search_res.get("id")
-            epi_info = obtener_info_serie(tv_id, temporada, episodio)
-            overview = epi_info.get("overview")
-            if overview:
-                return traducir_a_espanol(overview)
-    else:  # pelicula
-        search_res = buscar_tmdb(titulo, "movie", year=anio)
-        if search_res:
-            overview = search_res.get("overview")
-            if overview:
-                return traducir_a_espanol(overview)
+# ----------------------
+# OBTENER DESCRIPCIÓN COMPLETA (6 REGLAS)
+# ----------------------
+def obtener_descripcion_completa(titulo, tipo=None, temporada=None, episodio=None, anio=None, pistas=None):
+    """
+    pistas: dict con información de la guía original
+    """
+    # Normalizar tipo según pistas
+    if tipo is None and pistas:
+        categorias = pistas.get("categorias", [])
+        es_serie = any("serie" in c for c in categorias)
+        es_pelicula = any("pelicula" in c for c in categorias)
+        if es_serie:
+            tipo = "serie"
+        elif es_pelicula:
+            tipo = "pelicula"
 
-    # 2. Google (incluye Wikipedia/IMDb)
-    google_desc = buscar_google_snippet(titulo)
-    if google_desc:
-        return google_desc
+    existing_desc = pistas.get("desc", "") if pistas else ""
+    existing_title = pistas.get("title", "") if pistas else ""
 
-    # 3. Placeholder
-    return rellenar_descripcion(titulo, tipo, temporada, episodio)
+    # Corrección si es serie y la sinopsis corresponde a la serie y no al episodio
+    if tipo == "serie" and temporada and episodio:
+        if existing_desc and titulo.lower() in existing_desc.lower() and "episodio" not in existing_desc.lower():
+            existing_desc = ""  # forzar actualización
+
+    # Buscar en TMDb si falta descripción o se detectó inconsistencia
+    need_lookup = not existing_desc or existing_desc == "" or existing_desc == "Sinopsis no disponible"
+    overview = ""
+    if tipo == "serie" and temporada and episodio:
+        if need_lookup:
+            search_res = buscar_tmdb(titulo, "tv")
+            if search_res:
+                tv_id = search_res.get("id")
+                epi_info = obtener_info_serie(tv_id, temporada, episodio)
+                overview = epi_info.get("overview", "")
+    elif tipo == "pelicula":
+        if need_lookup:
+            search_res = buscar_tmdb(titulo, "movie", year=anio)
+            if search_res:
+                overview = search_res.get("overview", "")
+
+    # Si TMDb no tiene resultado, buscar Google/Wikipedia/IMDb
+    if not overview:
+        google_desc = buscar_google_snippet(titulo)
+        if google_desc:
+            overview = google_desc
+
+    # Si sigue sin tener, usar placeholder
+    if not overview:
+        overview = rellenar_descripcion(titulo, tipo, temporada, episodio)
+
+    # Traducir siempre a español
+    return traducir_a_espanol(overview)
 
 # ----------------------
 # PARSEO DE EPISODIOS
@@ -320,10 +349,8 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
             categorias = [(c.text or "").lower() for c in elem.findall("category")]
 
             existing_desc = _get_desc_text(desc_el)
-
             es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
             es_pelicula = not es_serie
-
             titulo_original = title_el.text.strip() if title_el is not None and title_el.text else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
 
@@ -333,10 +360,12 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
                     if titulo_original.lower() in existing_desc.lower() and "episodio" not in existing_desc.lower():
                         corregir_desc = True
 
+            pistas = {"desc": existing_desc, "title": titulo_original, "categorias": categorias}
+
             # -------------------- SERIES --------------------
             if es_serie and temporada and episodio:
                 nombre_ep = ep_text
-                overview = obtener_descripcion_completa(titulo_norm, "serie", temporada, episodio)
+                overview = obtener_descripcion_completa(titulo_norm, "serie", temporada, episodio, pistas=pistas)
 
                 if sub_el is None or not (sub_el.text or "").strip():
                     if sub_el is None:
@@ -357,7 +386,7 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
             # -------------------- PELÍCULAS --------------------
             elif es_pelicula:
                 anio_epg = date_el.text.strip() if (date_el is not None and date_el.text) else ""
-                overview = obtener_descripcion_completa(titulo_norm, "pelicula", anio=anio_epg)
+                overview = obtener_descripcion_completa(titulo_norm, "pelicula", anio=anio_epg, pistas=pistas)
 
                 if (date_el is None or not (date_el.text or "").strip()) and overview:
                     anio = ""
