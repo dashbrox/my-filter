@@ -6,13 +6,19 @@ import unicodedata
 import lxml.etree as ET
 import io
 from bs4 import BeautifulSoup
+import openai  # Para integración ChatGPT
 
 # ----------------------
 # CONFIGURACIÓN
 # ----------------------
 API_KEY = os.getenv("TMDB_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not API_KEY:
     raise RuntimeError("❌ TMDB_API_KEY no está definido en el entorno.")
+if not OPENAI_API_KEY:
+    raise RuntimeError("❌ OPENAI_API_KEY no está definido en el entorno.")
+
+openai.api_key = OPENAI_API_KEY
 
 EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_FILE = "epg_original.xml"
@@ -28,8 +34,10 @@ NUEVAS_EPGS = [
 
 EPG_FILES_TEMP = []
 
+# ----------------------
+# CANALES
+# ----------------------
 CANALES_USAR = {
-    # Lista de canales (igual que la que proporcionaste)
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
@@ -216,13 +224,40 @@ def buscar_google_snippet(titulo):
     return ""
 
 # ----------------------
-# OBTENER DESCRIPCIÓN COMPLETA (6 REGLAS)
+# ChatGPT
+# ----------------------
+def obtener_descripcion_chatgpt(titulo, tipo=None, temporada=None, episodio=None, anio=None, pistas=None):
+    prompt = f"""
+    Actúa como un experto en series y películas. 
+    Completa la sinopsis de este contenido usando la información de pistas:
+    Título: {titulo}
+    Tipo: {tipo or 'desconocido'}
+    Temporada: {temporada or ''}
+    Episodio: {episodio or ''}
+    Año: {anio or ''}
+    Pistas: {pistas or {}}
+    
+    Si no estás seguro de algún dato, indica "INCIERTO".
+    Devuelve solo la sinopsis en español.
+    """
+    try:
+        resp = openai.chat.completions.create(
+            model="gpt-5-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0
+        )
+        texto = resp.choices[0].message.content.strip()
+        if "INCIERTO" in texto.upper() or not texto:
+            return None
+        return texto
+    except Exception as e:
+        print(f"⚠️ Error ChatGPT: {e}")
+        return None
+
+# ----------------------
+# OBTENER DESCRIPCIÓN COMPLETA
 # ----------------------
 def obtener_descripcion_completa(titulo, tipo=None, temporada=None, episodio=None, anio=None, pistas=None):
-    """
-    pistas: dict con información de la guía original
-    """
-    # Normalizar tipo según pistas
     if tipo is None and pistas:
         categorias = pistas.get("categorias", [])
         es_serie = any("serie" in c for c in categorias)
@@ -235,38 +270,37 @@ def obtener_descripcion_completa(titulo, tipo=None, temporada=None, episodio=Non
     existing_desc = pistas.get("desc", "") if pistas else ""
     existing_title = pistas.get("title", "") if pistas else ""
 
-    # Corrección si es serie y la sinopsis corresponde a la serie y no al episodio
     if tipo == "serie" and temporada and episodio:
         if existing_desc and titulo.lower() in existing_desc.lower() and "episodio" not in existing_desc.lower():
-            existing_desc = ""  # forzar actualización
+            existing_desc = ""
 
-    # Buscar en TMDb si falta descripción o se detectó inconsistencia
-    need_lookup = not existing_desc or existing_desc == "" or existing_desc == "Sinopsis no disponible"
     overview = ""
-    if tipo == "serie" and temporada and episodio:
-        if need_lookup:
-            search_res = buscar_tmdb(titulo, "tv")
-            if search_res:
-                tv_id = search_res.get("id")
-                epi_info = obtener_info_serie(tv_id, temporada, episodio)
-                overview = epi_info.get("overview", "")
-    elif tipo == "pelicula":
-        if need_lookup:
-            search_res = buscar_tmdb(titulo, "movie", year=anio)
-            if search_res:
-                overview = search_res.get("overview", "")
+    if not existing_desc:
+        overview = obtener_descripcion_chatgpt(titulo, tipo, temporada, episodio, anio, pistas)
 
-    # Si TMDb no tiene resultado, buscar Google/Wikipedia/IMDb
+    if not overview:
+        need_lookup = not existing_desc or existing_desc == "" or existing_desc == "Sinopsis no disponible"
+        if tipo == "serie" and temporada and episodio:
+            if need_lookup:
+                search_res = buscar_tmdb(titulo, "tv")
+                if search_res:
+                    tv_id = search_res.get("id")
+                    epi_info = obtener_info_serie(tv_id, temporada, episodio)
+                    overview = epi_info.get("overview", "")
+        elif tipo == "pelicula":
+            if need_lookup:
+                search_res = buscar_tmdb(titulo, "movie", year=anio)
+                if search_res:
+                    overview = search_res.get("overview", "")
+
     if not overview:
         google_desc = buscar_google_snippet(titulo)
         if google_desc:
             overview = google_desc
 
-    # Si sigue sin tener, usar placeholder
     if not overview:
         overview = rellenar_descripcion(titulo, tipo, temporada, episodio)
 
-    # Traducir siempre a español
     return traducir_a_espanol(overview)
 
 # ----------------------
