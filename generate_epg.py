@@ -6,13 +6,18 @@ import unicodedata
 import lxml.etree as ET
 import io
 from bs4 import BeautifulSoup
+import openai
 
 # ----------------------
 # CONFIGURACIÓN
 # ----------------------
 API_KEY = os.getenv("TMDB_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not API_KEY:
     raise RuntimeError("❌ TMDB_API_KEY no está definido en el entorno.")
+
+if OPENAI_API_KEY:
+    openai.api_key = OPENAI_API_KEY
 
 EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_FILE = "epg_original.xml"
@@ -152,44 +157,12 @@ def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
         return f"Sinopsis no disponible para el episodio {temporada}-{episodio} de '{titulo}'."
 
 def traducir_a_espanol(texto):
-    return texto or ""
+    if not texto:
+        return ""
+    return texto
 
 # ----------------------
-# BUSQUEDAS TMDB
-# ----------------------
-def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
-    titulo = TITULOS_MAP.get(titulo, titulo)
-    url = f"https://api.themoviedb.org/3/search/{tipo}"
-    params = {"api_key": API_KEY, "query": titulo, "language": lang}
-    if tipo == "movie" and year:
-        params["year"] = year
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        results = r.json().get("results", [])
-        if results:
-            return results[0]
-        return None
-    except Exception:
-        if lang != "en-US":
-            return buscar_tmdb(titulo, tipo, "en-US", year)
-    return None
-
-def obtener_info_serie(tv_id, temporada, episodio, lang="es-MX"):
-    url = f"https://api.themoviedb.org/3/tv/{tv_id}/season/{temporada}/episode/{episodio}"
-    params = {"api_key": API_KEY, "language": lang}
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-        if (not data.get("overview") or not data.get("name")) and lang != "en-US":
-            return obtener_info_serie(tv_id, temporada, episodio, "en-US")
-        return data
-    except Exception:
-        return {}
-
-# ----------------------
-# BÚSQUEDA GOOGLE
+# BÚSQUEDAS EXTERNAS
 # ----------------------
 def buscar_google_snippet(titulo):
     try:
@@ -206,38 +179,110 @@ def buscar_google_snippet(titulo):
         return ""
     return ""
 
+def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
+    titulo = TITULOS_MAP.get(titulo, titulo)
+    url = f"https://api.themoviedb.org/3/search/{tipo}"
+    params = {"api_key": API_KEY, "query": titulo, "language": lang}
+    if tipo == "movie" and year:
+        params["year"] = year
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        results = r.json().get("results", [])
+        return results[0] if results else None
+    except Exception:
+        return None
+
+def buscar_imdb_rotten(titulo):
+    # Solo ejemplo, puedes expandir la búsqueda con scraping
+    snippet = buscar_google_snippet(f"{titulo} site:imdb.com")
+    if snippet:
+        return snippet
+    snippet_rt = buscar_google_snippet(f"{titulo} site:rottentomatoes.com")
+    return snippet_rt
+
 # ----------------------
-# OBTENER DESCRIPCIÓN COMPLETA SIN CHATGPT
+# ChatGPT
+# ----------------------
+def chatgpt_disponible():
+    if not OPENAI_API_KEY:
+        return False
+    try:
+        resp = openai.usage.retrieve()  # verifica si hay cuota disponible
+        return True
+    except Exception:
+        return False
+
+def obtener_descripcion_chatgpt(titulo, tipo=None, temporada=None, episodio=None, anio=None, pistas=None):
+    if not chatgpt_disponible():
+        return None
+    prompt = f"""
+    Actúa como un experto en series y películas. 
+    Completa la sinopsis de este contenido usando la información de pistas:
+    Título: {titulo}
+    Tipo: {tipo or 'desconocido'}
+    Temporada: {temporada or ''}
+    Episodio: {episodio or ''}
+    Año: {anio or ''}
+    Pistas: {pistas or {}}
+    
+    Si no estás seguro de algún dato, indica "INCIERTO".
+    Devuelve solo la sinopsis en español.
+    """
+    try:
+        resp = openai.chat.completions.create(
+            model="gpt-5-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0
+        )
+        texto = resp.choices[0].message.content.strip()
+        if "INCIERTO" in texto.upper() or not texto:
+            return None
+        return texto
+    except Exception:
+        return None
+
+# ----------------------
+# Obtener descripción completa
 # ----------------------
 def obtener_descripcion_completa(titulo, tipo=None, temporada=None, episodio=None, anio=None, pistas=None):
     existing_desc = pistas.get("desc", "") if pistas else ""
-    overview = ""
-    need_lookup = not existing_desc or existing_desc == "" or existing_desc == "Sinopsis no disponible"
 
-    if tipo == "serie" and temporada and episodio and need_lookup:
-        search_res = buscar_tmdb(titulo, "tv")
-        if search_res:
-            tv_id = search_res.get("id")
-            epi_info = obtener_info_serie(tv_id, temporada, episodio)
-            overview = epi_info.get("overview", "")
+    # Intentar ChatGPT primero solo si hay cuota
+    overview = None
+    if chatgpt_disponible():
+        overview = obtener_descripcion_chatgpt(titulo, tipo, temporada, episodio, anio, pistas)
 
-    elif tipo == "pelicula" and need_lookup:
-        search_res = buscar_tmdb(titulo, "movie", year=anio)
-        if search_res:
-            overview = search_res.get("overview", "")
-
+    # Google
     if not overview:
-        google_desc = buscar_google_snippet(titulo)
-        if google_desc:
-            overview = google_desc
+        overview = buscar_google_snippet(titulo)
 
+    # TMDB
+    if not overview:
+        overview = ""
+        if tipo == "serie" and temporada and episodio:
+            search_res = buscar_tmdb(titulo, "tv")
+            if search_res:
+                tv_id = search_res.get("id")
+                # Solo overview de temporada/episodio
+                overview = search_res.get("overview", "")
+        elif tipo == "pelicula":
+            search_res = buscar_tmdb(titulo, "movie", year=anio)
+            if search_res:
+                overview = search_res.get("overview", "")
+
+    # IMDb / Rotten
+    if not overview:
+        overview = buscar_imdb_rotten(titulo)
+
+    # Placeholder final
     if not overview:
         overview = rellenar_descripcion(titulo, tipo, temporada, episodio)
 
     return traducir_a_espanol(overview)
 
 # ----------------------
-# PARSEO DE EPISODIOS
+# Parse de episodio
 # ----------------------
 def parse_episode_num(ep_text):
     if not ep_text:
@@ -251,7 +296,7 @@ def parse_episode_num(ep_text):
     return None, None
 
 # ----------------------
-# DESCARGAR GUIA ORIGINAL
+# Descarga EPG
 # ----------------------
 if not os.path.exists(EPG_FILE):
     print("📥 Descargando guía original...")
@@ -262,9 +307,6 @@ if not os.path.exists(EPG_FILE):
             f_out.write(f_in.read())
     print("✅ Guía original descargada.")
 
-# ----------------------
-# DESCARGAR NUEVAS EPGS
-# ----------------------
 for idx, url in enumerate(NUEVAS_EPGS, start=1):
     temp_file = f"epg_nueva_{idx}.xml"
     if not os.path.exists(temp_file):
@@ -278,7 +320,7 @@ for idx, url in enumerate(NUEVAS_EPGS, start=1):
     EPG_FILES_TEMP.append(temp_file)
 
 # ----------------------
-# PROCESAR UNA EPG
+# Procesar EPG
 # ----------------------
 def _get_desc_text(desc_el):
     if desc_el is None:
@@ -321,12 +363,6 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
             titulo_original = title_el.text.strip() if title_el is not None and title_el.text else "Sin título"
             titulo_norm = normalizar_texto(titulo_original)
 
-            corregir_desc = False
-            if es_serie and temporada and episodio:
-                if existing_desc:
-                    if titulo_original.lower() in existing_desc.lower() and "episodio" not in existing_desc.lower():
-                        corregir_desc = True
-
             pistas = {"desc": existing_desc, "title": titulo_original, "categorias": categorias}
 
             # -------------------- SERIES --------------------
@@ -339,12 +375,9 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
                         sub_el = ET.SubElement(elem, "sub-title")
                     sub_el.text = nombre_ep
 
-                if corregir_desc or not existing_desc:
-                    if desc_el is None:
-                        desc_el = ET.SubElement(elem, "desc")
-                    desc_el.text = f"{nombre_ep}\n{overview}".strip()
-                else:
-                    desc_el.text = traducir_a_espanol(existing_desc)
+                if desc_el is None:
+                    desc_el = ET.SubElement(elem, "desc")
+                desc_el.text = f"{nombre_ep}\n{overview}".strip()
 
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
@@ -364,18 +397,15 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
                             date_el = ET.SubElement(elem, "date")
                         date_el.text = anio
 
-                if not existing_desc:
-                    if desc_el is None:
-                        desc_el = ET.SubElement(elem, "desc")
-                    desc_el.text = overview if overview else rellenar_descripcion(titulo_original, "pelicula")
-                else:
-                    desc_el.text = traducir_a_espanol(existing_desc)
+                if desc_el is None:
+                    desc_el = ET.SubElement(elem, "desc")
+                desc_el.text = overview if overview else rellenar_descripcion(titulo_original, "pelicula")
 
                 if title_el is None:
                     title_el = ET.SubElement(elem, "title")
                 title_el.text = f"{titulo_original} ({anio_epg})" if anio_epg else titulo_original
 
-                f.write(ET.tostring(elem, encoding="utf-8"))
+            f.write(ET.tostring(elem, encoding="utf-8"))
 
 # ----------------------
 # EJECUTAR
