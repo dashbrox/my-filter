@@ -1,4 +1,3 @@
-
 import os
 import re
 import gzip
@@ -9,7 +8,7 @@ import io
 from bs4 import BeautifulSoup
 import openai
 from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm  # <- Barra de progreso
+from tqdm import tqdm
 
 # ----------------------
 # CONFIGURACIÓN
@@ -373,8 +372,6 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
     mode = "wb" if escribir_raiz else "ab"
 
     programas = root.findall("programme")
-    total_programas = len(programas)
-
     with open(output_file, mode) as f:
         if escribir_raiz:
             f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
