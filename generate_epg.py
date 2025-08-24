@@ -9,7 +9,6 @@ import time
 import requests
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from datetime import datetime, timedelta
 import openai
 
 # -------------------------
@@ -190,7 +189,12 @@ def process_programme(prog):
     desc_elem = prog.find("desc")
     desc = desc_elem.text if desc_elem is not None else ""
 
-    key = f"{title}_{prog.find('start').text}"
+    start_elem = prog.find("start")
+    if not title or start_elem is None:
+        # Saltar programas sin título o sin start
+        return
+
+    key = f"{title}_{start_elem.text}"
     if key in CACHE:
         if desc_elem is None:
             ET.SubElement(prog, "desc").text = CACHE[key]["desc"]
@@ -220,22 +224,29 @@ def process_programme(prog):
 # -------------------------
 
 def main():
-    all_programmes = []
+    all_elements = []
 
     for url in EPG_URLS:
         print(f"Descargando {url} ...")
         tree = fetch_epg(url)
         root = tree.getroot()
-        for prog in root.findall("programme"):
-            channel = prog.attrib.get("channel")
-            if channel in CHANNELS:
-                process_programme(prog)
-                all_programmes.append(prog)
+        for elem in root:
+            if elem.tag == "programme":
+                channel = elem.attrib.get("channel")
+                if channel in CHANNELS:
+                    try:
+                        process_programme(elem)
+                        all_elements.append(elem)
+                    except Exception as e:
+                        print(f"Programa ignorado por error: {e}")
+            else:
+                # Mantener <channel> u otros elementos tal cual
+                all_elements.append(elem)
 
     # Crear XML final
     tv = ET.Element("tv")
-    for prog in all_programmes:
-        tv.append(prog)
+    for elem in all_elements:
+        tv.append(elem)
 
     tree_out = ET.ElementTree(tv)
     tree_out.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
