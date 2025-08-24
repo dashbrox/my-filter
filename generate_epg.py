@@ -356,7 +356,7 @@ with ThreadPoolExecutor(max_workers=5) as executor:
         EPG_FILES_TEMP.append(f.result())
 
 # ----------------------
-# Procesar EPG
+# Funciones de completado por filas
 # ----------------------
 def _get_desc_text(desc_el):
     if desc_el is None:
@@ -366,6 +366,76 @@ def _get_desc_text(desc_el):
     except Exception:
         return (desc_el.text or "").strip()
 
+def detectar_tipo_y_pistas(elem):
+    title_el = elem.find("title")
+    desc_el = elem.find("desc")
+    ep_el = elem.find("episode-num")
+    date_el = elem.find("date")
+    categorias = [(c.text or "").lower() for c in elem.findall("category")]
+    ep_text = ep_el.text.strip() if ep_el is not None and ep_el.text else ""
+    temporada, episodio = parse_episode_num(ep_text)
+    titulo_original = title_el.text.strip() if title_el is not None and title_el.text else "Sin título"
+    titulo_norm = normalizar_texto(titulo_original)
+    existing_desc = _get_desc_text(desc_el)
+    es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
+    es_pelicula = not es_serie
+    pistas = {
+        "desc": existing_desc,
+        "title": titulo_original,
+        "categorias": categorias,
+        "episode-num": ep_text,
+        "date": date_el.text.strip() if date_el is not None and date_el.text else ""
+    }
+    tipo = "serie" if es_serie else "pelicula" if es_pelicula else None
+    return tipo, temporada, episodio, pistas, titulo_norm, titulo_original
+
+def asignar_fila(pistas):
+    campos = ["title", "desc", "categorias", "episode-num", "date"]
+    completos = sum(1 for c in campos if pistas.get(c))
+    if completos >= 5:
+        return 1
+    elif completos >= 3:
+        return 2
+    elif completos >= 1:
+        return 3
+    else:
+        return 4
+
+def completar_programa(elem):
+    tipo, temporada, episodio, pistas, titulo_norm, titulo_original = detectar_tipo_y_pistas(elem)
+    fila = asignar_fila(pistas)
+
+    # Detectar maratón y descargar temporada completa si es serie
+    if tipo == "serie" and temporada and episodio:
+        episodios = obtener_episodios_tmdb(titulo_norm)  # Carga toda la temporada en cache
+
+    if tipo == "serie" and temporada and episodio:
+        overview = obtener_descripcion_completa_serie(titulo_norm, temporada, episodio, pistas=pistas)
+        sub_el = elem.find("sub-title") or ET.SubElement(elem, "sub-title")
+        desc_el = elem.find("desc") or ET.SubElement(elem, "desc")
+        title_el = elem.find("title") or ET.SubElement(elem, "title")
+        sub_el.text = f"S{temporada:02d}E{episodio:02d}"
+        desc_el.text = f"{sub_el.text}\n{overview}".strip()
+        title_el.text = f"{titulo_original} ({sub_el.text})"
+    elif tipo == "pelicula":
+        anio_epg = pistas.get("date") or ""
+        overview = obtener_descripcion_completa(titulo_norm, "pelicula", anio=anio_epg, pistas=pistas)
+        desc_el = elem.find("desc") or ET.SubElement(elem, "desc")
+        title_el = elem.find("title") or ET.SubElement(elem, "title")
+        desc_el.text = overview if overview else rellenar_descripcion(titulo_original, "pelicula")
+        title_el.text = f"{titulo_original} ({anio_epg})" if anio_epg else titulo_original
+    else:
+        overview = obtener_descripcion_completa(titulo_norm, None, pistas=pistas)
+        desc_el = elem.find("desc") or ET.SubElement(elem, "desc")
+        desc_el.text = overview
+        title_el = elem.find("title") or ET.SubElement(elem, "title")
+        title_el.text = titulo_original
+
+    return elem, fila
+
+# ----------------------
+# PROCESAR EPG
+# ----------------------
 def procesar_epg(input_file, output_file, escribir_raiz=False):
     tree = ET.parse(input_file)
     root = tree.getroot()
@@ -376,51 +446,20 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
         if escribir_raiz:
             f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
 
-        # Procesar con barra de progreso
-        for elem in tqdm(programas, desc=f"Procesando {input_file}", unit="prog"):
+        # Parsear y asignar filas primero
+        programas_filas = []
+        for elem in programas:
             canal = elem.get("channel")
             if canal not in CANALES_USAR:
                 continue
+            elem_completo, fila = completar_programa(elem)
+            programas_filas.append((fila, elem_completo))
 
-            title_el = elem.find("title")
-            sub_el = elem.find("sub-title")
-            desc_el = elem.find("desc")
-            date_el = elem.find("date")
-            ep_el = elem.find("episode-num")
-            ep_text = ep_el.text.strip() if ep_el is not None and ep_el.text else ""
-            temporada, episodio = parse_episode_num(ep_text)
-            categorias = [(c.text or "").lower() for c in elem.findall("category")]
+        # Ordenar por fila (más fácil primero)
+        programas_filas.sort(key=lambda x: x[0])
 
-            existing_desc = _get_desc_text(desc_el)
-            es_serie = any("serie" in c for c in categorias) or (temporada is not None and episodio is not None)
-            es_pelicula = not es_serie
-            titulo_original = title_el.text.strip() if title_el is not None and title_el.text else "Sin título"
-            titulo_norm = normalizar_texto(titulo_original)
-            pistas = {"desc": existing_desc, "title": titulo_original, "categorias": categorias}
-
-            if es_serie and temporada and episodio:
-                nombre_ep = ep_text
-                overview = obtener_descripcion_completa_serie(titulo_norm, temporada, episodio, pistas=pistas)
-                if sub_el is None:
-                    sub_el = ET.SubElement(elem, "sub-title")
-                sub_el.text = nombre_ep
-                if desc_el is None:
-                    desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = f"{nombre_ep}\n{overview}".strip()
-                if title_el is None:
-                    title_el = ET.SubElement(elem, "title")
-                title_el.text = f'{titulo_original} (S{temporada:02d}E{episodio:02d})'
-
-            elif es_pelicula:
-                anio_epg = date_el.text.strip() if (date_el is not None and date_el.text) else ""
-                overview = obtener_descripcion_completa(titulo_norm, "pelicula", anio=anio_epg, pistas=pistas)
-                if desc_el is None:
-                    desc_el = ET.SubElement(elem, "desc")
-                desc_el.text = overview if overview else rellenar_descripcion(titulo_original, "pelicula")
-                if title_el is None:
-                    title_el = ET.SubElement(elem, "title")
-                title_el.text = f"{titulo_original} ({anio_epg})" if anio_epg else titulo_original
-
+        # Escribir en XML
+        for fila, elem in programas_filas:
             f.write(ET.tostring(elem, encoding="utf-8"))
 
 # ----------------------
