@@ -356,6 +356,15 @@ for temp_file in EPG_FILES_TEMP:
     procesar_archivo(temp_file)
 
 # ----------------------
-# Guardar y comprimir
+# Guardar y comprimir guía final
 # ----------------------
-new_tree = ET.ElementTree(root_exist
+new_tree = ET.ElementTree(root_existente)
+
+# Guardar en XML plano
+new_tree.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
+print(f"✅ Archivo guardado: {OUTPUT_FILE}")
+
+# Guardar versión comprimida
+with gzip.open(f"{OUTPUT_FILE}.gz", "wb") as f_out:
+    new_tree.write(f_out, encoding="utf-8", xml_declaration=True)
+print(f"✅ Archivo comprimido guardado: {OUTPUT_FILE}.gz")
