@@ -157,37 +157,16 @@ def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
     else:
         return f"Sinopsis no disponible para el episodio {temporada}-{episodio} de '{titulo}'."
 
-# ----------------------
-# FUENTES EXTERNAS (respaldo)
-# ----------------------
-def buscar_google_snippet(titulo):
-    try:
-        query = "+".join(titulo.split())
-        url = f"https://www.google.com/search?q={query}+site:imdb.com+OR+site:wikipedia.org"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=10)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-        snippet = soup.select_one(".VwiC3b")
-        if snippet:
-            return snippet.text.strip()
-    except Exception:
-        return ""
-    return ""
-
-def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
-    titulo = TITULOS_MAP.get(titulo, titulo)
-    url = f"https://api.themoviedb.org/3/search/{tipo}"
-    params = {"api_key": API_KEY, "query": titulo, "language": lang}
-    if tipo == "movie" and year:
-        params["year"] = year
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        results = r.json().get("results", [])
-        return results[0] if results else None
-    except Exception:
-        return None
+def parse_episode_num(ep_text):
+    if not ep_text:
+        return None, None
+    ep_text = ep_text.strip().upper().replace(" ", "")
+    patterns = [r"S(\d{1,2})E(\d{1,2})", r"(\d{1,2})x(\d{1,2})", r"(\d{1,2})[E](\d{1,2})"]
+    for p in patterns:
+        match = re.match(p, ep_text)
+        if match:
+            return int(match.group(1)), int(match.group(2))
+    return None, None
 
 # ----------------------
 # ROTACIÓN DE API KEYS OPENAI
@@ -212,16 +191,16 @@ def obtener_descripcion_chatgpt(titulo, tipo=None, temporada=None, episodio=None
     if not obtener_api_disponible():
         return None
     prompt = f"""
-    Eres un experto en series y películas. Completa la sinopsis usando toda la información disponible:
-    Título: {titulo}
-    Tipo: {tipo or 'desconocido'}
-    Temporada: {temporada or ''}
-    Episodio: {episodio or ''}
-    Año: {anio or ''}
-    Pistas: {pistas or {}}
-    
-    Devuelve solo la sinopsis en español. Si está en otro idioma, tradúcela automáticamente al español.
-    """
+Eres un experto en series y películas. Completa la sinopsis usando toda la información disponible:
+Título: {titulo}
+Tipo: {tipo or 'desconocido'}
+Temporada: {temporada or ''}
+Episodio: {episodio or ''}
+Año: {anio or ''}
+Pistas: {pistas or {}}
+
+Devuelve solo la sinopsis en español. Si está en otro idioma, tradúcela automáticamente al español.
+"""
     try:
         resp = openai.chat.completions.create(
             model="gpt-5-mini",
@@ -229,89 +208,37 @@ def obtener_descripcion_chatgpt(titulo, tipo=None, temporada=None, episodio=None
             temperature=0
         )
         texto = resp.choices[0].message.content.strip()
-        if not texto:
-            return None
-        return texto
-    except openai.error.RateLimitError:
+        return texto if texto else None
+    except openai.errors.RateLimitError:
         marcar_api_agotada()
         return obtener_descripcion_chatgpt(titulo, tipo, temporada, episodio, anio, pistas)
     except Exception:
         return None
 
-def obtener_descripcion_completa_serie(titulo, temporada, episodio, pistas=None):
-    overview = obtener_descripcion_chatgpt(titulo, "serie", temporada, episodio, pistas=pistas)
-    if overview:
-        return overview
-    snippet = buscar_tmdb(titulo) or buscar_google_snippet(titulo)
-    return snippet or rellenar_descripcion(titulo, "serie", temporada, episodio)
-
 # ----------------------
-# Parse episodio
-# ----------------------
-def parse_episode_num(ep_text):
-    if not ep_text:
-        return None, None
-    ep_text = ep_text.strip().upper().replace(" ", "")
-    patterns = [r"S(\d{1,2})E(\d{1,2})", r"(\d{1,2})x(\d{1,2})", r"(\d{1,2})[E](\d{1,2})"]
-    for p in patterns:
-        match = re.match(p, ep_text)
-        if match:
-            return int(match.group(1)), int(match.group(2))
-    return None, None
-
-# ----------------------
-# Descarga EPG
-# ----------------------
-def descargar_epg(url, dest_file):
-    if not os.path.exists(dest_file):
-        r = requests.get(url, timeout=60)
-        r.raise_for_status()
-        with gzip.open(io.BytesIO(r.content), 'rb') as f_in:
-            with open(dest_file, 'wb') as f_out:
-                f_out.write(f_in.read())
-    return dest_file
-
-if not os.path.exists(EPG_FILE):
-    descargar_epg(EPG_URL, EPG_FILE)
-
-with ThreadPoolExecutor(max_workers=5) as executor:
-    futures = [executor.submit(descargar_epg, url, f"epg_nueva_{idx}.xml") 
-               for idx, url in enumerate(NUEVAS_EPGS, start=1)]
-    for f in futures:
-        EPG_FILES_TEMP.append(f.result())
-
-# ----------------------
-# Cargar biblioteca existente
-# ----------------------
-if os.path.exists(OUTPUT_FILE):
-    tree_existente = ET.parse(OUTPUT_FILE)
-    root_existente = tree_existente.getroot()
-else:
-    root_existente = ET.Element("tv")
-
-biblioteca = {}
-for prog in root_existente.findall("programme"):
-    canal = prog.get("channel")
-    inicio = prog.get("start")
-    biblioteca[(canal, inicio)] = prog
-
-# ----------------------
-# Completar programa
+# Función completar programa
 # ----------------------
 def completar_programa(elem):
-    title_el = elem.find("title") or ET.SubElement(elem, "title")
-    desc_el = elem.find("desc") or ET.SubElement(elem, "desc")
-    sub_el = elem.find("sub-title") or ET.SubElement(elem, "sub-title")
+    title_el = elem.find("title")
+    if title_el is None:
+        title_el = ET.SubElement(elem, "title")
+    desc_el = elem.find("desc")
+    if desc_el is None:
+        desc_el = ET.SubElement(elem, "desc")
+    sub_el = elem.find("sub-title")
+    if sub_el is None:
+        sub_el = ET.SubElement(elem, "sub-title")
     ep_el = elem.find("episode-num")
     ep_text = ep_el.text if ep_el is not None else ""
     temporada, episodio = parse_episode_num(ep_text)
     titulo_original = title_el.text.strip() if title_el.text else "Sin título"
+
     categorias = [c.text.lower() for c in elem.findall("category")]
     tipo = "serie" if any("serie" in c for c in categorias) or (temporada is not None) else "pelicula"
 
     if tipo == "serie" and temporada and episodio:
         if not desc_el.text:
-            desc_el.text = obtener_descripcion_completa_serie(titulo_original, temporada, episodio)
+            desc_el.text = f"Sinopsis del episodio {temporada}-{episodio} de {titulo_original}"
         if not sub_el.text:
             sub_el.text = f"S{temporada:02d}E{episodio:02d}"
         if ep_el is not None and not ep_el.text:
@@ -331,29 +258,14 @@ def completar_programa(elem):
     return elem
 
 # ----------------------
-# Procesar archivo
+# Guardar guía final
 # ----------------------
-def procesar_archivo(input_file):
-    tree = ET.parse(input_file)
-    root = tree.getroot()
-    for elem in root.findall("programme"):
-        canal = elem.get("channel")
-        inicio = elem.get("start")
-        if canal not in CANALES_USAR:
-            continue
-        if (canal, inicio) in biblioteca:
-            print(f"⚡ Programa '{elem.findtext('title')}' ya completado, se omite.")
-            continue
-        elem_completo = completar_programa(elem)
-        root_existente.append(elem_completo)
-        biblioteca[(canal, inicio)] = elem_completo
-
-# ----------------------
-# Ejecutar procesamiento
-# ----------------------
-procesar_archivo(EPG_FILE)
-for temp_file in EPG_FILES_TEMP:
-    procesar_archivo(temp_file)
+def guardar_guia():
+    new_tree = ET.ElementTree(root_existente)
+    new_tree.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
+    with gzip.open(f"{OUTPUT_FILE}.gz", "wb") as f_out:
+        new_tree.write(f_out, encoding="utf-8", xml_declaration=True)
+    print(f"✅ Guía guardada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
 
 # ----------------------
 # Guardar y comprimir guía final
