@@ -356,7 +356,7 @@ with ThreadPoolExecutor(max_workers=5) as executor:
         EPG_FILES_TEMP.append(f.result())
 
 # ----------------------
-# Funciones de completado por filas
+# Funciones de completado por filas con maratón
 # ----------------------
 def _get_desc_text(desc_el):
     if desc_el is None:
@@ -389,7 +389,8 @@ def detectar_tipo_y_pistas(elem):
     tipo = "serie" if es_serie else "pelicula" if es_pelicula else None
     return tipo, temporada, episodio, pistas, titulo_norm, titulo_original
 
-def asignar_fila(pistas):
+def asignar_fila(pistas, tipo=None, temporada=None, episodio=None):
+    # fila 1: más fácil, fila 4: más difícil
     campos = ["title", "desc", "categorias", "episode-num", "date"]
     completos = sum(1 for c in campos if pistas.get(c))
     if completos >= 5:
@@ -401,13 +402,43 @@ def asignar_fila(pistas):
     else:
         return 4
 
-def completar_programa(elem):
-    tipo, temporada, episodio, pistas, titulo_norm, titulo_original = detectar_tipo_y_pistas(elem)
-    fila = asignar_fila(pistas)
+# ----------------------
+# Detectar maratones automáticamente
+# ----------------------
+def detectar_maratones(programas):
+    grupos = {}
+    for elem in programas:
+        canal = elem.get("channel")
+        title_el = elem.find("title")
+        ep_el = elem.find("episode-num")
+        if not title_el or not ep_el:
+            continue
+        titulo_norm = normalizar_texto(title_el.text or "")
+        temporada, episodio = parse_episode_num(ep_el.text or "")
+        if temporada is None or episodio is None:
+            continue
+        key = (canal, titulo_norm, temporada)
+        grupos.setdefault(key, []).append((episodio, elem))
+    
+    maratones = set()
+    for key, lista in grupos.items():
+        if len(lista) >= 3:  # 3 o más episodios consecutivos = maratón
+            lista.sort(key=lambda x: x[0])
+            for ep_num, elem in lista:
+                maratones.add(elem)
+    return maratones
 
-    # Detectar maratón y descargar temporada completa si es serie
-    if tipo == "serie" and temporada and episodio:
-        episodios = obtener_episodios_tmdb(titulo_norm)  # Carga toda la temporada en cache
+# ----------------------
+# Completar programa con maratón
+# ----------------------
+def completar_programa(elem, maratones_set=None):
+    tipo, temporada, episodio, pistas, titulo_norm, titulo_original = detectar_tipo_y_pistas(elem)
+    es_maratón = maratones_set and elem in maratones_set
+    fila = asignar_fila(pistas, tipo, temporada, episodio)
+    if es_maratón:
+        fila = 0  # fila 0 para maratón
+        if tipo == "serie" and temporada:
+            obtener_episodios_tmdb(titulo_norm)
 
     if tipo == "serie" and temporada and episodio:
         overview = obtener_descripcion_completa_serie(titulo_norm, temporada, episodio, pistas=pistas)
@@ -442,23 +473,22 @@ def procesar_epg(input_file, output_file, escribir_raiz=False):
     mode = "wb" if escribir_raiz else "ab"
 
     programas = root.findall("programme")
+    maratones_set = detectar_maratones(programas)
+
+    programas_filas = []
+    for elem in programas:
+        canal = elem.get("channel")
+        if canal not in CANALES_USAR:
+            continue
+        elem_completo, fila = completar_programa(elem, maratones_set)
+        programas_filas.append((fila, elem_completo))
+
+    # Ordenar por fila (maratón primero)
+    programas_filas.sort(key=lambda x: x[0])
+
     with open(output_file, mode) as f:
         if escribir_raiz:
             f.write(b'<?xml version="1.0" encoding="utf-8"?>\n<tv>\n')
-
-        # Parsear y asignar filas primero
-        programas_filas = []
-        for elem in programas:
-            canal = elem.get("channel")
-            if canal not in CANALES_USAR:
-                continue
-            elem_completo, fila = completar_programa(elem)
-            programas_filas.append((fila, elem_completo))
-
-        # Ordenar por fila (más fácil primero)
-        programas_filas.sort(key=lambda x: x[0])
-
-        # Escribir en XML
         for fila, elem in programas_filas:
             f.write(ET.tostring(elem, encoding="utf-8"))
 
