@@ -15,25 +15,62 @@ import re
 # -------------------------
 # CONFIGURACIÓN
 # -------------------------
+from openai import OpenAI
+from requests.exceptions import ConnectionError as RequestsConnectionError
+import os, time
 
-# OpenAI: 8 claves posibles + la genérica
-OPENAI_API_KEYS = []
+# -------------------------
+# CONFIGURACIÓN OPENAI
+# -------------------------
 
-# Agregar clave genérica si existe
-main_key = os.getenv("OPENAI_API_KEY")
-if main_key:
-    OPENAI_API_KEYS.append(main_key)
-
-# Agregar las numeradas con guion bajo
-for i in range(1, 9):
-    key = os.getenv(f"OPENAI_API_KEY_{i}")
-    if key:
-        OPENAI_API_KEYS.append(key)
+# Carga hasta 8 claves desde los secrets
+OPENAI_API_KEYS = [
+    os.getenv(f"OPENAI_API_KEY_{i}") for i in range(1, 9)
+]
+OPENAI_API_KEYS = [k for k in OPENAI_API_KEYS if k]  # filtra None
 
 if not OPENAI_API_KEYS:
-    raise RuntimeError("❌ No hay ninguna OPENAI_API_KEY definida en el entorno.")
+    raise RuntimeError("❌ No hay claves OPENAI_API_KEY_X configuradas en el entorno.")
 
-openai_index = 0
+OPENAI_MODEL = "gpt-4o-mini"  # modelo estable y accesible en la API nueva
+
+# -------------------------
+# FUNCIÓN CON ROTACIÓN DE CLAVES
+# -------------------------
+
+def call_openai(prompt, max_retries=3):
+    errors = []
+    for i, key in enumerate(OPENAI_API_KEYS):
+        for attempt in range(1, max_retries + 1):
+            try:
+                client = OpenAI(api_key=key)
+
+                response = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=[
+                        {"role": "system", "content": "Eres un asistente que ayuda a formatear EPG de TV."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7
+                )
+
+                return response.choices[0].message.content.strip()
+
+            except RequestsConnectionError:
+                print(f"🌐 Error de conexión con key {i+1}, intento {attempt}/{max_retries}.")
+                time.sleep(2)
+                continue
+
+            except Exception as e:
+                error_text = str(e)
+                if "model_not_found" in error_text or "does not exist" in error_text:
+                    print(f"❌ Error de modelo con key {i+1}: {error_text}")
+                elif "api_key" in error_text:
+                    print(f"❌ Error de API Key con key {i+1}: {error_text}")
+                else:
+                    print(f"⚠️ Error inesperado con key {i+1}: {error_text}")
+                break  # no reintentar con la misma clave si es error de API
+    raise RuntimeError("❌ Todas las claves fallaron")
 
 # TMDb
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
