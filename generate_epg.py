@@ -216,7 +216,7 @@ Devuelve solo la sinopsis en español. Si está en otro idioma, tradúcela autom
         return None
 
 # ----------------------
-# Función completar programa
+# Función para completar programa solo si campos vacíos
 # ----------------------
 def completar_programa(elem):
     title_el = elem.find("title")
@@ -258,25 +258,28 @@ def completar_programa(elem):
     return elem
 
 # ----------------------
+# MAIN: cargar XML original y completar campos vacíos
+# ----------------------
+if not os.path.exists(EPG_FILE):
+    raise FileNotFoundError(f"No se encontró el archivo original: {EPG_FILE}")
+
+tree_existente = ET.parse(EPG_FILE)
+root_existente = tree_existente.getroot()
+
+# Filtrar por canales si quieres (opcional)
+for programa in root_existente.findall("programme"):
+    canal = programa.get("channel")
+    if canal not in CANALES_USAR:
+        continue  # Omitir programas de canales no deseados
+    completar_programa(programa)
+
+# ----------------------
 # Guardar guía final
 # ----------------------
-def guardar_guia():
-    new_tree = ET.ElementTree(root_existente)
-    new_tree.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
-    with gzip.open(f"{OUTPUT_FILE}.gz", "wb") as f_out:
-        new_tree.write(f_out, encoding="utf-8", xml_declaration=True)
-    print(f"✅ Guía guardada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
-
-# ----------------------
-# Guardar y comprimir guía final
-# ----------------------
 new_tree = ET.ElementTree(root_existente)
-
-# Guardar en XML plano
 new_tree.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
-print(f"✅ Archivo guardado: {OUTPUT_FILE}")
 
-# Guardar versión comprimida
 with gzip.open(f"{OUTPUT_FILE}.gz", "wb") as f_out:
     new_tree.write(f_out, encoding="utf-8", xml_declaration=True)
-print(f"✅ Archivo comprimido guardado: {OUTPUT_FILE}.gz")
+
+print(f"✅ Guía actualizada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
