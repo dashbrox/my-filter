@@ -8,18 +8,17 @@ import io
 from bs4 import BeautifulSoup
 import openai
 from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
 
 # ----------------------
 # CONFIGURACIÓN
 # ----------------------
 API_KEY = os.getenv("TMDB_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not API_KEY:
     raise RuntimeError("❌ TMDB_API_KEY no está definido en el entorno.")
 
-if OPENAI_API_KEY:
-    openai.api_key = OPENAI_API_KEY
+# 8 API KEYS DE OPENAI
+OPENAI_KEYS = [os.getenv(f"OPENAI_API_KEY_{i}") for i in range(1, 9)]
+OPENAI_STATUS = [True] * len(OPENAI_KEYS)  # True = activa, False = agotada
 
 EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_FILE = "epg_original.xml"
@@ -158,13 +157,8 @@ def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
     else:
         return f"Sinopsis no disponible para el episodio {temporada}-{episodio} de '{titulo}'."
 
-def traducir_a_espanol(texto):
-    if not texto:
-        return ""
-    return texto
-
 # ----------------------
-# BÚSQUEDAS EXTERNAS
+# FUENTES EXTERNAS (respaldo)
 # ----------------------
 def buscar_google_snippet(titulo):
     try:
@@ -196,23 +190,29 @@ def buscar_tmdb(titulo, tipo="multi", lang="es-MX", year=None):
         return None
 
 # ----------------------
+# ROTACIÓN DE API KEYS OPENAI
+# ----------------------
+def obtener_api_disponible():
+    for idx, activa in enumerate(OPENAI_STATUS):
+        if activa and OPENAI_KEYS[idx]:
+            openai.api_key = OPENAI_KEYS[idx]
+            return True
+    return False
+
+def marcar_api_agotada():
+    for idx, activa in enumerate(OPENAI_STATUS):
+        if activa:
+            OPENAI_STATUS[idx] = False
+            break
+
+# ----------------------
 # ChatGPT
 # ----------------------
-def chatgpt_disponible():
-    if not OPENAI_API_KEY:
-        return False
-    try:
-        resp = openai.usage.retrieve()
-        return True
-    except Exception:
-        return False
-
 def obtener_descripcion_chatgpt(titulo, tipo=None, temporada=None, episodio=None, anio=None, pistas=None):
-    if not chatgpt_disponible():
+    if not obtener_api_disponible():
         return None
     prompt = f"""
-    Actúa como un experto en series y películas. 
-    Completa la sinopsis de este contenido usando la información de pistas:
+    Eres un experto en series y películas. Completa la sinopsis usando toda la información disponible:
     Título: {titulo}
     Tipo: {tipo or 'desconocido'}
     Temporada: {temporada or ''}
@@ -220,7 +220,7 @@ def obtener_descripcion_chatgpt(titulo, tipo=None, temporada=None, episodio=None
     Año: {anio or ''}
     Pistas: {pistas or {}}
     
-    Devuelve solo la sinopsis en español.
+    Devuelve solo la sinopsis en español. Si está en otro idioma, tradúcela automáticamente al español.
     """
     try:
         resp = openai.chat.completions.create(
@@ -232,19 +232,21 @@ def obtener_descripcion_chatgpt(titulo, tipo=None, temporada=None, episodio=None
         if not texto:
             return None
         return texto
+    except openai.error.RateLimitError:
+        marcar_api_agotada()
+        return obtener_descripcion_chatgpt(titulo, tipo, temporada, episodio, anio, pistas)
     except Exception:
         return None
 
 def obtener_descripcion_completa_serie(titulo, temporada, episodio, pistas=None):
-    episodios = {}  # Podrías integrar TMDB aquí como antes si quieres
-    key = f"S{temporada:02d}E{episodio:02d}"
-    overview = episodios.get(key)
+    overview = obtener_descripcion_chatgpt(titulo, "serie", temporada, episodio, pistas=pistas)
     if overview:
-        return traducir_a_espanol(overview)
-    return obtener_descripcion_chatgpt(titulo, "serie", temporada, episodio, pistas=pistas) or rellenar_descripcion(titulo, "serie", temporada, episodio)
+        return overview
+    snippet = buscar_tmdb(titulo) or buscar_google_snippet(titulo)
+    return snippet or rellenar_descripcion(titulo, "serie", temporada, episodio)
 
 # ----------------------
-# Parse de episodio
+# Parse episodio
 # ----------------------
 def parse_episode_num(ep_text):
     if not ep_text:
@@ -279,9 +281,24 @@ with ThreadPoolExecutor(max_workers=5) as executor:
         EPG_FILES_TEMP.append(f.result())
 
 # ----------------------
+# Cargar biblioteca existente
+# ----------------------
+if os.path.exists(OUTPUT_FILE):
+    tree_existente = ET.parse(OUTPUT_FILE)
+    root_existente = tree_existente.getroot()
+else:
+    root_existente = ET.Element("tv")
+
+biblioteca = {}
+for prog in root_existente.findall("programme"):
+    canal = prog.get("channel")
+    inicio = prog.get("start")
+    biblioteca[(canal, inicio)] = prog
+
+# ----------------------
 # Completar programa
 # ----------------------
-def completar_programa(elem, maratones_set=None):
+def completar_programa(elem):
     title_el = elem.find("title") or ET.SubElement(elem, "title")
     desc_el = elem.find("desc") or ET.SubElement(elem, "desc")
     sub_el = elem.find("sub-title") or ET.SubElement(elem, "sub-title")
@@ -293,56 +310,52 @@ def completar_programa(elem, maratones_set=None):
     tipo = "serie" if any("serie" in c for c in categorias) or (temporada is not None) else "pelicula"
 
     if tipo == "serie" and temporada and episodio:
-        overview = obtener_descripcion_completa_serie(titulo_original, temporada, episodio)
-        title_el.text = titulo_original
-        sub_el.text = f"S{temporada:02d}E{episodio:02d}"
-        desc_el.text = overview
-        if ep_el is not None:
+        if not desc_el.text:
+            desc_el.text = obtener_descripcion_completa_serie(titulo_original, temporada, episodio)
+        if not sub_el.text:
+            sub_el.text = f"S{temporada:02d}E{episodio:02d}"
+        if ep_el is not None and not ep_el.text:
             ep_el.text = sub_el.text
     elif tipo == "pelicula":
         anio_epg = elem.find("date").text if elem.find("date") is not None else ""
-        overview = rellenar_descripcion(titulo_original, "pelicula")
-        title_el.text = f"{titulo_original} ({anio_epg})" if anio_epg else titulo_original
-        desc_el.text = overview
+        if not desc_el.text:
+            desc_el.text = rellenar_descripcion(titulo_original, "pelicula")
+        if not title_el.text:
+            title_el.text = f"{titulo_original} ({anio_epg})" if anio_epg else titulo_original
     else:
-        overview = rellenar_descripcion(titulo_original, "serie")
-        title_el.text = titulo_original
-        desc_el.text = overview
+        if not desc_el.text:
+            desc_el.text = rellenar_descripcion(titulo_original, "serie")
+        if not title_el.text:
+            title_el.text = titulo_original
 
-    return elem, 0
+    return elem
 
 # ----------------------
-# PROCESAR EPG COMPLETO
+# Procesar archivo
 # ----------------------
-def procesar_epg(input_file, output_file):
+def procesar_archivo(input_file):
     tree = ET.parse(input_file)
     root = tree.getroot()
-    new_root = ET.Element("tv", attrib=root.attrib)
-
-    # Copiar canales
-    for channel in root.findall("channel"):
-        new_root.append(channel)
-
-    programas = root.findall("programme")
-    for elem in programas:
+    for elem in root.findall("programme"):
         canal = elem.get("channel")
+        inicio = elem.get("start")
         if canal not in CANALES_USAR:
             continue
-        elem_completo, _ = completar_programa(elem)
-        new_root.append(elem_completo)
-
-    new_tree = ET.ElementTree(new_root)
-    new_tree.write(output_file, encoding="UTF-8", xml_declaration=True)
+        if (canal, inicio) in biblioteca:
+            print(f"⚡ Programa '{elem.findtext('title')}' ya completado, se omite.")
+            continue
+        elem_completo = completar_programa(elem)
+        root_existente.append(elem_completo)
+        biblioteca[(canal, inicio)] = elem_completo
 
 # ----------------------
-# EJECUTAR
+# Ejecutar procesamiento
 # ----------------------
-procesar_epg(EPG_FILE, OUTPUT_FILE)
+procesar_archivo(EPG_FILE)
 for temp_file in EPG_FILES_TEMP:
-    procesar_epg(temp_file, OUTPUT_FILE)
+    procesar_archivo(temp_file)
 
-# Comprimir
-with open(OUTPUT_FILE, "rb") as f_in, gzip.open(OUTPUT_FILE + ".gz", "wb") as f_out:
-    f_out.writelines(f_in)
-
-print(f"✅ Guía generada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
+# ----------------------
+# Guardar y comprimir
+# ----------------------
+new_tree = ET.ElementTree(root_exist
