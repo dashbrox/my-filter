@@ -261,16 +261,27 @@ def completar_programa(elem):
 # MAIN: cargar XML original y completar campos vacíos
 # ----------------------
 if not os.path.exists(EPG_FILE):
-    raise FileNotFoundError(f"No se encontró el archivo original: {EPG_FILE}")
+    print(f"📥 Descargando {EPG_FILE} desde {EPG_URL}...")
+    r = requests.get(EPG_URL)
+    if r.status_code == 200:
+        with gzip.open(io.BytesIO(r.content), "rb") as f_in:
+            with open(EPG_FILE, "wb") as f_out:
+                f_out.write(f_in.read())
+        print(f"✅ Archivo descargado y guardado como {EPG_FILE}")
+    else:
+        raise RuntimeError(f"No se pudo descargar {EPG_FILE}, status: {r.status_code}")
 
+# Parsear XML
 tree_existente = ET.parse(EPG_FILE)
 root_existente = tree_existente.getroot()
 
-# Filtrar por canales si quieres (opcional)
+# Filtrar por canales y rellenar campos vacíos
 for programa in root_existente.findall("programme"):
     canal = programa.get("channel")
     if canal not in CANALES_USAR:
         continue  # Omitir programas de canales no deseados
+    completar_programa(programa)
+
     completar_programa(programa)
 
 # ----------------------
