@@ -31,10 +31,17 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Generar guía 72h
-        # Pasamos las llaves de API de TMDB y OpenAI de forma segura
+        # Pasamos las llaves de API de TMDB y las 8 OpenAI Keys de forma segura
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_1: ${{ secrets.OPENAI_API_KEY_1 }}
+          OPENAI_API_KEY_2: ${{ secrets.OPENAI_API_KEY_2 }}
+          OPENAI_API_KEY_3: ${{ secrets.OPENAI_API_KEY_3 }}
+          OPENAI_API_KEY_4: ${{ secrets.OPENAI_API_KEY_4 }}
+          OPENAI_API_KEY_5: ${{ secrets.OPENAI_API_KEY_5 }}
+          OPENAI_API_KEY_6: ${{ secrets.OPENAI_API_KEY_6 }}
+          OPENAI_API_KEY_7: ${{ secrets.OPENAI_API_KEY_7 }}
+          OPENAI_API_KEY_8: ${{ secrets.OPENAI_API_KEY_8 }}
         run: python generate_epg.py
 
       - name: Hacer commit si hay cambios
