@@ -10,6 +10,7 @@ import requests
 import xml.etree.ElementTree as ET
 from pathlib import Path
 import openai
+import re
 
 # -------------------------
 # CONFIGURACIÓN
@@ -28,7 +29,7 @@ TMDB_BASE_URL = "https://api.themoviedb.org/3"
 # Canales a incluir
 CHANNELS = [
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
-    "Canal.A&amp;E.(México).mx",
+    "Canal.AE.(México).mx",
     "Canal.AMC.(México).mx",
     "Canal.Animal.Planet.(México).mx",
     "Canal.Atreseries.(Internacional).mx",
@@ -37,14 +38,14 @@ CHANNELS = [
     "Canal.Cinecanal.(México).mx",
     "Canal.Cinemax.(México).mx",
     "Canal.Discovery.Channel.(México).mx",
-    "Canal.Discovery.Home.&amp;.Health.(México).mx",
+    "Canal.Discovery.Home.&Health.(México).mx",
     "Canal.Discovery.World.Latinoamérica.mx",
     "Canal.Disney.Channel.(México).mx",
     "Canal.DW.(Latinoamérica).mx",
     "Canal.E!.Entertainment.Television.(México).mx",
     "Canal.Elgourmet.mx",
     "Canal.Europa.Europa.mx",
-    "Canal.Film.&amp;.Arts.mx",
+    "Canal.Film.&Arts.mx",
     "Canal.FX.(México).mx",
     "Canal.HBO.2.Latinoamérica.mx",
     "Canal.HBO.Family.Latinoamérica.mx",
@@ -69,59 +70,6 @@ CHANNELS = [
     "Canal.Universal.TV.(México).mx",
     "Canal.USA.Network.(México).mx",
     "Canal.Warner.TV.(México).mx",
-    "plex.tv.T2.plex",
-    "TSN1.ca",
-    "TSN2.ca",
-    "TSN3.ca",
-    "TSN4.ca",
-    "Eurosport.2.es",
-    "Eurosport.es",
-    "M+.Deportes.2.es",
-    "M+.Deportes.3.es",
-    "M+.Deportes.4.es",
-    "M+.Deportes.5.es",
-    "M+.Deportes.6.es",
-    "M+.Deportes.7.es",
-    "M+.Deportes.es",
-    "Movistar.Plus.es",
-    "ABC.(WABC).New.York,.NY.us",
-    "CBS.(WCBS).New.York,.NY.us",
-    "FOX.(WNYW).New.York,.NY.us",
-    "NBC.(WNBC).New.York,.NY.us",
-    "ABC.(KABC).Los.Angeles,.CA.us",
-    "NBC.(KNBC).Los.Angeles,.CA.us",
-    "Bravo.USA.-.Eastern.Feed.us",
-    "E!.Entertainment.USA.-.Eastern.Feed.us",
-    "Hallmark.-.Eastern.Feed.us",
-    "Hallmark.Mystery.Eastern.-.HD.us",
-    "CW.(KFMB-TV2).San.Diego,.CA.us",
-    "CNN.us",
-    "The.Tennis.Channel.us",
-    "HBO.-.Eastern.Feed.us",
-    "HBO.Latino.(HBO.7).-.Eastern.us",
-    "HBO.2.-.Eastern.Feed.us",
-    "HBO.Comedy.HD.-.East.us",
-    "HBO.Family.-.Eastern.Feed.us",
-    "HBO.Signature.(HBO.3).-.Eastern.us",
-    "HBO.Zone.HD.-.East.us",
-    "Starz.Cinema.HD.-.Eastern.us",
-    "Starz.Comedy.HD.-.Eastern.us",
-    "Starz.-.Eastern.us",
-    "Starz.Edge.-.Eastern.us",
-    "Starz.Encore.Action.-.Eastern.us",
-    "Starz.Encore.Black.-.Eastern.us",
-    "Starz.Encore.Classic.-.Eastern.us",
-    "Starz.Encore.-.Eastern.us",
-    "Starz.Encore.Family.-.Eastern.us",
-    "Starz.Encore.on.Demand.us",
-    "Starz.Encore.-.Pacific.us",
-    "Starz.Encore.Suspense.-.Eastern.us",
-    "Starz.Encore.Westerns.-.Eastern.us",
-    "Starz.In.Black.-.Eastern.us",
-    "Starz.Kids.and.Family.-.Eastern.us",
-    "Starz.On.Demand.us",
-    "Starz.-.Pacific.us",
-    "MoreMax..Eastern.us",
 ]
 
 # URLs de EPG
@@ -186,32 +134,57 @@ def fetch_epg(url):
 
 def process_programme(prog):
     title = prog.findtext("title")
+    if not title:
+        return
+
     desc_elem = prog.find("desc")
     desc = desc_elem.text if desc_elem is not None else ""
 
-    start_elem = prog.find("start")
-    if not title or start_elem is None:
-        # Saltar programas sin título o sin start
-        return
+    # Determinar tipo: serie o película
+    is_series = False
+    category_elems = prog.findall("category")
+    for cat in category_elems:
+        if cat.text and "Serie" in cat.text:
+            is_series = True
+            break
 
-    key = f"{title}_{start_elem.text}"
+    key = f"{title}"
     if key in CACHE:
         if desc_elem is None:
             ET.SubElement(prog, "desc").text = CACHE[key]["desc"]
         return
 
+    # Si ya tiene descripción
     if desc:
+        if is_series:
+            lines = desc.strip().split("\n")
+            if len(lines) == 1 or not re.match(r"^S\d+ E\d+", lines[0]):
+                # Extraer episodio si está en el título: "Serie (S1 E2)"
+                m = re.search(r"\((S\d+ E\d+)\)", title)
+                episode_title = m.group(1) if m else "Episodio"
+                desc = f"{episode_title}\n{desc}"
+                if desc_elem is not None:
+                    desc_elem.text = desc
         CACHE[key] = {"desc": desc}
         return
 
+    # No hay descripción: generar con OpenAI
     prompt = f"Escribe una sinopsis corta en español para: {title}"
     new_desc = get_openai_response(prompt)
 
+    # Si OpenAI falla, usar TMDb
     if not new_desc:
         info = get_tmdb_info(title)
         if info:
             new_desc = info.get("overview", "")
 
+    # Para series, poner título del episodio como primera línea
+    if is_series:
+        m = re.search(r"\((S\d+ E\d+)\)", title)
+        episode_title = m.group(1) if m else "Episodio"
+        new_desc = f"{episode_title}\n{new_desc}"
+
+    # Asignar descripción
     if new_desc:
         if desc_elem is None:
             ET.SubElement(prog, "desc").text = new_desc
