@@ -103,7 +103,7 @@ def get_openai_response(prompt):
     while retries < len(OPENAI_API_KEYS):
         try:
             openai.api_key = OPENAI_API_KEYS[openai_index]
-            response = openai.ChatCompletion.create(
+            response = openai.chat.completions.create(
                 model="gpt-4",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0
