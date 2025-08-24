@@ -1,43 +1,33 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
-import re
-import gzip
-import requests
-import unicodedata
-import lxml.etree as ET
 import io
-from bs4 import BeautifulSoup
+import gzip
+import json
+import time
+import requests
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from datetime import datetime, timedelta
 import openai
-from concurrent.futures import ThreadPoolExecutor
 
-# ----------------------
+# -------------------------
 # CONFIGURACIÓN
-# ----------------------
-API_KEY = os.getenv("TMDB_API_KEY")
-if not API_KEY:
-    raise RuntimeError("❌ TMDB_API_KEY no está definido en el entorno.")
+# -------------------------
 
-# 8 API KEYS DE OPENAI
-OPENAI_KEYS = [os.getenv(f"OPENAI_API_KEY_{i}") for i in range(1, 9)]
-OPENAI_STATUS = [True] * len(OPENAI_KEYS)  # True = activa, False = agotada
-
-EPG_URL = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
-EPG_FILE = "epg_original.xml"
-OUTPUT_FILE = "guide_custom.xml"
-
-NUEVAS_EPGS = [
-    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz",
+# OpenAI: 8 claves posibles
+OPENAI_API_KEYS = [
+    os.getenv(f"OPENAI_API_KEY{i}") for i in range(1, 9)
 ]
+openai_index = 0
 
-EPG_FILES_TEMP = []
+# TMDb
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+TMDB_BASE_URL = "https://api.themoviedb.org/3"
 
-# ----------------------
-# CANALES
-# ----------------------
-CANALES_USAR = {
+# Canales a incluir
+CHANNELS = [
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
@@ -80,7 +70,6 @@ CANALES_USAR = {
     "Canal.Universal.TV.(México).mx",
     "Canal.USA.Network.(México).mx",
     "Canal.Warner.TV.(México).mx",
-    # Canales internacionales
     "plex.tv.T2.plex",
     "TSN1.ca",
     "TSN2.ca",
@@ -134,163 +123,130 @@ CANALES_USAR = {
     "Starz.On.Demand.us",
     "Starz.-.Pacific.us",
     "MoreMax..Eastern.us",
-}
+]
 
-TITULOS_MAP = {
-    "Madagascar 2Escape de África": "Madagascar 2: Escape de África",
-    "H.Potter y la cámara secreta": "Harry Potter y la Cámara Secreta"
-}
+# URLs de EPG
+EPG_URLS = [
+    "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz",
+]
 
-# ----------------------
-# FUNCIONES AUXILIARES
-# ----------------------
-def normalizar_texto(texto):
-    if not texto:
-        return ""
-    texto = unicodedata.normalize("NFD", texto)
-    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
-    return texto.strip()
+# Cache
+CACHE_FILE = Path("epg_cache.json")
+if CACHE_FILE.exists():
+    CACHE = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+else:
+    CACHE = {}
 
-def rellenar_descripcion(titulo, tipo="serie", temporada=None, episodio=None):
-    if tipo == "pelicula":
-        return f"Sinopsis no disponible para la película '{titulo}'."
-    else:
-        return f"Sinopsis no disponible para el episodio {temporada}-{episodio} de '{titulo}'."
+# Archivo final
+OUTPUT_FILE = Path("guide_custom.xml")
+OUTPUT_FILE_GZ = Path("guide_custom.xml.gz")
 
-def parse_episode_num(ep_text):
-    if not ep_text:
-        return None, None
-    ep_text = ep_text.strip().upper().replace(" ", "")
-    patterns = [r"S(\d{1,2})E(\d{1,2})", r"(\d{1,2})x(\d{1,2})", r"(\d{1,2})[E](\d{1,2})"]
-    for p in patterns:
-        match = re.match(p, ep_text)
-        if match:
-            return int(match.group(1)), int(match.group(2))
-    return None, None
+# -------------------------
+# FUNCIONES
+# -------------------------
 
-# ----------------------
-# ROTACIÓN DE API KEYS OPENAI
-# ----------------------
-def obtener_api_disponible():
-    for idx, activa in enumerate(OPENAI_STATUS):
-        if activa and OPENAI_KEYS[idx]:
-            openai.api_key = OPENAI_KEYS[idx]
-            return True
-    return False
+def get_openai_response(prompt):
+    global openai_index
+    retries = 0
+    while retries < len(OPENAI_API_KEYS):
+        try:
+            openai.api_key = OPENAI_API_KEYS[openai_index]
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            print(f"Error OpenAI con key {openai_index}: {e}")
+            openai_index = (openai_index + 1) % len(OPENAI_API_KEYS)
+            retries += 1
+            time.sleep(1)
+    return None
 
-def marcar_api_agotada():
-    for idx, activa in enumerate(OPENAI_STATUS):
-        if activa:
-            OPENAI_STATUS[idx] = False
-            break
+def get_tmdb_info(title, year=None):
+    params = {"api_key": TMDB_API_KEY, "query": title, "language": "es-ES"}
+    if year:
+        params["year"] = year
+    r = requests.get(f"{TMDB_BASE_URL}/search/movie", params=params)
+    data = r.json()
+    if data.get("results"):
+        return data["results"][0]
+    return None
 
-# ----------------------
-# ChatGPT
-# ----------------------
-def obtener_descripcion_chatgpt(titulo, tipo=None, temporada=None, episodio=None, anio=None, pistas=None):
-    if not obtener_api_disponible():
-        return None
-    prompt = f"""
-Eres un experto en series y películas. Completa la sinopsis usando toda la información disponible:
-Título: {titulo}
-Tipo: {tipo or 'desconocido'}
-Temporada: {temporada or ''}
-Episodio: {episodio or ''}
-Año: {anio or ''}
-Pistas: {pistas or {}}
+def fetch_epg(url):
+    r = requests.get(url, timeout=15)
+    with gzip.open(io.BytesIO(r.content)) as f:
+        tree = ET.parse(f)
+    return tree
 
-Devuelve solo la sinopsis en español. Si está en otro idioma, tradúcela automáticamente al español.
-"""
-    try:
-        resp = openai.chat.completions.create(
-            model="gpt-5-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0
-        )
-        texto = resp.choices[0].message.content.strip()
-        return texto if texto else None
-    except openai.errors.RateLimitError:
-        marcar_api_agotada()
-        return obtener_descripcion_chatgpt(titulo, tipo, temporada, episodio, anio, pistas)
-    except Exception:
-        return None
+def process_programme(prog):
+    title = prog.findtext("title")
+    desc_elem = prog.find("desc")
+    desc = desc_elem.text if desc_elem is not None else ""
 
-# ----------------------
-# Función para completar programa solo si campos vacíos
-# ----------------------
-def completar_programa(elem):
-    title_el = elem.find("title")
-    if title_el is None:
-        title_el = ET.SubElement(elem, "title")
-    desc_el = elem.find("desc")
-    if desc_el is None:
-        desc_el = ET.SubElement(elem, "desc")
-    sub_el = elem.find("sub-title")
-    if sub_el is None:
-        sub_el = ET.SubElement(elem, "sub-title")
-    ep_el = elem.find("episode-num")
-    ep_text = ep_el.text if ep_el is not None else ""
-    temporada, episodio = parse_episode_num(ep_text)
-    titulo_original = title_el.text.strip() if title_el.text else "Sin título"
+    key = f"{title}_{prog.find('start').text}"
+    if key in CACHE:
+        if desc_elem is None:
+            ET.SubElement(prog, "desc").text = CACHE[key]["desc"]
+        return
 
-    categorias = [c.text.lower() for c in elem.findall("category")]
-    tipo = "serie" if any("serie" in c for c in categorias) or (temporada is not None) else "pelicula"
+    if desc:
+        CACHE[key] = {"desc": desc}
+        return
 
-    if tipo == "serie" and temporada and episodio:
-        if not desc_el.text:
-            desc_el.text = f"Sinopsis del episodio {temporada}-{episodio} de {titulo_original}"
-        if not sub_el.text:
-            sub_el.text = f"S{temporada:02d}E{episodio:02d}"
-        if ep_el is not None and not ep_el.text:
-            ep_el.text = sub_el.text
-    elif tipo == "pelicula":
-        anio_epg = elem.find("date").text if elem.find("date") is not None else ""
-        if not desc_el.text:
-            desc_el.text = rellenar_descripcion(titulo_original, "pelicula")
-        if not title_el.text:
-            title_el.text = f"{titulo_original} ({anio_epg})" if anio_epg else titulo_original
-    else:
-        if not desc_el.text:
-            desc_el.text = rellenar_descripcion(titulo_original, "serie")
-        if not title_el.text:
-            title_el.text = titulo_original
+    prompt = f"Escribe una sinopsis corta en español para: {title}"
+    new_desc = get_openai_response(prompt)
 
-    return elem
+    if not new_desc:
+        info = get_tmdb_info(title)
+        if info:
+            new_desc = info.get("overview", "")
 
-# ----------------------
-# MAIN: cargar XML original y completar campos vacíos
-# ----------------------
-if not os.path.exists(EPG_FILE):
-    print(f"📥 Descargando {EPG_FILE} desde {EPG_URL}...")
-    r = requests.get(EPG_URL)
-    if r.status_code == 200:
-        with gzip.open(io.BytesIO(r.content), "rb") as f_in:
-            with open(EPG_FILE, "wb") as f_out:
-                f_out.write(f_in.read())
-        print(f"✅ Archivo descargado y guardado como {EPG_FILE}")
-    else:
-        raise RuntimeError(f"No se pudo descargar {EPG_FILE}, status: {r.status_code}")
+    if new_desc:
+        if desc_elem is None:
+            ET.SubElement(prog, "desc").text = new_desc
+        else:
+            desc_elem.text = new_desc
+        CACHE[key] = {"desc": new_desc}
 
-# Parsear XML
-tree_existente = ET.parse(EPG_FILE)
-root_existente = tree_existente.getroot()
+# -------------------------
+# PROCESO PRINCIPAL
+# -------------------------
 
-# Filtrar por canales y rellenar campos vacíos
-for programa in root_existente.findall("programme"):
-    canal = programa.get("channel")
-    if canal not in CANALES_USAR:
-        continue  # Omitir programas de canales no deseados
-    completar_programa(programa)
+def main():
+    all_programmes = []
 
-    completar_programa(programa)
+    for url in EPG_URLS:
+        print(f"Descargando {url} ...")
+        tree = fetch_epg(url)
+        root = tree.getroot()
+        for prog in root.findall("programme"):
+            channel = prog.attrib.get("channel")
+            if channel in CHANNELS:
+                process_programme(prog)
+                all_programmes.append(prog)
 
-# ----------------------
-# Guardar guía final
-# ----------------------
-new_tree = ET.ElementTree(root_existente)
-new_tree.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
+    # Crear XML final
+    tv = ET.Element("tv")
+    for prog in all_programmes:
+        tv.append(prog)
 
-with gzip.open(f"{OUTPUT_FILE}.gz", "wb") as f_out:
-    new_tree.write(f_out, encoding="utf-8", xml_declaration=True)
+    tree_out = ET.ElementTree(tv)
+    tree_out.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
 
-print(f"✅ Guía actualizada: {OUTPUT_FILE} y {OUTPUT_FILE}.gz")
+    # Comprimir guía final
+    with open(OUTPUT_FILE, "rb") as f_in, gzip.open(OUTPUT_FILE_GZ, "wb") as f_out:
+        f_out.writelines(f_in)
+
+    # Guardar cache
+    CACHE_FILE.write_text(json.dumps(CACHE, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"Guía generada en {OUTPUT_FILE} y comprimida en {OUTPUT_FILE_GZ}")
+
+if __name__ == "__main__":
+    main()
