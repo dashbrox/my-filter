@@ -16,10 +16,23 @@ import re
 # CONFIGURACIÓN
 # -------------------------
 
-# OpenAI: 8 claves posibles
-OPENAI_API_KEYS = [
-    os.getenv(f"OPENAI_API_KEY{i}") for i in range(1, 9)
-]
+# OpenAI: 8 claves posibles + la genérica
+OPENAI_API_KEYS = []
+
+# Agregar clave genérica si existe
+main_key = os.getenv("OPENAI_API_KEY")
+if main_key:
+    OPENAI_API_KEYS.append(main_key)
+
+# Agregar las numeradas con guion bajo
+for i in range(1, 9):
+    key = os.getenv(f"OPENAI_API_KEY_{i}")
+    if key:
+        OPENAI_API_KEYS.append(key)
+
+if not OPENAI_API_KEYS:
+    raise RuntimeError("❌ No hay ninguna OPENAI_API_KEY definida en el entorno.")
+
 openai_index = 0
 
 # TMDb
