@@ -182,7 +182,6 @@ def process_programme(prog):
         CACHE[key] = {"desc": desc}
         return prog
 
-    # Solo generar si no hay info en cache ni descripción
     prompt = f"Escribe una sinopsis corta en español para: {title}"
     new_desc = get_openai_response(prompt)
     if not new_desc:
@@ -224,7 +223,6 @@ def main():
             programmes = [elem for elem in root if elem.tag == "programme" and elem.attrib.get("channel") in CHANNELS]
             others = [elem for elem in root if elem.tag != "programme"]
 
-            # Procesar en paralelo
             with ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(process_programme, prog): prog for prog in programmes}
                 for future in as_completed(futures):
