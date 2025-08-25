@@ -2,8 +2,8 @@ name: Update EPG
 
 on:
   schedule:
-    - cron: '0 */12 * * *'   # Cada 12 horas
-  workflow_dispatch:         # Permite ejecutar manualmente
+    - cron: "0 */12 * * *"   # cada 12 horas
+  workflow_dispatch:          # ejecución manual
 
 jobs:
   update:
@@ -14,24 +14,18 @@ jobs:
         uses: actions/checkout@v3
         with:
           persist-credentials: false
-          fetch-depth: 0
-
-      - name: Configurar Git con PAT
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.MY_PAT }}@github.com/${{ github.repository }}.git
 
       - name: Configurar Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.11"
 
       - name: Instalar dependencias
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests openai
 
-      - name: Generar guía 72h
-        # Pasamos las llaves de API de TMDB y las 8 OpenAI Keys de forma segura
+      - name: Ejecutar script EPG
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           OPENAI_API_KEY_1: ${{ secrets.OPENAI_API_KEY_1 }}
@@ -42,12 +36,21 @@ jobs:
           OPENAI_API_KEY_6: ${{ secrets.OPENAI_API_KEY_6 }}
           OPENAI_API_KEY_7: ${{ secrets.OPENAI_API_KEY_7 }}
           OPENAI_API_KEY_8: ${{ secrets.OPENAI_API_KEY_8 }}
-        run: python generate_epg.py
-
-      - name: Hacer commit si hay cambios
         run: |
-          git add guide_custom.xml guide_custom.xml.gz
-          git diff-index --quiet HEAD || git commit -m "Actualizar guía 72h automáticamente"
+          python generate_epg.py
 
-      - name: Push cambios
-        run: git push origin main
+      - name: Subir artefactos
+        uses: actions/upload-artifact@v3
+        with:
+          name: epg-files
+          path: |
+            guide_custom.xml
+            guide_custom.xml.gz
+
+      - name: Commit y Push resultados
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add guide_custom.xml guide_custom.xml.gz epg_cache.json
+          git commit -m "🔄 Actualización automática de EPG [skip ci]" || echo "No hay cambios"
+          git push
