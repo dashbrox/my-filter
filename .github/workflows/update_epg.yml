@@ -40,7 +40,7 @@ jobs:
           python generate_epg.py
 
       - name: Subir artefactos
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: epg-files
           path: |
