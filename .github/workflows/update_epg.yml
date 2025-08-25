@@ -3,14 +3,14 @@ name: Update EPG
 on:
   schedule:
     - cron: "0 */12 * * *"   # cada 12 horas
-  workflow_dispatch:          # ejecución manual
+  workflow_dispatch:          # permite ejecución manual
 
 jobs:
   update:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Clonar repo
+      - name: Clonar repositorio
         uses: actions/checkout@v3
         with:
           persist-credentials: false
@@ -28,6 +28,7 @@ jobs:
       - name: Ejecutar script EPG
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
           OPENAI_API_KEY_1: ${{ secrets.OPENAI_API_KEY_1 }}
           OPENAI_API_KEY_2: ${{ secrets.OPENAI_API_KEY_2 }}
           OPENAI_API_KEY_3: ${{ secrets.OPENAI_API_KEY_3 }}
