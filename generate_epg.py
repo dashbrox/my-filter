@@ -9,20 +9,23 @@ import time
 import requests
 import xml.etree.ElementTree as ET
 from pathlib import Path
-import openai
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 print("🚀 Inicio del script generate_epg.py")
 
 # -------------------------
-# CONFIGURACIÓN OPENAI
+# CONFIGURACIÓN OpenAI (opcional)
 # -------------------------
-OPENAI_API_KEYS = [os.getenv(f"OPENAI_API_KEY_{i}") for i in range(1, 9)]
-OPENAI_API_KEYS = [k for k in OPENAI_API_KEYS if k]
-if not OPENAI_API_KEYS:
-    raise RuntimeError("❌ No hay claves OPENAI_API_KEY_X configuradas en el entorno.")
-OPENAI_MODEL = "gpt-4o-mini"
+try:
+    import openai
+    OPENAI_API_KEYS = [os.getenv(f"OPENAI_API_KEY_{i}") for i in range(1, 9)]
+    OPENAI_API_KEYS = [k for k in OPENAI_API_KEYS if k]
+    OPENAI_MODEL = "gpt-4o-mini"
+    openai_index = 0
+except ImportError:
+    OPENAI_API_KEYS = []
+    print("⚠️ OpenAI no instalado, se ignorará.")
 
 # -------------------------
 # CONFIGURACIÓN TMDb
@@ -105,36 +108,54 @@ OUTPUT_FILE = Path("guide_custom.xml")
 OUTPUT_FILE_GZ = Path("guide_custom.xml.gz")
 
 # -------------------------
-# Funciones auxiliares
+# Función estricta de inferencia de tipo
 # -------------------------
+def infer_type(title, desc):
+    """
+    Retorna 'serie', 'documental' o 'película' solo si hay pistas claras.
+    Retorna None si no se puede determinar con certeza.
+    """
+    text = f"{title} {desc}".lower()
 
-openai_index = 0
+    # Detectar serie
+    if re.search(r"(S\d+ E\d+|season|episodio)", text):
+        return "serie"
 
-def get_openai_response(prompt, max_retries=3):
-    global openai_index
-    print(f"💬 OpenAI: solicitando sinopsis para '{prompt[:30]}...'")
-    for attempt in range(max_retries):
-        try:
-            key = OPENAI_API_KEYS[openai_index]
-            client = openai.OpenAI(api_key=key)
-            response = client.chat.completions.create(
-                model=OPENAI_MODEL,
-                messages=[{"role": "system", "content": "Eres un asistente que ayuda a formatear EPG de TV."},
-                          {"role": "user", "content": prompt}],
-                temperature=0.7
-            )
-            result = response.choices[0].message.content.strip()
-            print("✅ OpenAI completado")
-            return result
-        except Exception as e:
-            print(f"⚠️ Error OpenAI: {e} (intentando siguiente key)")
-            openai_index = (openai_index + 1) % len(OPENAI_API_KEYS)
-            time.sleep(2 ** attempt)
-    print("❌ OpenAI falló todas las veces")
+    # Detectar documental
+    if re.search(r"(documental|documentary|historia real)", text):
+        return "documental"
+
+    # Detectar película explícita
+    if "película" in text or "movie" in text or "film" in text:
+        return "película"
+
+    # Sin evidencia suficiente
     return None
 
+# -------------------------
+# Funciones auxiliares
+# -------------------------
+def get_openai_response(prompt):
+    """Opcional: solo se usa si funciona, si falla se ignora."""
+    if not OPENAI_API_KEYS:
+        return None
+    global openai_index
+    try:
+        key = OPENAI_API_KEYS[openai_index]
+        client = openai.OpenAI(api_key=key)
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "system", "content": "Eres un asistente de EPG."},
+                      {"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content.strip()
+    except Exception:
+        print("❌ OpenAI falló o se negó a trabajar, seguimos con TMDB/OMDB y analizador de pistas.")
+        openai_index = (openai_index + 1) % len(OPENAI_API_KEYS)
+        return None
+
 def get_tmdb_info(title, year=None):
-    print(f"🎬 TMDB: buscando '{title}'")
     try:
         params = {"api_key": TMDB_API_KEY, "query": title, "language": "es-ES"}
         if year:
@@ -142,14 +163,12 @@ def get_tmdb_info(title, year=None):
         r = requests.get(f"{TMDB_BASE_URL}/search/movie", params=params, timeout=10)
         data = r.json()
         if data.get("results"):
-            print("✅ TMDB encontrado")
             return data["results"][0]
-    except Exception as e:
-        print(f"⚠️ Error TMDB: {e}")
+    except:
+        pass
     return None
 
 def get_omdb_info(title, year=None):
-    print(f"📺 OMDB: buscando '{title}'")
     try:
         params = {"apikey": OMDB_API_KEY, "t": title, "type": "movie"}
         if year:
@@ -157,75 +176,67 @@ def get_omdb_info(title, year=None):
         r = requests.get(OMDB_BASE_URL, params=params, timeout=10)
         data = r.json()
         if data.get("Response") == "True":
-            print("✅ OMDB encontrado")
             return data
-    except Exception as e:
-        print(f"⚠️ Error OMDB: {e}")
+    except:
+        pass
     return None
 
 def fetch_epg(url):
-    print(f"📥 Descargando EPG de {url} ...")
     r = requests.get(url, timeout=15)
     with gzip.open(io.BytesIO(r.content)) as f:
         tree = ET.parse(f)
-    print(f"✅ Descarga completada: {url}")
     return tree
 
 def process_programme(prog):
     title = prog.findtext("title")
-    print(f"🔹 Procesando programa: '{title}'")
     if not title:
         return prog
+
     desc_elem = prog.find("desc")
     desc = desc_elem.text if desc_elem is not None else ""
-    is_series = any(cat.text and "Serie" in cat.text for cat in prog.findall("category"))
+    categories_elem = prog.findall("category")
+    existing_categories = [c.text for c in categories_elem if c.text]
+
+    # Inferir tipo solo si no existe categoría
+    if not existing_categories:
+        tipo = infer_type(title, desc)
+        if tipo:
+            ET.SubElement(prog, "category").text = tipo
+        else:
+            print(f"⚠️ No se pudo determinar categoría para: '{title}'")
+
+    # Obtener descripción con TMDB/OMDB si está vacía
     key = f"{title}"
     if key in CACHE:
         if desc_elem is None:
             ET.SubElement(prog, "desc").text = CACHE[key]["desc"]
         return prog
-    if desc:
-        if is_series:
-            lines = desc.strip().split("\n")
-            if len(lines) == 1 or not re.match(r"^S\d+ E\d+", lines[0]):
-                m = re.search(r"\((S\d+ E\d+)\)", title)
-                episode_title = m.group(1) if m else "Episodio"
-                desc = f"{episode_title}\n{desc}"
-                if desc_elem is not None:
-                    desc_elem.text = desc
-        CACHE[key] = {"desc": desc}
-        return prog
 
-    prompt = f"Escribe una sinopsis corta en español para: {title}"
-    new_desc = get_openai_response(prompt)
-    if not new_desc:
-        info_tmdb = get_tmdb_info(title)
-        if info_tmdb:
-            new_desc = info_tmdb.get("overview", "")
-    if not new_desc:
-        info_omdb = get_omdb_info(title)
-        if info_omdb:
-            new_desc = info_omdb.get("Plot", "")
-    if not new_desc:
-        new_desc = "Sin descripción disponible"
+    if not desc:
+        # Intentar OpenAI primero (opcional)
+        new_desc = get_openai_response(f"Escribe una sinopsis corta en español para: {title}")
+        if not new_desc:
+            info_tmdb = get_tmdb_info(title)
+            if info_tmdb:
+                new_desc = info_tmdb.get("overview", "")
+        if not new_desc:
+            info_omdb = get_omdb_info(title)
+            if info_omdb:
+                new_desc = info_omdb.get("Plot", "")
+        if not new_desc:
+            new_desc = "Sin descripción disponible"
 
-    if is_series:
-        m = re.search(r"\((S\d+ E\d+)\)", title)
-        episode_title = m.group(1) if m else "Episodio"
-        new_desc = f"{episode_title}\n{new_desc}"
+        if desc_elem is None:
+            ET.SubElement(prog, "desc").text = new_desc
+        else:
+            desc_elem.text = new_desc
 
-    if desc_elem is None:
-        ET.SubElement(prog, "desc").text = new_desc
-    else:
-        desc_elem.text = new_desc
-
-    CACHE[key] = {"desc": new_desc}
+    CACHE[key] = {"desc": desc}
     return prog
 
 # -------------------------
 # Proceso principal paralelo
 # -------------------------
-
 def main():
     all_elements = []
 
@@ -236,7 +247,6 @@ def main():
             programmes = [elem for elem in root if elem.tag == "programme" and elem.attrib.get("channel") in CHANNELS]
             others = [elem for elem in root if elem.tag != "programme"]
 
-            print(f"📊 Procesando {len(programmes)} programas de {url} ...")
             with ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(process_programme, prog): prog for prog in programmes}
                 for future in as_completed(futures):
@@ -246,7 +256,6 @@ def main():
         except Exception as e:
             print(f"⚠️ Error descargando {url}: {e}")
 
-    print("💾 Generando XML final ...")
     tv = ET.Element("tv")
     for elem in all_elements:
         tv.append(elem)
