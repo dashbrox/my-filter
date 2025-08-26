@@ -13,6 +13,8 @@ import openai
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+print("🚀 Inicio del script generate_epg.py")
+
 # -------------------------
 # CONFIGURACIÓN OPENAI
 # -------------------------
@@ -110,6 +112,7 @@ openai_index = 0
 
 def get_openai_response(prompt, max_retries=3):
     global openai_index
+    print(f"💬 OpenAI: solicitando sinopsis para '{prompt[:30]}...'")
     for attempt in range(max_retries):
         try:
             key = OPENAI_API_KEYS[openai_index]
@@ -120,13 +123,18 @@ def get_openai_response(prompt, max_retries=3):
                           {"role": "user", "content": prompt}],
                 temperature=0.7
             )
-            return response.choices[0].message.content.strip()
-        except Exception:
+            result = response.choices[0].message.content.strip()
+            print("✅ OpenAI completado")
+            return result
+        except Exception as e:
+            print(f"⚠️ Error OpenAI: {e} (intentando siguiente key)")
             openai_index = (openai_index + 1) % len(OPENAI_API_KEYS)
             time.sleep(2 ** attempt)
+    print("❌ OpenAI falló todas las veces")
     return None
 
 def get_tmdb_info(title, year=None):
+    print(f"🎬 TMDB: buscando '{title}'")
     try:
         params = {"api_key": TMDB_API_KEY, "query": title, "language": "es-ES"}
         if year:
@@ -134,12 +142,14 @@ def get_tmdb_info(title, year=None):
         r = requests.get(f"{TMDB_BASE_URL}/search/movie", params=params, timeout=10)
         data = r.json()
         if data.get("results"):
+            print("✅ TMDB encontrado")
             return data["results"][0]
-    except:
-        pass
+    except Exception as e:
+        print(f"⚠️ Error TMDB: {e}")
     return None
 
 def get_omdb_info(title, year=None):
+    print(f"📺 OMDB: buscando '{title}'")
     try:
         params = {"apikey": OMDB_API_KEY, "t": title, "type": "movie"}
         if year:
@@ -147,19 +157,23 @@ def get_omdb_info(title, year=None):
         r = requests.get(OMDB_BASE_URL, params=params, timeout=10)
         data = r.json()
         if data.get("Response") == "True":
+            print("✅ OMDB encontrado")
             return data
-    except:
-        pass
+    except Exception as e:
+        print(f"⚠️ Error OMDB: {e}")
     return None
 
 def fetch_epg(url):
+    print(f"📥 Descargando EPG de {url} ...")
     r = requests.get(url, timeout=15)
     with gzip.open(io.BytesIO(r.content)) as f:
         tree = ET.parse(f)
+    print(f"✅ Descarga completada: {url}")
     return tree
 
 def process_programme(prog):
     title = prog.findtext("title")
+    print(f"🔹 Procesando programa: '{title}'")
     if not title:
         return prog
     desc_elem = prog.find("desc")
@@ -216,13 +230,13 @@ def main():
     all_elements = []
 
     for url in EPG_URLS:
-        print(f"📥 Descargando {url} ...")
         try:
             tree = fetch_epg(url)
             root = tree.getroot()
             programmes = [elem for elem in root if elem.tag == "programme" and elem.attrib.get("channel") in CHANNELS]
             others = [elem for elem in root if elem.tag != "programme"]
 
+            print(f"📊 Procesando {len(programmes)} programas de {url} ...")
             with ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(process_programme, prog): prog for prog in programmes}
                 for future in as_completed(futures):
@@ -232,6 +246,7 @@ def main():
         except Exception as e:
             print(f"⚠️ Error descargando {url}: {e}")
 
+    print("💾 Generando XML final ...")
     tv = ET.Element("tv")
     for elem in all_elements:
         tv.append(elem)
