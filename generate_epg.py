@@ -12,12 +12,12 @@ from pathlib import Path
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
+import unicodedata
 
 print("🚀 Inicio del script ultimate Godzilla generate_epg.py")
 
 # -------------------------
 # LOGGING
-# -------------------------
 LOG_FILE = Path("epg_log.txt")
 def log(msg):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -28,7 +28,6 @@ def log(msg):
 
 # -------------------------
 # CONFIGURACIÓN OpenAI
-# -------------------------
 try:
     import openai
     OPENAI_API_KEYS = [os.getenv(f"OPENAI_API_KEY_{i}") for i in range(1, 9)]
@@ -59,13 +58,13 @@ except ImportError:
 
 # -------------------------
 # CONFIGURACIÓN TMDb
-# -------------------------
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
+if not TMDB_API_KEY:
+    raise RuntimeError("❌ TMDB_API_KEY no está definido en el entorno.")
 
 # -------------------------
 # CONFIGURACIÓN OMDb
-# -------------------------
 OMDB_API_KEY = os.getenv("OMDB_API_KEY")
 OMDB_BASE_URL = "http://www.omdbapi.com/"
 
@@ -116,6 +115,7 @@ CHANNELS = [
     "Canal.Warner.TV.(México).mx",
 ]
 
+# -------------------------
 # URLs de EPG
 EPG_URLS = [
     "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
@@ -126,6 +126,7 @@ EPG_URLS = [
     "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz",
 ]
 
+# -------------------------
 # Cache
 CACHE_FILE = Path("epg_cache.json")
 if CACHE_FILE.exists():
@@ -139,7 +140,6 @@ OUTPUT_FILE_GZ = Path("guide_custom.xml.gz")
 
 # -------------------------
 # Función de reintento con backoff
-# -------------------------
 def retry(max_attempts=3, delay=2, backoff=2):
     def decorator(func):
         @wraps(func)
@@ -161,7 +161,6 @@ def retry(max_attempts=3, delay=2, backoff=2):
 
 # -------------------------
 # Inferencia de tipo
-# -------------------------
 def infer_type(title, desc):
     text = f"{title} {desc}".lower()
     if re.search(r"(S\d+ E\d+|season|episodio)", text):
@@ -173,8 +172,7 @@ def infer_type(title, desc):
     return None
 
 # -------------------------
-# Funciones auxiliares
-# -------------------------
+# Funciones auxiliares OpenAI, TMDb y OMDb
 def get_openai_response(prompt):
     global openai_index
     if not OPENAI_API_KEYS:
@@ -228,6 +226,118 @@ def fetch_epg(url):
         tree = ET.parse(f)
     return tree
 
+# -------------------------
+# Funciones del viejo para series y películas
+def normalizar_texto(texto):
+    if not texto:
+        return ""
+    texto = unicodedata.normalize("NFD", texto)
+    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+    return texto.strip()
+
+TITULOS_MAP = {
+    "Madagascar 2Escape de África": "Madagascar 2: Escape de África",
+    "H.Potter y la cámara secreta": "Harry Potter y la Cámara Secreta"
+}
+
+def buscar_tmdb(titulo, tipo="multi", lang="es-MX"):
+    titulo = TITULOS_MAP.get(titulo, titulo)
+    url = f"https://api.themoviedb.org/3/search/{tipo}"
+    params = {"api_key": TMDB_API_KEY, "query": titulo, "language": lang}
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        results = r.json().get("results", [])
+        return results[0] if results else None
+    except Exception:
+        if lang != "en-US":
+            return buscar_tmdb(titulo, tipo, "en-US")
+    return None
+
+def obtener_info_serie(tv_id, temporada, episodio, lang="es-MX"):
+    url = f"{TMDB_BASE_URL}/tv/{tv_id}/season/{temporada}/episode/{episodio}"
+    params = {"api_key": TMDB_API_KEY, "language": lang}
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        if lang != "en-US":
+            return obtener_info_serie(tv_id, temporada, episodio, "en-US")
+    return {}
+
+def parse_episode_num(ep_text):
+    if not ep_text:
+        return None, None
+    ep_text = ep_text.strip().upper()
+    match = re.match(r"S(\d{1,2})E(\d{1,2})", ep_text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    match = re.search(r"(\d{1,2})[xE](\d{1,2})", ep_text)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    return None, None
+
+def procesar_programa_formato_viejo(elem):
+    title_el = elem.find("title")
+    titulo = title_el.text.strip() if title_el is not None else "Sin título"
+    titulo_norm = normalizar_texto(titulo)
+
+    category_el = elem.find("category")
+    categoria = category_el.text.strip().lower() if category_el is not None else ""
+
+    ep_el = elem.find("episode-num")
+    ep_text = ep_el.text.strip() if ep_el is not None else ""
+    temporada, episodio = parse_episode_num(ep_text)
+
+    desc_el = elem.find("desc")
+    date_el = elem.find("date")
+
+    # --- SERIES ---
+    if "serie" in categoria and temporada and episodio:
+        sub_el = elem.find("sub-title")
+        if sub_el is None:
+            sub_el = ET.SubElement(elem, "sub-title")
+            sub_el.text = ep_text
+
+        if desc_el is None or not desc_el.text.strip():
+            search_res = buscar_tmdb(titulo_norm, "tv")
+            if search_res:
+                tv_id = search_res.get("id")
+                epi_info = obtener_info_serie(tv_id, temporada, episodio)
+                nombre_ep = epi_info.get("name") or ep_text
+                desc_text = f"{nombre_ep}\n{epi_info.get('overview') or ''}".strip()
+                if desc_el is None:
+                    desc_el = ET.SubElement(elem, "desc")
+                desc_el.text = desc_text
+                # CORRECCIÓN: el title de la serie NO incluye el nombre del episodio
+                title_el.text = f"{titulo} (S{temporada:02d}E{episodio:02d})"
+
+    # --- PELÍCULAS ---
+    elif "pel" in categoria or "movie" in categoria:
+        if (date_el is None or not date_el.text.strip()) or (desc_el is None or not desc_el.text.strip()):
+            search_res = buscar_tmdb(titulo_norm, "movie")
+            if search_res:
+                anio = (search_res.get("release_date") or "????")[:4]
+                overview = search_res.get("overview") or ""
+
+                if date_el is None or not date_el.text.strip():
+                    if date_el is None:
+                        date_el = ET.SubElement(elem, "date")
+                    date_el.text = anio
+
+                if desc_el is None or not desc_el.text.strip():
+                    if desc_el is None:
+                        desc_el = ET.SubElement(elem, "desc")
+                    desc_el.text = overview
+
+                if f"({anio})" not in titulo:
+                    title_el.text = f"{titulo} ({anio})"
+
+    return elem
+
+# -------------------------
+# Función principal de procesamiento
 def process_programme(prog):
     title = prog.findtext("title")
     if not title:
@@ -272,7 +382,6 @@ def process_programme(prog):
 
 # -------------------------
 # Proceso principal
-# -------------------------
 def main():
     all_programmes = []
     channels = {}
@@ -294,7 +403,9 @@ def main():
         futures = {executor.submit(process_programme, prog): prog for prog in all_programmes}
         results = []
         for future in as_completed(futures):
-            results.append(future.result())
+            prog = future.result()
+            prog = procesar_programa_formato_viejo(prog)  # <-- aplica formato antiguo
+            results.append(prog)
 
     # Crear XML final
     tv = ET.Element("tv")
