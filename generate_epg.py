@@ -40,7 +40,7 @@ try:
         try:
             client = openai.OpenAI(api_key=OPENAI_API_KEYS[0])
             models = client.models.list()
-            ids = [m['id'] for m in models['data'] if m.startswith("gpt-")]
+            ids = [m['id'] for m in models['data'] if m['id'].startswith("gpt-")]
             for preferred in ["gpt-5", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]:
                 if preferred in ids:
                     return preferred
@@ -289,24 +289,28 @@ def main():
         except Exception as e:
             log(f"⚠️ Error descargando {url}: {e}")
 
+    # Procesar programas en paralelo
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(process_programme, prog): prog for prog in all_programmes}
         results = []
         for future in as_completed(futures):
             results.append(future.result())
 
+    # Crear XML final
     tv = ET.Element("tv")
     for ch in channels.values():
         tv.append(ch)
     for prog in results:
         tv.append(prog)
 
+    # Guardar XML y comprimido
     tree_out = ET.ElementTree(tv)
     tree_out.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
 
     with open(OUTPUT_FILE, "rb") as f_in, gzip.open(OUTPUT_FILE_GZ, "wb") as f_out:
         f_out.writelines(f_in)
 
+    # Guardar cache
     CACHE_FILE.write_text(json.dumps(CACHE, ensure_ascii=False, indent=2), encoding="utf-8")
     log(f"✅ Guía generada en {OUTPUT_FILE} y comprimida en {OUTPUT_FILE_GZ}")
 
