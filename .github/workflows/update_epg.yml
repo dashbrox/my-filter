@@ -3,13 +3,13 @@ name: Update EPG
 on:
   schedule:
     - cron: "0 */12 * * *"   # cada 12 horas
-  workflow_dispatch:          # permite ejecución manual
+  workflow_dispatch:
 
 jobs:
   update:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # 🔑 necesario para que github-actions[bot] pueda hacer push
+      contents: write
 
     steps:
       - name: Clonar repositorio
@@ -25,12 +25,14 @@ jobs:
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install requests openai
+          pip install --upgrade requests
+          pip install --upgrade openai
 
       - name: Ejecutar script EPG
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_KEY_1: ${{ secrets.OPENAI_API_KEY_1 }}
           OPENAI_API_KEY_2: ${{ secrets.OPENAI_API_KEY_2 }}
           OPENAI_API_KEY_3: ${{ secrets.OPENAI_API_KEY_3 }}
@@ -39,8 +41,7 @@ jobs:
           OPENAI_API_KEY_6: ${{ secrets.OPENAI_API_KEY_6 }}
           OPENAI_API_KEY_7: ${{ secrets.OPENAI_API_KEY_7 }}
           OPENAI_API_KEY_8: ${{ secrets.OPENAI_API_KEY_8 }}
-        run: |
-          python generate_epg.py
+        run: python generate_epg.py
 
       - name: Subir artefactos
         uses: actions/upload-artifact@v4
