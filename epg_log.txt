@@ -1,3 +1,6 @@
 [2025-08-26 13:51:11] ⚠️ Error detectando modelos OpenAI: Connection error.
 [2025-08-26 13:51:11] ✅ OpenAI usando modelo: gpt-3.5-turbo
 [2025-08-26 13:51:22] ✅ Guía generada en guide_custom.xml y comprimida en guide_custom.xml.gz
+[2025-08-26 14:45:50] ⚠️ Error detectando modelos OpenAI: Connection error.
+[2025-08-26 14:45:50] ✅ OpenAI usando modelo: gpt-3.5-turbo
+[2025-08-26 14:46:07] ✅ Guía generada en guide_custom.xml y comprimida en guide_custom.xml.gz
