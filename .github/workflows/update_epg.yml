@@ -2,14 +2,14 @@ name: Update EPG
 
 on:
   schedule:
-    - cron: "0 */12 * * *"   # cada 12 horas
-  workflow_dispatch:
+    - cron: "0 */12 * * *"  # cada 12 horas
+  workflow_dispatch:        # permite ejecución manual
 
 jobs:
   update:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write   # necesario para que github-actions[bot] pueda hacer push
 
     steps:
       - name: Clonar repositorio
@@ -25,14 +25,12 @@ jobs:
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade requests
-          pip install --upgrade openai
+          pip install --upgrade openai requests
 
       - name: Ejecutar script EPG
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_KEY_1: ${{ secrets.OPENAI_API_KEY_1 }}
           OPENAI_API_KEY_2: ${{ secrets.OPENAI_API_KEY_2 }}
           OPENAI_API_KEY_3: ${{ secrets.OPENAI_API_KEY_3 }}
@@ -41,7 +39,10 @@ jobs:
           OPENAI_API_KEY_6: ${{ secrets.OPENAI_API_KEY_6 }}
           OPENAI_API_KEY_7: ${{ secrets.OPENAI_API_KEY_7 }}
           OPENAI_API_KEY_8: ${{ secrets.OPENAI_API_KEY_8 }}
-        run: python generate_epg.py
+        run: |
+          echo "🚀 Ejecutando generate_epg.py..."
+          python generate_epg.py
+          echo "✅ Script finalizado."
 
       - name: Subir artefactos
         uses: actions/upload-artifact@v4
@@ -50,6 +51,7 @@ jobs:
           path: |
             guide_custom.xml
             guide_custom.xml.gz
+            epg_log.txt
 
       - name: Commit y Push resultados
         env:
@@ -57,6 +59,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add guide_custom.xml guide_custom.xml.gz epg_cache.json
+          git add guide_custom.xml guide_custom.xml.gz epg_cache.json epg_log.txt
           git commit -m "🔄 Actualización automática de EPG [skip ci]" || echo "No hay cambios"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main
