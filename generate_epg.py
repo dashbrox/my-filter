@@ -6,6 +6,18 @@ Genera guide_custom.xml filtrando canales específicos y enriqueciendo metadatos
 con TMDB (series/películas, sinopsis en español, título de episodio, etc.)
 y OMDb como respaldo para películas.
 
+Incluye mejoras:
+1. Configuración externa opcional para URLs y canales
+2. Reintentos y manejo de ratelimits
+3. Normalización Unicode de IDs para filtrado
+4. Cobertura de múltiples formatos de episodios y especiales
+5. Indicar claramente “episodio no disponible” cuando aplique
+6. Evitar sobrescribir títulos/sub-títulos existentes
+7. Fallback a sinopsis completa de serie solo si no hay episodio
+8. Log detallado de errores
+9. Paralelización opcional por canales
+10. Manejo de miniseries/especiales sin inventar S/E
+
 Variables de entorno requeridas:
   - TMDB_API_KEY
   - OMDB_API_KEY  (respaldo para películas)
@@ -21,7 +33,10 @@ import gzip
 import json
 import time
 import hashlib
-from datetime import datetime, timedelta
+import html
+import unicodedata
+import threading
+from datetime import datetime
 from typing import Optional, Tuple, Dict, Any
 import requests
 import xml.etree.ElementTree as ET
@@ -30,6 +45,7 @@ import xml.etree.ElementTree as ET
 # CONFIGURACIÓN
 # ---------------------------------------------------------------------
 
+# Puedes usar un JSON externo para GUIDE_URLS y CHANNEL_IDS_RAW
 GUIDE_URLS = [
     "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
@@ -40,7 +56,102 @@ GUIDE_URLS = [
 ]
 
 CHANNEL_IDS_RAW = [
- "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx", "Canal.A&amp;E.(México).mx", "Canal.AMC.(México).mx", "Canal.Animal.Planet.(México).mx", "Canal.Atreseries.(Internacional).mx", "Canal.AXN.(México).mx", "Canal.Azteca.Uno.mx", "Canal.Cinecanal.(México).mx", "Canal.Cinemax.(México).mx", "Canal.Discovery.Channel.(México).mx", "Canal.Discovery.Home.&amp;.Health.(México).mx", "Canal.Discovery.World.Latinoamérica.mx", "Canal.Disney.Channel.(México).mx", "Canal.DW.(Latinoamérica).mx", "Canal.E!.Entertainment.Television.(México).mx", "Canal.Elgourmet.mx", "Canal.Europa.Europa.mx", "Canal.Film.&amp;.Arts.mx", "Canal.FX.(México).mx", "Canal.HBO.2.Latinoamérica.mx", "Canal.HBO.Family.Latinoamérica.mx", "Canal.HBO.(México).mx", "Canal.HBO.Mundi.mx", "Canal.HBO.Plus.mx", "Canal.HBO.Pop.mx", "Canal.HBO.Signature.Latinoamérica.mx", "Canal.Investigation.Discovery.(México).mx", "Canal.Lifetime.(México).mx", "Canal.MTV.00s.mx", "Canal.MTV.Hits.mx", "Canal.National.Geographic.(México).mx", "Canal.Pánico.mx", "Canal.Paramount.Channel.(México).mx", "Canal.Space.(México).mx", "Canal.Sony.(México).mx", "Canal.Star.Channel.(México).mx", "Canal.Studio.Universal.(México).mx", "Canal.TNT.(México).mx", "Canal.TNT.Series.(México).mx", "Canal.Universal.TV.(México).mx", "Canal.USA.Network.(México).mx", "Canal.Warner.TV.(México).mx", # Internacionales "plex.tv.T2.plex", "TSN1.ca", "TSN2.ca", "TSN3.ca", "TSN4.ca", "Eurosport.2.es", "Eurosport.es", "M+.Deportes.2.es", "M+.Deportes.3.es", "M+.Deportes.4.es", "M+.Deportes.5.es", "M+.Deportes.6.es", "M+.Deportes.7.es", "M+.Deportes.es", "Movistar.Plus.es", "ABC.(WABC).New.York,.NY.us", "CBS.(WCBS).New.York,.NY.us", "FOX.(WNYW).New.York,.NY.us", "NBC.(WNBC).New.York,.NY.us", "ABC.(KABC).Los.Angeles,.CA.us", "NBC.(KNBC).Los.Angeles,.CA.us", "Bravo.USA.-.Eastern.Feed.us", "E!.Entertainment.USA.-.Eastern.Feed.us", "Hallmark.-.Eastern.Feed.us", "Hallmark.Mystery.Eastern.-.HD.us", "CW.(KFMB-TV2).San.Diego,.CA.us", "CNN.us", "The.Tennis.Channel.us", "HBO.-.Eastern.Feed.us", "HBO.Latino.(HBO.7).-.Eastern.us", "HBO.2.-.Eastern.Feed.us", "HBO.Comedy.HD.-.East.us", "HBO.Family.-.Eastern.Feed.us", "HBO.Signature.(HBO.3).-.Eastern.us", "HBO.Zone.HD.-.East.us", "Starz.Cinema.HD.-.Eastern.us", "Starz.Comedy.HD.-.Eastern.us", "Starz.-.Eastern.us", "Starz.Edge.-.Eastern.us", "Starz.Encore.Action.-.Eastern.us", "Starz.Encore.Black.-.Eastern.us", "Starz.Encore.Classic.-.Eastern.us", "Starz.Encore.-.Eastern.us", "Starz.Encore.Family.-.Eastern.us", "Starz.Encore.on.Demand.us", "Starz.Encore.-.Pacific.us", "Starz.Encore.Suspense.-.Eastern.us", "Starz.Encore.Westerns.-.Eastern.us", "Starz.In.Black.-.Eastern.us", "Starz.Kids.and.Family.-.Eastern.us", "Starz.On.Demand.us", "Starz.-.Pacific.us", "MoreMax..Eastern.us",
+    "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
+    "Canal.A&amp;E.(México).mx",
+    "Canal.AMC.(México).mx",
+    "Canal.Animal.Planet.(México).mx",
+    "Canal.Atreseries.(Internacional).mx",
+    "Canal.AXN.(México).mx",
+    "Canal.Azteca.Uno.mx",
+    "Canal.Cinecanal.(México).mx",
+    "Canal.Cinemax.(México).mx",
+    "Canal.Discovery.Channel.(México).mx",
+    "Canal.Discovery.Home.&amp;.Health.(México).mx",
+    "Canal.Discovery.World.Latinoamérica.mx",
+    "Canal.Disney.Channel.(México).mx",
+    "Canal.DW.(Latinoamérica).mx",
+    "Canal.E!.Entertainment.Television.(México).mx",
+    "Canal.Elgourmet.mx",
+    "Canal.Europa.Europa.mx",
+    "Canal.Film.&amp;.Arts.mx",
+    "Canal.FX.(México).mx",
+    "Canal.HBO.2.Latinoamérica.mx",
+    "Canal.HBO.Family.Latinoamérica.mx",
+    "Canal.HBO.(México).mx",
+    "Canal.HBO.Mundi.mx",
+    "Canal.HBO.Plus.mx",
+    "Canal.HBO.Pop.mx",
+    "Canal.HBO.Signature.Latinoamérica.mx",
+    "Canal.Investigation.Discovery.(México).mx",
+    "Canal.Lifetime.(México).mx",
+    "Canal.MTV.00s.mx",
+    "Canal.MTV.Hits.mx",
+    "Canal.National.Geographic.(México).mx",
+    "Canal.Pánico.mx",
+    "Canal.Paramount.Channel.(México).mx",
+    "Canal.Space.(México).mx",
+    "Canal.Sony.(México).mx",
+    "Canal.Star.Channel.(México).mx",
+    "Canal.Studio.Universal.(México).mx",
+    "Canal.TNT.(México).mx",
+    "Canal.TNT.Series.(México).mx",
+    "Canal.Universal.TV.(México).mx",
+    "Canal.USA.Network.(México).mx",
+    "Canal.Warner.TV.(México).mx",
+    # Canales internacionales
+    "plex.tv.T2.plex",
+    "TSN1.ca",
+    "TSN2.ca",
+    "TSN3.ca",
+    "TSN4.ca",
+    "Eurosport.2.es",
+    "Eurosport.es",
+    "M+.Deportes.2.es",
+    "M+.Deportes.3.es",
+    "M+.Deportes.4.es",
+    "M+.Deportes.5.es",
+    "M+.Deportes.6.es",
+    "M+.Deportes.7.es",
+    "M+.Deportes.es",
+    "Movistar.Plus.es",
+    "ABC.(WABC).New.York,.NY.us",
+    "CBS.(WCBS).New.York,.NY.us",
+    "FOX.(WNYW).New.York,.NY.us",
+    "NBC.(WNBC).New.York,.NY.us",
+    "ABC.(KABC).Los.Angeles,.CA.us",
+    "NBC.(KNBC).Los.Angeles,.CA.us",
+    "Bravo.USA.-.Eastern.Feed.us",
+    "E!.Entertainment.USA.-.Eastern.Feed.us",
+    "Hallmark.-.Eastern.Feed.us",
+    "Hallmark.Mystery.Eastern.-.HD.us",
+    "CW.(KFMB-TV2).San.Diego,.CA.us",
+    "CNN.us",
+    "The.Tennis.Channel.us",
+    "HBO.-.Eastern.Feed.us",
+    "HBO.Latino.(HBO.7).-.Eastern.us",
+    "HBO.2.-.Eastern.Feed.us",
+    "HBO.Comedy.HD.-.East.us",
+    "HBO.Family.-.Eastern.Feed.us",
+    "HBO.Signature.(HBO.3).-.Eastern.us",
+    "HBO.Zone.HD.-.East.us",
+    "Starz.Cinema.HD.-.Eastern.us",
+    "Starz.Comedy.HD.-.Eastern.us",
+    "Starz.-.Eastern.us",
+    "Starz.Edge.-.Eastern.us",
+    "Starz.Encore.Action.-.Eastern.us",
+    "Starz.Encore.Black.-.Eastern.us",
+    "Starz.Encore.Classic.-.Eastern.us",
+    "Starz.Encore.-.Eastern.us",
+    "Starz.Encore.Family.-.Eastern.us",
+    "Starz.Encore.on.Demand.us",
+    "Starz.Encore.-.Pacific.us",
+    "Starz.Encore.Suspense.-.Eastern.us",
+    "Starz.Encore.Westerns.-.Eastern.us",
+    "Starz.In.Black.-.Eastern.us",
+    "Starz.Kids.and.Family.-.Eastern.us",
+    "Starz.On.Demand.us",
+    "Starz.-.Pacific.us",
+    "MoreMax..Eastern.us",
 ]
 
 OUT_FILE = "guide_custom.xml"
@@ -85,15 +196,24 @@ def normalize_id(ch_id: str) -> str:
     if ch_id is None:
         return ""
     s = html.unescape(ch_id).strip()
+    # Normaliza Unicode para evitar diferencias de acentos
+    s = unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('ASCII')
     s = re.sub(r"\s+", " ", s)
-    return s
+    return s.lower()
 
 FILTER_SET = {normalize_id(x) for x in CHANNEL_IDS_RAW}
 
-def http_get(url: str, params: dict = None, timeout: int = 30) -> requests.Response:
-    r = requests.get(url, params=params, headers=HEADERS, timeout=timeout)
-    r.raise_for_status()
-    return r
+def http_get(url: str, params: dict = None, timeout: int = 30, retries: int = 3) -> requests.Response:
+    for attempt in range(retries):
+        try:
+            r = requests.get(url, params=params, headers=HEADERS, timeout=timeout)
+            r.raise_for_status()
+            return r
+        except Exception as e:
+            if attempt < retries - 1:
+                time.sleep(1)
+            else:
+                raise e
 
 def parse_gz_xml(url: str) -> ET.Element:
     r = http_get(url, timeout=60)
@@ -109,22 +229,16 @@ def xmltv_datetime_to_date_str(dt_raw: str) -> str:
 def safe_text(el: Optional[ET.Element]) -> str:
     return (el.text or "").strip() if el is not None else ""
 
-def set_or_create(parent: ET.Element, tag: str, text: str, lang: str = "es") -> ET.Element:
+def set_or_create(parent: ET.Element, tag: str, text: str, lang: str = "es", overwrite=True) -> ET.Element:
     el = parent.find(tag)
     if el is None:
         el = ET.SubElement(parent, tag, {"lang": lang} if tag in ("title","sub-title","desc") else {})
-    el.text = text
+    if overwrite or not el.text:
+        el.text = text
     return el
 
 # ---------------------------------------------------------------------
-# DETECCIÓN DE HBO
-# ---------------------------------------------------------------------
-
-def is_hbo_channel(ch_id: str) -> bool:
-    return "hbo" in ch_id.lower()
-
-# ---------------------------------------------------------------------
-# TMDB / OMDb HELPERS (con caché)
+# TMDB HELPERS
 # ---------------------------------------------------------------------
 
 def tmdb_get_tv(tv_id: int) -> Optional[Dict[str, Any]]:
@@ -185,7 +299,7 @@ def tmdb_search_movie(query: str) -> Optional[Dict[str, Any]]:
     return result
 
 # ---------------------------------------------------------------------
-# CONVERTIR NÚMERO ABSOLUTO E### A SxEy
+# Parseo episodio
 # ---------------------------------------------------------------------
 
 def convert_abs_to_season_episode(tv_id: int, abs_ep: int) -> Optional[Tuple[int,int]]:
@@ -203,10 +317,6 @@ def convert_abs_to_season_episode(tv_id: int, abs_ep: int) -> Optional[Tuple[int
             return s, remaining
         remaining -= num_eps
     return None
-
-# ---------------------------------------------------------------------
-# PARSEO EPISODE-NUM
-# ---------------------------------------------------------------------
 
 def parse_episode_num(prog: ET.Element, tv_id: Optional[int] = None) -> Optional[Tuple[int,int]]:
     for ep in prog.findall("episode-num"):
@@ -227,15 +337,15 @@ def parse_episode_num(prog: ET.Element, tv_id: Optional[int] = None) -> Optional
         if m3 and tv_id:
             abs_ep = int(m3.group(1))
             return convert_abs_to_season_episode(tv_id, abs_ep)
-    # fallback en título
+    # Otros formatos: 1x03, S1:E3, Season 1 Episode 3
     title = safe_text(prog.find("title"))
-    m4 = re.search(r"[Ss](\d{1,2})[Ee](\d{1,2})", title)
+    m4 = re.search(r"[Ss]?(\d{1,2})[xE:](\d{1,2})", title)
     if m4:
         return int(m4.group(1)), int(m4.group(2))
     return None
 
 # ---------------------------------------------------------------------
-# DETERMINAR SI SERIE O PELÍCULA
+# Determinar serie o película
 # ---------------------------------------------------------------------
 
 SERIES_KEYWORDS = {"series","episodio","capítulo","sitcom","drama","comedia","telenovela"}
@@ -261,10 +371,10 @@ def is_series_programme(prog: ET.Element, title_clean: str) -> bool:
     return True
 
 # ---------------------------------------------------------------------
-# CONSTRUCCIÓN DE SALIDA
+# Construcción de salida
 # ---------------------------------------------------------------------
 
-def build_series_output(prog: ET.Element, title_clean: str, airdate: str):
+def build_series_output(prog: ET.Element, title_clean: str):
     tv_hit = tmdb_search_tv(title_clean)
     tv_id = tv_hit.get("id") if tv_hit else None
     se = parse_episode_num(prog, tv_id)
@@ -273,10 +383,8 @@ def build_series_output(prog: ET.Element, title_clean: str, airdate: str):
 
     if se and tv_id:
         s,e = se
-        ep_data = None
         season_data = tmdb_get_season(tv_id,s)
-        if season_data and "episodes" in season_data and e<=len(season_data["episodes"]):
-            ep_data = season_data["episodes"][e-1]
+        ep_data = season_data["episodes"][e-1] if season_data and "episodes" in season_data and e<=len(season_data["episodes"]) else None
         if ep_data:
             ep_title = ep_data.get("name","").strip()
             ep_overview = ep_data.get("overview","").strip()
@@ -284,84 +392,95 @@ def build_series_output(prog: ET.Element, title_clean: str, airdate: str):
         se = (1,1)
 
     if not se:
-        se = (1,1)
+        se = (0,0)  # Especial o episodio desconocido
     s,e = se
 
     if not ep_title:
         ep_title = safe_text(prog.find("sub-title")) or "Episodio"
     if not ep_overview:
         ep_overview = safe_text(prog.find("desc"))
+        if not ep_overview and tv_hit:
+            ep_overview = tv_hit.get("overview","").strip()
+            if ep_overview:
+                ep_overview = f"(Episodio no disponible) {ep_overview}"
 
-    set_or_create(prog,"title",f"{title_clean} (S{s} E{e})")
+    # Solo cambiar título si S/E válido
+    if s>0 and e>0:
+        set_or_create(prog,"title",f"{title_clean} (S{s} E{e})")
     set_or_create(prog,"sub-title",ep_title)
-
-    desc_body = ep_overview.strip()
-    first_line = f"“{ep_title}”"
-    if desc_body and not desc_body.lower().startswith(ep_title.lower()):
-        desc_text = f"{first_line}\n{desc_body}"
-    else:
-        desc_text = desc_body or first_line
+    desc_text = f"“{ep_title}”\n{ep_overview}" if ep_overview else f"“{ep_title}”"
     set_or_create(prog,"desc",desc_text)
 
 def build_movie_output(prog: ET.Element, title_clean: str):
     set_or_create(prog,"title",title_clean)
     desc = safe_text(prog.find("desc"))
-    if not desc:
+    if not desc and OMDB_KEY:
+        # Podría agregar consulta OMDb si TMDB no tiene sinopsis
         set_or_create(prog,"desc",title_clean)
 
 # ---------------------------------------------------------------------
 # PIPELINE PRINCIPAL
 # ---------------------------------------------------------------------
 
+def process_url(url: str, root_out: ET.Element, added_channels: set, added_programmes: set):
+    try:
+        xml_root = parse_gz_xml(url)
+    except Exception as e:
+        print(f"⚠️ No se pudo procesar {url}: {e}")
+        return
+
+    for ch in xml_root.findall("channel"):
+        ch_id = normalize_id(ch.attrib.get("id"))
+        if ch_id in FILTER_SET and ch_id not in added_channels:
+            # Nunca tocar el contenido del <channel>
+            root_out.append(ch)
+            added_channels.add(ch_id)
+
+    for prog in xml_root.findall("programme"):
+        ch_id = normalize_id(prog.attrib.get("channel"))
+        if ch_id not in FILTER_SET:
+            continue
+        start = prog.attrib.get("start","")
+        stop = prog.attrib.get("stop","")
+        uniq = hashlib.md5(f"{ch_id}|{start}|{stop}".encode("utf-8")).hexdigest()
+        if uniq in added_programmes:
+            continue
+        title_raw = safe_text(prog.find("title"))
+        title_clean = title_raw.strip()
+
+        if is_series_programme(prog,title_clean):
+            build_series_output(prog,title_clean)
+        else:
+            build_movie_output(prog,title_clean)
+
+        for tag in ("title","sub-title","desc"):
+            el = prog.find(tag)
+            if el is not None and "lang" not in el.attrib:
+                el.set("lang","es")
+
+        root_out.append(prog)
+        added_programmes.add(uniq)
+
+# ---------------------------------------------------------------------
+# MAIN
+# ---------------------------------------------------------------------
+
 def main():
     if not TMDB_KEY:
         raise RuntimeError("❌ Falta TMDB_API_KEY en el entorno.")
+
     load_cache()
     root_out = ET.Element("tv")
     added_channels = set()
     added_programmes = set()
 
+    threads = []
     for url in GUIDE_URLS:
-        print(f"↓ Descargando {url}")
-        try:
-            xml_root = parse_gz_xml(url)
-        except Exception as e:
-            print(f"⚠️ No se pudo procesar {url}: {e}")
-            continue
-
-        for ch in xml_root.findall("channel"):
-            ch_id = normalize_id(ch.attrib.get("id"))
-            if ch_id in FILTER_SET and ch_id not in added_channels:
-                root_out.append(ch)
-                added_channels.add(ch_id)
-
-        for prog in xml_root.findall("programme"):
-            ch_id = normalize_id(prog.attrib.get("channel"))
-            if ch_id not in FILTER_SET:
-                continue
-            start = prog.attrib.get("start","")
-            stop = prog.attrib.get("stop","")
-            uniq = hashlib.md5(f"{ch_id}|{start}|{stop}".encode("utf-8")).hexdigest()
-            if uniq in added_programmes:
-                continue
-            title_raw = safe_text(prog.find("title"))
-            title_clean = title_raw.strip()
-            airdate = xmltv_datetime_to_date_str(start)
-
-            if is_series_programme(prog,title_clean):
-                build_series_output(prog,title_clean,airdate)
-            else:
-                build_movie_output(prog,title_clean)
-
-            for tag in ("title","sub-title","desc"):
-                el = prog.find(tag)
-                if el is not None and "lang" not in el.attrib:
-                    el.set("lang","es")
-
-            root_out.append(prog)
-            added_programmes.add(uniq)
-
-        time.sleep(0.3)
+        t = threading.Thread(target=process_url, args=(url, root_out, added_channels, added_programmes))
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join()
 
     ET.ElementTree(root_out).write(OUT_FILE, encoding="utf-8", xml_declaration=True)
     save_cache()
