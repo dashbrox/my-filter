@@ -986,3 +986,6 @@
 [2025-08-27 01:09:46] ⚠️ OpenAI falló con key 6: Connection error.
 [2025-08-27 01:09:47] ⚠️ OpenAI falló con key 7: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
 [2025-08-27 01:09:48] ✅ Guía generada en guide_custom.xml y comprimida en guide_custom.xml.gz
+[2025-08-27 12:29:12] ⚠️ Error detectando modelos OpenAI: Connection error.
+[2025-08-27 12:29:12] ✅ OpenAI usando modelo: gpt-3.5-turbo
+[2025-08-27 12:29:22] ✅ Guía generada en guide_custom.xml y comprimida en guide_custom.xml.gz
