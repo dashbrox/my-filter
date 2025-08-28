@@ -3,17 +3,40 @@
 
 """
 Genera guide_custom.xml filtrando canales específicos y enriqueciendo metadatos
-con TMDB y OMDb. Usa GPT-5-mini solo para mejorar sinopsis cuando no haya datos fiables.
+con TMDB (series/películas, sinopsis en español, título de episodio, etc.)
+y OMDb como respaldo para películas. 
+Solo TMDB y OMDb, sin Google KG.
+
+Principios:
+- NUNCA modificamos <channel> (id, display-name, icon, url).
+- No inventamos S/E ni años.
+- Añadimos sinopsis solo si es confiable (TMDB, OMDb).
+- Primera comprobación: TMDB, luego OMDb.
+
+Requerido en entorno:
+- TMDB_API_KEY
+- OMDB_API_KEY  (recomendado)
+
+Salida:
+- guide_custom.xml
 """
 
 from __future__ import annotations
-import os, re, io, gzip, json, time, hashlib, html, unicodedata, threading, logging
+import os
+import re
+import io
+import gzip
+import json
+import time
+import hashlib
+import html
+import unicodedata
+import threading
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, Dict, Any
 import requests
 import xml.etree.ElementTree as ET
-import itertools
-import openai
 
 # ---------------------------
 # CONFIG / KEYS
@@ -129,22 +152,9 @@ CHANNEL_IDS_RAW = [
 OUT_FILE = "guide_custom.xml"
 TMDB_KEY = os.getenv("TMDB_API_KEY", "").strip()
 OMDB_KEY = os.getenv("OMDB_API_KEY", "").strip()
-OPENAI_KEYS = [
-    os.getenv("OPENAI_API_KEY"),
-    os.getenv("OPENAI_API_KEY_1"),
-    os.getenv("OPENAI_API_KEY_2"),
-    os.getenv("OPENAI_API_KEY_3"),
-    os.getenv("OPENAI_API_KEY_4"),
-    os.getenv("OPENAI_API_KEY_5"),
-    os.getenv("OPENAI_API_KEY_6"),
-    os.getenv("OPENAI_API_KEY_7"),
-    os.getenv("OPENAI_API_KEY_8"),
-]
-OPENAI_KEYS = [k for k in OPENAI_KEYS if k]
-key_cycle = itertools.cycle(OPENAI_KEYS)
 
 HEADERS = {
-    "User-Agent": "EPG-Builder/1.0",
+    "User-Agent": "EPG-Builder/1.0 (+https://github.com/dashbrox/my-filter)",
     "Accept-Language": "es-ES,es;q=0.9",
 }
 
@@ -250,7 +260,7 @@ def set_or_create(parent: ET.Element, tag: str, text: str, lang: str = "es", ove
     return el
 
 # ---------------------------
-# TMDB / OMDb lookups
+# EXTERNAL LOOKUPS (TMDB, OMDb)
 # ---------------------------
 def tmdb_search_movie(query: str) -> Optional[Dict[str,Any]]:
     key = f"tmdb_movie:{query}".lower()
@@ -326,204 +336,106 @@ def omdb_lookup_title(query: str) -> Optional[Dict[str,Any]]:
     return res
 
 # ---------------------------
-# OpenAI GPT-5-mini synopsis enhancement
-# ---------------------------
-def get_next_openai_key() -> str:
-    return next(key_cycle)
-
-def gpt_enhance_synopsis(title: str, existing_desc: str = "") -> str:
-    if not OPENAI_KEYS:
-        return existing_desc
-    key = get_next_openai_key()
-    openai.api_key = key
-    logging.info(f"GPT mejora: '{title}' con clave {key[:6]}...")
-    prompt = f"""
-    Tienes información parcial:
-    Título: {title}
-    Sinopsis actual: {existing_desc if existing_desc else '(vacía)'}
-    Mejora la sinopsis de forma clara y breve. No inventes hechos.
-    """
-    try:
-        response = openai.chat.completions.create(
-            model="gpt-5-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0
-        )
-        enhanced = response.choices[0].message.content.strip()
-        logging.info(f"Sinopsis mejorada GPT: {enhanced[:60]}...")
-        return enhanced
-    except Exception as e:
-        logging.warning(f"No se pudo mejorar sinopsis GPT: {e}")
-        return existing_desc
-
-# ---------------------------
 # Episode parsing
 # ---------------------------
 def convert_abs_to_season_episode(tv_id: int, abs_ep: int) -> Optional[Tuple[int,int]]:
     tv_data = tmdb_get_tv(tv_id)
     if not tv_data:
         return None
-    remaining = abs_ep
-    num_seasons = tv_data.get("number_of_seasons", 0)
-    for s in range(1, num_seasons+1):
-        season_data = tmdb_get_season(tv_id, s)
-        if not season_data or "episodes" not in season_data:
+    for season in tv_data.get("seasons", []):
+        s_num = season.get("season_number")
+        if s_num == 0:  # specials
             continue
-        num_eps = len(season_data["episodes"])
-        if remaining <= num_eps:
-            return s, remaining
-        remaining -= num_eps
-    return None
-
-def parse_episode_num(prog: ET.Element, tv_id: Optional[int]=None) -> Optional[Tuple[int,int]]:
-    for ep in prog.findall("episode-num"):
-        val = safe_text(ep)
-        if not val:
-            continue
-        sys = (ep.attrib.get("system") or "").lower().strip()
-        m = re.match(r"(\d+)\.(\d+)", val)
-        if sys == "xmltv_ns" and m:
-            return int(m.group(1))+1, int(m.group(2))+1
-        m2 = re.search(r"[Ss](\d{1,2})[Ee](\d{1,2})", val)
-        if m2:
-            return int(m2.group(1)), int(m2.group(2))
-        m3 = re.match(r"E(\d+)", val)
-        if m3 and tv_id:
-            return convert_abs_to_season_episode(tv_id, int(m3.group(1)))
-    title = safe_text(prog.find("title"))
-    if title:
-        m4 = re.search(r"[Ss]?(\d{1,2})[xXeE:](\d{1,2})", title)
-        if m4:
-            return int(m4.group(1)), int(m4.group(2))
-        m5 = re.search(r"season\s*(\d{1,2}).*episode\s*(\d{1,3})", title.lower())
-        if m5:
-            return int(m5.group(1)), int(m5.group(2))
+        s_detail = tmdb_get_season(tv_id, s_num)
+        eps = s_detail.get("episodes", [])
+        for idx, ep in enumerate(eps, start=1):
+            if ep.get("episode_number") == abs_ep:
+                return (s_num, idx)
     return None
 
 # ---------------------------
-# Series / Movie decision
+# PROCESSING PROGRAMS
 # ---------------------------
-CHANNEL_PREFERENCES = {
-    r"\bhbo\b": True,
-    r"\bcinemax\b": True,
-    r"\bmax\b": True,
-    r"\bparamount\b": True,
-    r"\btnt\b": True,
-    r"\bspace\b": True,
-    r"\bdisney\." : False,
-    r"\bnetflix\b": False,
-    r"\bprime video\b": False,
-}
+def process_programme(prog: ET.Element):
+    title_el = prog.find("title")
+    title_raw = safe_text(title_el)
+    if not title_raw:
+        return
+    desc_el = prog.find("desc")
+    desc_raw = safe_text(desc_el)
 
-def channel_prefers_movie(channel_id: str) -> Optional[bool]:
-    low = channel_id.lower()
-    for patt, val in CHANNEL_PREFERENCES.items():
-        if re.search(patt, low):
-            return val
-    return None
+    # Decide si serie o película
+    is_series = bool(prog.find("episode-num"))
+    is_movie = not is_series
 
-def is_series_programme(prog: ET.Element, title_clean: str) -> bool:
-    title_l = title_clean.lower()
-    sub = safe_text(prog.find("sub-title"))
-    cats = [safe_text(c).lower() for c in prog.findall("category")]
+    # -----------------
+    # SERIES
+    # -----------------
+    if is_series and TMDB_KEY:
+        # extraer S/E
+        ep_el = prog.find("episode-num")
+        ep_text = safe_text(ep_el)
+        s_num, e_num = None, None
+        m = re.match(r"(?i)s(\d+)[ex](\d+)", ep_text)
+        if m:
+            s_num, e_num = int(m.group(1)), int(m.group(2))
+        elif ep_text.isdigit():
+            # podría ser episodio absoluto
+            tv_data = tmdb_search_tv(title_raw)
+            if tv_data:
+                s_e = convert_abs_to_season_episode(tv_data.get("id"), int(ep_text))
+                if s_e:
+                    s_num, e_num = s_e
+        if s_num and e_num:
+            set_or_create(prog, "episode-num", f"S{s_num:02d}E{e_num:02d}", overwrite=True)
+        # obtener sinopsis
+        tv_data = tmdb_search_tv(title_raw)
+        if tv_data:
+            full_tv = tmdb_get_tv(tv_data.get("id"))
+            if full_tv:
+                set_or_create(prog, "sub-title", full_tv.get("name",""))
+                set_or_create(prog, "desc", full_tv.get("overview",""))
 
-    if parse_episode_num(prog):
-        return True
-
-    ch_raw = prog.attrib.get("channel","")
-    ch_norm = normalize_id(ch_raw)
-    ch_pref = channel_prefers_movie(ch_norm)
-    if ch_pref is True:
-        if sub and re.search(r"(episodio|cap[ií]tulo|temporada|s\d+e\d+|t\d+e\d+)", sub.lower()):
-            return True
-        if re.search(r"(episodio|cap[ií]tulo|temporada|s\d+e\d+|t\d+e\d+)", title_l):
-            return True
-        return False
-    if ch_pref is False:
-        if re.search(r"(episodio|cap[ií]tulo|temporada|s\d+e\d+|t\d+e\d+)", sub.lower() + " " + title_l):
-            return True
-        return False
-
-    if any(re.search(r"(episodio|cap[ií]tulo|temporada|s\d+e\d+|t\d+e\d+)", c) for c in cats):
-        return True
-
-    return False
-
-# ---------------------------
-# Build output XML
-# ---------------------------
-def build_guide_output(root: ET.Element) -> ET.Element:
-    out_root = ET.Element("tv")
-    for ch in root.findall("channel"):
-        ch_id = normalize_id(ch.attrib.get("id",""))
-        if ch_id not in FILTER_SET:
-            continue
-        out_root.append(ch)
-
-    for prog in root.findall("programme"):
-        ch_id = normalize_id(prog.attrib.get("channel",""))
-        if ch_id not in FILTER_SET:
-            continue
-
-        title_el = prog.find("title")
-        title_clean = safe_text(title_el)
-        if not title_clean:
-            continue
-
-        if is_series_programme(prog, title_clean):
-            # --- SERIES ---
-            ep_tuple = parse_episode_num(prog)
-            season_num, ep_num = ep_tuple if ep_tuple else (None, None)
-
-            tmdb_hit = tmdb_search_tv(title_clean)
-            tv_overview = tmdb_hit.get("overview","") if tmdb_hit else ""
-            if not tv_overview:
-                om_hit = omdb_lookup_title(title_clean)
-                tv_overview = om_hit.get("Plot","") if om_hit else ""
-            # Mejorar con GPT solo si no hay TMDB/OMDb confiable
-            tv_overview = gpt_enhance_synopsis(title_clean, tv_overview) if not tv_overview else tv_overview
-
-            set_or_create(prog, "sub-title", title_clean)
-            set_or_create(prog, "desc", tv_overview)
-
-        else:
-            # --- MOVIES ---
-            tmdb_hit = tmdb_search_movie(title_clean)
-            om_hit = omdb_lookup_title(title_clean)
-            desc_text = tmdb_hit.get("overview","") if tmdb_hit else ""
-            if not desc_text and om_hit:
-                desc_text = om_hit.get("Plot","")
-            if not desc_text:
-                desc_text = gpt_enhance_synopsis(title_clean)
-            set_or_create(prog, "desc", desc_text)
-
-        out_root.append(prog)
-        logging.info(f"Procesado: {title_clean}")
-
-    return out_root
+    # -----------------
+    # PELÍCULAS
+    # -----------------
+    if is_movie and TMDB_KEY:
+        movie_data = tmdb_search_movie(title_raw)
+        if movie_data:
+            year = movie_data.get("release_date","")[:4] or ""
+            set_or_create(prog, "title", f"{title_raw} ({year})")
+            set_or_create(prog, "desc", movie_data.get("overview",""))
+        elif OMDB_KEY:
+            movie_data = omdb_lookup_title(title_raw)
+            if movie_data:
+                year = movie_data.get("Year","")
+                set_or_create(prog, "title", f"{title_raw} ({year})")
+                set_or_create(prog, "desc", movie_data.get("Plot",""))
 
 # ---------------------------
 # MAIN
 # ---------------------------
 def main():
     load_cache()
-    final_root = ET.Element("tv")
     for url in GUIDE_URLS:
+        logging.info(f"Procesando guía {url}")
         try:
-            src_root = parse_gz_xml(url)
-            guide_out = build_guide_output(src_root)
-            for el in guide_out:
-                final_root.append(el)
+            root = parse_gz_xml(url)
         except Exception as e:
-            logging.warning(f"Error procesando {url}: {e}")
-
+            logging.warning(f"No se pudo abrir {url}: {e}")
+            continue
+        progs = root.findall("programme")
+        filtered = [p for p in progs if normalize_id(p.attrib.get("channel")) in FILTER_SET]
+        logging.info(f"Total programas: {len(progs)}, Filtrados: {len(filtered)}")
+        for i, prog in enumerate(filtered, start=1):
+            process_programme(prog)
+            if i % 50 == 0:
+                logging.info(f"Procesados {i}/{len(filtered)} programas")
+        tree = ET.ElementTree(root)
+        tree.write(OUT_FILE, encoding="utf-8", xml_declaration=True)
+        logging.info(f"Guardado {OUT_FILE}")
     save_cache()
-    tree = ET.ElementTree(final_root)
-    tree.write(OUT_FILE, encoding="utf-8", xml_declaration=True)
-    logging.info(f"Archivo generado: {OUT_FILE}")
-
-if __name__ == "__main__":
-    main()
+    logging.info("Cache guardada.")
 
 if __name__ == "__main__":
     main()
