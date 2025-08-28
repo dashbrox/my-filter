@@ -28,11 +28,10 @@ import io
 import gzip
 import json
 import time
-import hashlib
 import html
 import unicodedata
-import threading
 import logging
+import argparse
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, Dict, Any
 import requests
@@ -51,7 +50,6 @@ GUIDE_URLS = [
 ]
 
 CHANNEL_IDS_RAW = [
-    # (mantén todos los canales que ya tenías, no borrar)
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
@@ -184,7 +182,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 # ---------------------------
 # UTILITIES & CACHE
 # ---------------------------
-
 def load_cache():
     global CACHE
     if os.path.exists(CACHE_PATH):
@@ -251,19 +248,6 @@ def xmltv_datetime_parse(dt_raw: str) -> datetime:
         return (dt - offset).replace(tzinfo=timezone.utc)
     return dt.replace(tzinfo=timezone.utc)
 
-def duration_minutes_from_prog(prog: ET.Element) -> Optional[int]:
-    try:
-        start = prog.attrib.get("start","")
-        stop = prog.attrib.get("stop","")
-        if not start or not stop:
-            return None
-        s_dt = xmltv_datetime_parse(start)
-        e_dt = xmltv_datetime_parse(stop)
-        delta = e_dt - s_dt
-        return int(delta.total_seconds() // 60)
-    except Exception:
-        return None
-
 def safe_text(el: Optional[ET.Element]) -> str:
     return (el.text or "").strip() if el is not None else ""
 
@@ -278,7 +262,6 @@ def set_or_create(parent: ET.Element, tag: str, text: str, lang: str = "es", ove
 # ---------------------------
 # TMDB / OMDb lookups
 # ---------------------------
-
 def tmdb_search_movie(query: str) -> Optional[Dict[str,Any]]:
     key = f"tmdb_movie:{query}".lower()
     cached = cache_get("tmdb", key)
@@ -327,9 +310,8 @@ def omdb_lookup(title: str, year: Optional[int] = None, type_: str="movie") -> O
     return res
 
 # ---------------------------
-# GPT SYNOPSIS
+# GPT-5 MINI SYNOPSIS
 # ---------------------------
-
 def rotate_openai_key():
     global _openai_key_index
     if not OPENAI_KEYS:
@@ -350,7 +332,7 @@ def gpt_enhance_synopsis(prompt: str, existing_desc: str = "") -> str:
         try:
             openai.api_key = key
             response = openai.ChatCompletion.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 messages=[
                     {"role":"system","content":"Eres un asistente que resume y mejora sinopsis de series y películas."},
                     {"role":"user","content":prompt}
@@ -373,12 +355,7 @@ def gpt_enhance_synopsis(prompt: str, existing_desc: str = "") -> str:
 # ---------------------------
 # EPISODE PARSING
 # ---------------------------
-
 def parse_episode_number(elem: ET.Element) -> Optional[Tuple[int,int]]:
-    """
-    Intenta detectar S/E en:
-    <episode-num system="onscreen">S7 E8</episode-num>
-    """
     en = elem.find("episode-num")
     if en is not None and en.text:
         m = re.search(r"S(\d+)\s*E(\d+)", en.text, re.IGNORECASE)
@@ -387,9 +364,8 @@ def parse_episode_number(elem: ET.Element) -> Optional[Tuple[int,int]]:
     return None
 
 # ---------------------------
-# MAIN PROCESS
+# PROGRAMME PROCESS
 # ---------------------------
-
 def process_programme(prog: ET.Element):
     title_el = prog.find("title")
     sub_el = prog.find("sub-title")
@@ -401,7 +377,6 @@ def process_programme(prog: ET.Element):
     category_text = safe_text(category_el).lower()
     season_episode = parse_episode_number(prog)
 
-    # Solo intentamos mejorar si hay TMDB/OMDb
     enhanced_desc = desc_text
     if "serie" in category_text and season_episode:
         tv_data = tmdb_search_tv(title_text)
@@ -417,16 +392,26 @@ def process_programme(prog: ET.Element):
             if omdb_data:
                 enhanced_desc = omdb_data.get("Plot") or enhanced_desc
 
-    # GPT mejora opcional
     if OPENAI_KEYS:
         prompt = f"Mejora esta sinopsis para '{title_text}': {enhanced_desc}"
         enhanced_desc = gpt_enhance_synopsis(prompt, existing_desc=enhanced_desc)
 
     set_or_create(prog, "desc", enhanced_desc)
 
+# ---------------------------
+# MAIN
+# ---------------------------
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--reset", action="store_true", help="Eliminar caché y reiniciar biblioteca")
+    args = parser.parse_args()
+
+    if args.reset and os.path.exists(CACHE_PATH):
+        os.remove(CACHE_PATH)
+        logging.info("Caché antiguo eliminado. Biblioteca reiniciada.")
+
     load_cache()
-    # Descargar y combinar todos los XML
+
     programmes = []
     for url in GUIDE_URLS:
         logging.info("Descargando y parseando: %s", url)
@@ -437,19 +422,18 @@ def main():
                 programmes.append(prog)
     logging.info("Programas filtrados: %d", len(programmes))
 
-    # Procesar programas
     for idx, prog in enumerate(programmes,1):
         process_programme(prog)
         if idx % 50 == 0:
             logging.info("Procesados %d programas...", idx)
 
-    # Guardar resultado
     tv = ET.Element("tv")
     for prog in programmes:
         tv.append(prog)
     tree = ET.ElementTree(tv)
     tree.write(OUT_FILE, encoding="utf-8", xml_declaration=True)
     logging.info("Archivo generado: %s", OUT_FILE)
+
     save_cache()
 
 if __name__ == "__main__":
