@@ -1,33 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-Genera guide_custom.xml filtrando canales específicos y enriqueciendo metadatos
-con TMDB (series/películas, sinopsis en español) y OMDb como respaldo para películas.
-Opcional: usa GPT para mejorar sinopsis si hay claves OpenAI disponibles.
-"""
-
-from __future__ import annotations
-import os, re, io, gzip, json, time, html, unicodedata, logging, argparse
-from datetime import datetime, timezone, timedelta
-from typing import Optional, Tuple, Dict, Any
-import requests
+import os
+import gzip
 import xml.etree.ElementTree as ET
+import requests
+import json
+from pathlib import Path
+from urllib.parse import quote
+from itertools import cycle
+import time
 
-# ---------------------------
-# CONFIG / KEYS
-# ---------------------------
-GUIDE_URLS = [
-    "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz",
-]
-
-CHANNEL_IDS_RAW = [
-    "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
+# ================= CONFIG =================
+CHANNELS = [
+     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
     "Canal.Animal.Planet.(México).mx",
@@ -125,246 +111,192 @@ CHANNEL_IDS_RAW = [
     "MoreMax..Eastern.us",
 ]
 
-OUT_FILE = "guide_custom.xml"
-TMDB_KEY = os.getenv("TMDB_API_KEY", "").strip()
-OMDB_KEY = os.getenv("OMDB_API_KEY", "").strip()
-OPENAI_KEYS = [os.getenv(f"OPENAI_API_KEY{i}" if i>0 else "OPENAI_API_KEY","").strip() for i in range(9)]
-OPENAI_KEYS = [k for k in OPENAI_KEYS if k]
-_openai_key_index = 0
+EPG_SOURCES = [
+    "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_CA1.xml.gz"
+]
 
-HEADERS = {"User-Agent": "EPG-Builder/1.0", "Accept-Language": "es-ES,es;q=0.9"}
-CACHE_PATH = ".epg_cache_tmdb_omdb.json"
-CACHE: Dict[str, Any] = {}
+OMDB_API_KEY = os.getenv("OMDB_API_KEY")
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+OPENAI_KEYS = [
+    os.getenv("OPENAI_API_KEY"),
+    os.getenv("OPENAI_API_KEY_1"),
+    os.getenv("OPENAI_API_KEY_2"),
+    os.getenv("OPENAI_API_KEY_3"),
+    os.getenv("OPENAI_API_KEY_4"),
+    os.getenv("OPENAI_API_KEY_5"),
+    os.getenv("OPENAI_API_KEY_6"),
+    os.getenv("OPENAI_API_KEY_7"),
+    os.getenv("OPENAI_API_KEY_8"),
+]
 
-# ---------------------------
-# LOGGING
-# ---------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
+LIBRARY_FILE = Path("library.json")
+OUTPUT_FILE = Path("guide_custom.xml")
+OPENAI_MODEL = "gpt-5-mini"
 
-# ---------------------------
-# UTILITIES & CACHE
-# ---------------------------
-def load_cache():
-    global CACHE
-    if os.path.exists(CACHE_PATH):
-        try:
-            with open(CACHE_PATH, "r", encoding="utf-8") as f:
-                CACHE = json.load(f)
-        except Exception:
-            CACHE = {}
+# ================= UTILIDADES =================
+def download_and_parse(url):
+    print(f"[INFO] Descargando y descomprimiendo: {url}")
+    resp = requests.get(url, stream=True)
+    resp.raise_for_status()
+    with gzip.GzipFile(fileobj=resp.raw) as f:
+        tree = ET.parse(f)
+    return tree
 
-def save_cache():
-    try:
-        with open(CACHE_PATH, "w", encoding="utf-8") as f:
-            json.dump(CACHE, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+def load_library():
+    if LIBRARY_FILE.exists():
+        print(f"[INFO] Cargando biblioteca existente: {LIBRARY_FILE}")
+        return json.loads(LIBRARY_FILE.read_text(encoding="utf-8"))
+    return {}
 
-def cache_get(ns: str, key: str): return CACHE.get(ns, {}).get(key)
-def cache_set(ns: str, key: str, value: Any): CACHE.setdefault(ns, {})[key] = value
+def save_library(lib):
+    LIBRARY_FILE.write_text(json.dumps(lib, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[INFO] Biblioteca guardada: {LIBRARY_FILE}")
 
-def normalize_id(ch_id: str) -> str:
-    if not ch_id: return ""
-    s = html.unescape(ch_id).strip()
-    s = unicodedata.normalize('NFKD', s).encode('ASCII','ignore').decode('ASCII')
-    return re.sub(r"\s+", " ", s).lower()
+def normalize_episode(ep_str):
+    ep_str = ep_str.lower().replace(" ", "")
+    if ep_str.startswith("s") and ep_str[1:].isdigit():
+        ep_num = int(ep_str[1:])
+        season = (ep_num - 1) // 22 + 1  # asumiendo 22 episodios por temporada
+        episode = (ep_num - 1) % 22 + 1
+        return f"S{season}E{episode}"
+    elif ep_str.startswith("e") and ep_str[1:].isdigit():
+        return f"E{int(ep_str[1:]):02}"
+    return ep_str.upper()
 
-FILTER_SET = {normalize_id(x) for x in CHANNEL_IDS_RAW}
-
-def http_get(url: str, params: dict = None, timeout: int = 30, retries: int = 3):
-    last_exc = None
-    for attempt in range(retries):
-        try:
-            r = requests.get(url, params=params, headers=HEADERS, timeout=timeout)
-            r.raise_for_status()
-            return r
-        except Exception as e:
-            last_exc = e
-            time.sleep(0.8*(attempt+1))
-    raise last_exc
-
-def parse_gz_xml(url: str) -> ET.Element:
-    r = http_get(url, timeout=60)
-    buf = io.BytesIO(r.content)
-    with gzip.open(buf, "rb") as gz:
-        xml_bytes = gz.read()
-    return ET.fromstring(xml_bytes)
-
-def xmltv_datetime_parse(dt_raw: str) -> datetime:
-    m = re.match(r"(\d{14})(?:\s*([+-]\d{4}))?", dt_raw)
-    if not m: raise ValueError(f"Invalid xmltv datetime: {dt_raw}")
-    base, tzpart = m.group(1), m.group(2)
-    dt = datetime.strptime(base, "%Y%m%d%H%M%S")
-    if tzpart:
-        sign = 1 if tzpart[0]=="+" else -1
-        offset = timedelta(hours=int(tzpart[1:3]), minutes=int(tzpart[3:5]))*sign
-        return (dt - offset).replace(tzinfo=timezone.utc)
-    return dt.replace(tzinfo=timezone.utc)
-
-def safe_text(el: Optional[ET.Element]) -> str: return (el.text or "").strip() if el else ""
-def set_or_create(parent: ET.Element, tag: str, text: str, lang: str="es", overwrite=True) -> ET.Element:
-    el = parent.find(tag)
-    if el is None:
-        el = ET.SubElement(parent, tag, {"lang": lang} if tag in ("title","sub-title","desc") else {})
-    if overwrite or not (el.text and el.text.strip()):
-        el.text = text
-    return el
-
-# ---------------------------
-# TMDB / OMDb lookups
-# ---------------------------
-def tmdb_search_movie(query: str) -> Optional[Dict[str,Any]]:
-    key = f"tmdb_movie:{query}".lower()
-    cached = cache_get("tmdb", key)
-    if cached is not None: return cached
-    try:
-        r = http_get("https://api.themoviedb.org/3/search/movie", {"api_key": TMDB_KEY, "query": query, "language": "es"})
-        res = r.json().get("results",[None])[0]
-    except Exception: res = None
-    cache_set("tmdb", key, res)
-    return res
-
-def tmdb_search_tv(query: str) -> Optional[Dict[str,Any]]:
-    key = f"tmdb_tv:{query}".lower()
-    cached = cache_get("tmdb", key)
-    if cached is not None: return cached
-    try:
-        r = http_get("https://api.themoviedb.org/3/search/tv", {"api_key": TMDB_KEY, "query": query, "language": "es"})
-        res = r.json().get("results",[None])[0]
-    except Exception: res = None
-    cache_set("tmdb", key, res)
-    return res
-
-def omdb_lookup(title: str, year: Optional[int] = None, type_: str="movie") -> Optional[Dict[str,Any]]:
-    key = f"omdb:{title}:{year}:{type_}".lower()
-    cached = cache_get("omdb", key)
-    if cached is not None: return cached
-    try:
-        params = {"apikey": OMDB_KEY, "t": title, "type": type_}
-        if year: params["y"]=str(year)
-        r = http_get("http://www.omdbapi.com/", params=params)
-        data = r.json()
-        res = data if data.get("Response","False")=="True" else None
-    except Exception: res = None
-    cache_set("omdb", key, res)
-    return res
-
-# ---------------------------
-# GPT-5 MINI SYNOPSIS
-# ---------------------------
-def rotate_openai_key():
-    global _openai_key_index
-    if not OPENAI_KEYS: return None
-    key = OPENAI_KEYS[_openai_key_index]
-    _openai_key_index = (_openai_key_index+1)%len(OPENAI_KEYS)
-    return key
-
-def gpt_enhance_synopsis(prompt: str, existing_desc: str="") -> str:
-    import openai
-    retries, delay = 3, 1.0
-    for attempt in range(retries):
-        key = rotate_openai_key()
-        if not key:
-            logging.warning("No hay claves OpenAI. Se mantiene descripción existente.")
-            return existing_desc
-        try:
-            openai.api_key = key
-            response = openai.ChatCompletion.create(
-                model="gpt-5-mini",
-                messages=[
-                    {"role":"system","content":"Eres un asistente que resume y mejora sinopsis de series y películas."},
-                    {"role":"user","content":prompt}
-                ],
-                temperature=0.7,
-                max_tokens=300
-            )
-            text = response.choices[0].message.content.strip()
-            return text
-        except Exception as e:
-            logging.warning("Error GPT: %s", e)
-            time.sleep(delay)
-            delay *= 2
-    logging.warning("No se pudo generar sinopsis con GPT, se mantiene la existente.")
-    return existing_desc
-
-# ---------------------------
-# EPISODE PARSING
-# ---------------------------
-def parse_episode_number(elem: ET.Element) -> Optional[Tuple[int,int]]:
-    en = elem.find("episode-num")
-    if en is not None and en.text:
-        m = re.search(r"S(\d+)\s*E(\d+)", en.text, re.IGNORECASE)
-        if m: return int(m.group(1)), int(m.group(2))
+# ================= API CONSULTAS =================
+def query_omdb(title, year=None):
+    url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&t={quote(title)}"
+    if year:
+        url += f"&y={year}"
+    resp = requests.get(url).json()
+    if resp.get("Response") == "True":
+        return resp
     return None
 
-# ---------------------------
-# PROGRAMME PROCESS
-# ---------------------------
-def process_programme(prog: ET.Element):
-    title_text = safe_text(prog.find("title"))
-    sub_text = safe_text(prog.find("sub-title"))
-    desc_text = safe_text(prog.find("desc"))
-    category_text = safe_text(prog.find("category")).lower()
-    season_episode = parse_episode_number(prog)
+def query_tmdb(title, year=None):
+    url = f"https://api.themoviedb.org/3/search/multi?api_key={TMDB_API_KEY}&query={quote(title)}"
+    if year:
+        url += f"&year={year}"
+    resp = requests.get(url).json()
+    results = resp.get("results", [])
+    return results[0] if results else None
 
-    enhanced_desc = desc_text
-    if "serie" in category_text and season_episode:
-        tv_data = tmdb_search_tv(title_text)
-        if tv_data:
-            enhanced_desc = tv_data.get("overview") or enhanced_desc
-            set_or_create(prog, "sub-title", tv_data.get("name",""))
-    elif "película" in category_text or "movie" in category_text:
-        movie_data = tmdb_search_movie(title_text)
-        if movie_data:
-            enhanced_desc = movie_data.get("overview") or enhanced_desc
-        else:
-            omdb_data = omdb_lookup(title_text)
-            if omdb_data:
-                enhanced_desc = omdb_data.get("Plot") or enhanced_desc
+def query_openai(prompt, key_cycle):
+    import openai
+    max_retries = len(OPENAI_KEYS)
+    for _ in range(max_retries):
+        key = next(key_cycle)
+        openai.api_key = key
+        try:
+            resp = openai.ChatCompletion.create(
+                model=OPENAI_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=500
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            print(f"[WARN] OpenAI key falló, cambiando a siguiente: {e}")
+            time.sleep(1)
+    return ""  # fallback si todas las keys fallan
 
-    if OPENAI_KEYS:
-        prompt = f"Mejora esta sinopsis para '{title_text}': {enhanced_desc}"
-        enhanced_desc = gpt_enhance_synopsis(prompt, existing_desc=enhanced_desc)
+# ================= PROCESAMIENTO =================
+def enrich_program(title, subtitle, desc, year=None, season=None, episode=None):
+    key = f"{title}_{season}_{episode}"
+    if key in library:
+        print(f"[INFO] Reutilizando datos existentes para {title} S{season}E{episode}")
+        return library[key]["title"], library[key]["subtitle"], library[key]["desc"]
 
-    set_or_create(prog, "desc", enhanced_desc)
+    print(f"[INFO] Enriqueciendo: {title} S{season}E{episode}")
 
-# ---------------------------
-# MAIN
-# ---------------------------
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--reset", action="store_true", help="Eliminar caché y reiniciar biblioteca")
-    args = parser.parse_args()
+    # Intentar TMDB
+    tmdb_info = query_tmdb(title, year)
+    if tmdb_info:
+        if "release_date" in tmdb_info:
+            year = tmdb_info["release_date"][:4]
+        if not desc:
+            desc = tmdb_info.get("overview", "")
 
-    if args.reset and os.path.exists(CACHE_PATH):
-        os.remove(CACHE_PATH)
-        logging.info("Caché antiguo eliminado. Biblioteca reiniciada.")
+    # Intentar OMDb
+    omdb_info = query_omdb(title, year)
+    if omdb_info and not desc:
+        desc = omdb_info.get("Plot", "")
 
-    load_cache()
+    # Mejorar con OpenAI
+    prompt = f"""
+    Mejora esta sinopsis para el programa:
+    Title: {title}
+    Subtitle: {subtitle}
+    Description: {desc}
+    Season: {season}
+    Episode: {episode}
+    Español, precisa y basada en la información existente, sin inventar datos.
+    """
+    desc = query_openai(prompt, key_cycle)
 
-    programmes = []
-    for url in GUIDE_URLS:
-        logging.info("Descargando y parseando: %s", url)
-        root = parse_gz_xml(url)
-        for prog in root.findall("programme"):
-            ch_id = normalize_id(prog.attrib.get("channel",""))
-            if ch_id in FILTER_SET:
-                programmes.append(prog)
-    logging.info("Programas filtrados: %d", len(programmes))
+    library[key] = {"title": title, "subtitle": subtitle, "desc": desc}
+    return title, subtitle, desc
 
-    for idx, prog in enumerate(programmes,1):
-        process_programme(prog)
-        if idx % 50 == 0:
-            logging.info("Procesados %d programas...", idx)
+# ================= MAIN =================
+library = load_library()
+root = ET.Element("tv", attrib={"generator-info-name": "my-filter"})
+key_cycle = cycle(OPENAI_KEYS)
 
-    tv = ET.Element("tv")
-    for prog in programmes:
-        tv.append(prog)
-    tree = ET.ElementTree(tv)
-    tree.write(OUT_FILE, encoding="utf-8", xml_declaration=True)
-    logging.info("Archivo generado: %s", OUT_FILE)
+for url in EPG_SOURCES:
+    try:
+        tree = download_and_parse(url)
+    except Exception as e:
+        print(f"[ERROR] No se pudo procesar {url}: {e}")
+        continue
 
-    save_cache()
+    for channel in tree.findall("channel"):
+        chan_id = channel.attrib.get("id")
+        if chan_id in CHANNELS:
+            print(f"[INFO] Agregando canal: {chan_id}")
+            root.append(channel)
 
-if __name__ == "__main__":
-    main()
+    for prog in tree.findall("programme"):
+        chan_id = prog.attrib.get("channel")
+        if chan_id not in CHANNELS:
+            continue
+
+        title_el = prog.find("title")
+        sub_el = prog.find("sub-title")
+        desc_el = prog.find("desc")
+
+        title_text = title_el.text if title_el is not None else ""
+        sub_text = sub_el.text if sub_el is not None else ""
+        desc_text = desc_el.text if desc_el is not None else ""
+
+        # Detectar temporada y episodio
+        ep_el = prog.find("episode-num")
+        season, episode = None, None
+        if ep_el is not None and ep_el.text:
+            normalized = normalize_episode(ep_el.text)
+            if "S" in normalized and "E" in normalized:
+                season = normalized.split("E")[0][1:]
+                episode = normalized.split("E")[1]
+
+        title_text, sub_text, desc_text = enrich_program(title_text, sub_text, desc_text, season=season, episode=episode)
+
+        if sub_el is None:
+            sub_el = ET.SubElement(prog, "sub-title")
+        sub_el.text = sub_text
+
+        if desc_el is None:
+            desc_el = ET.SubElement(prog, "desc")
+        desc_el.text = desc_text
+
+        root.append(prog)
+        print(f"[OK] Procesado: {title_text} S{season}E{episode}")
+
+# Guardar biblioteca y XML final
+save_library(library)
+tree_final = ET.ElementTree(root)
+tree_final.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
+print(f"[FIN] Guía final generada en {OUTPUT_FILE}")
