@@ -187,13 +187,13 @@ def query_tmdb(title, year=None):
     return results[0] if results else None
 
 def query_openai(prompt, key_cycle):
-    import openai
+    from openai import OpenAI
     max_retries = len(OPENAI_KEYS)
     for _ in range(max_retries):
         key = next(key_cycle)
-        openai.api_key = key
+        client = OpenAI(api_key=key)
         try:
-            resp = openai.ChatCompletion.create(
+            resp = client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
