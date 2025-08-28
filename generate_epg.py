@@ -14,7 +14,7 @@ from openai import OpenAI
 
 # ================= CONFIG =================
 CHANNELS = [
-     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
+    "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
     "Canal.Animal.Planet.(México).mx",
@@ -56,60 +56,6 @@ CHANNELS = [
     "Canal.Universal.TV.(México).mx",
     "Canal.USA.Network.(México).mx",
     "Canal.Warner.TV.(México).mx",
-    # Canales internacionales
-    "plex.tv.T2.plex",
-    "TSN1.ca",
-    "TSN2.ca",
-    "TSN3.ca",
-    "TSN4.ca",
-    "Eurosport.2.es",
-    "Eurosport.es",
-    "M+.Deportes.2.es",
-    "M+.Deportes.3.es",
-    "M+.Deportes.4.es",
-    "M+.Deportes.5.es",
-    "M+.Deportes.6.es",
-    "M+.Deportes.7.es",
-    "M+.Deportes.es",
-    "Movistar.Plus.es",
-    "ABC.(WABC).New.York,.NY.us",
-    "CBS.(WCBS).New.York,.NY.us",
-    "FOX.(WNYW).New.York,.NY.us",
-    "NBC.(WNBC).New.York,.NY.us",
-    "ABC.(KABC).Los.Angeles,.CA.us",
-    "NBC.(KNBC).Los.Angeles,.CA.us",
-    "Bravo.USA.-.Eastern.Feed.us",
-    "E!.Entertainment.USA.-.Eastern.Feed.us",
-    "Hallmark.-.Eastern.Feed.us",
-    "Hallmark.Mystery.Eastern.-.HD.us",
-    "CW.(KFMB-TV2).San.Diego,.CA.us",
-    "CNN.us",
-    "The.Tennis.Channel.us",
-    "HBO.-.Eastern.Feed.us",
-    "HBO.Latino.(HBO.7).-.Eastern.us",
-    "HBO.2.-.Eastern.Feed.us",
-    "HBO.Comedy.HD.-.East.us",
-    "HBO.Family.-.Eastern.Feed.us",
-    "HBO.Signature.(HBO.3).-.Eastern.us",
-    "HBO.Zone.HD.-.East.us",
-    "Starz.Cinema.HD.-.Eastern.us",
-    "Starz.Comedy.HD.-.Eastern.us",
-    "Starz.-.Eastern.us",
-    "Starz.Edge.-.Eastern.us",
-    "Starz.Encore.Action.-.Eastern.us",
-    "Starz.Encore.Black.-.Eastern.us",
-    "Starz.Encore.Classic.-.Eastern.us",
-    "Starz.Encore.-.Eastern.us",
-    "Starz.Encore.Family.-.Eastern.us",
-    "Starz.Encore.on.Demand.us",
-    "Starz.Encore.-.Pacific.us",
-    "Starz.Encore.Suspense.-.Eastern.us",
-    "Starz.Encore.Westerns.-.Eastern.us",
-    "Starz.In.Black.-.Eastern.us",
-    "Starz.Kids.and.Family.-.Eastern.us",
-    "Starz.On.Demand.us",
-    "Starz.-.Pacific.us",
-    "MoreMax..Eastern.us",
 ]
 
 EPG_SOURCES = [
@@ -137,9 +83,7 @@ OPENAI_KEYS = [
     os.getenv("OPENAI_API_KEY_8"),
 ]
 
-# Filtrar keys None
 OPENAI_KEYS = [k for k in OPENAI_KEYS if k]
-
 if not OPENAI_KEYS:
     raise RuntimeError("No se encontraron claves de OpenAI válidas en las variables de entorno")
 
@@ -185,46 +129,60 @@ def query_omdb(title, year=None):
     url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&t={quote(title)}"
     if year:
         url += f"&y={year}"
-    resp = requests.get(url).json()
-    if resp.get("Response") == "True":
-        return resp
+    try:
+        resp = requests.get(url, timeout=5).json()
+        if resp.get("Response") == "True":
+            return resp
+    except Exception:
+        return None
     return None
 
 def query_tmdb(title, year=None):
     url = f"https://api.themoviedb.org/3/search/multi?api_key={TMDB_API_KEY}&query={quote(title)}"
     if year:
         url += f"&year={year}"
-    resp = requests.get(url).json()
-    results = resp.get("results", [])
-    return results[0] if results else None
+    try:
+        resp = requests.get(url, timeout=5).json()
+        results = resp.get("results", [])
+        return results[0] if results else None
+    except Exception:
+        return None
 
-def query_openai(prompt, key_cycle):
-    max_retries = len(OPENAI_KEYS)
-    for _ in range(max_retries):
+def query_openai(prompt, key_cycle, max_tokens=500):
+    used_keys = set()
+    backoff = 1
+    while len(used_keys) < len(OPENAI_KEYS):
         key = next(key_cycle)
+        if key in used_keys:
+            continue
         try:
             client = OpenAI(api_key=key)
             resp = client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=500
+                max_tokens=max_tokens
             )
             return resp.choices[0].message.content.strip()
         except Exception as e:
-            print(f"[WARN] OpenAI key falló, cambiando a siguiente: {e}")
-            time.sleep(1)
-    return ""
+            msg = str(e)
+            if "insufficient_quota" in msg.lower():
+                print(f"[WARN] Clave agotada, descartando: {key}")
+                used_keys.add(key)
+            else:
+                print(f"[WARN] Error temporal con clave {key}: {e}, reintentando en {backoff}s")
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 16)
+    print("[ERROR] No hay claves disponibles con cuota para procesar OpenAI")
+    return None
 
 # ================= PROCESAMIENTO =================
 def enrich_program(title, subtitle, desc, year=None, season=None, episode=None):
     key = f"{title}_{season}_{episode}"
     if key in library:
-        print(f"[INFO] Reutilizando datos existentes para {title} S{season}E{episode}")
         return library[key]["title"], library[key]["subtitle"], library[key]["desc"]
 
-    print(f"[INFO] Enriqueciendo: {title} S{season}E{episode}")
-
+    # 1️⃣ TMDb
     tmdb_info = query_tmdb(title, year)
     if tmdb_info:
         if "release_date" in tmdb_info:
@@ -232,20 +190,23 @@ def enrich_program(title, subtitle, desc, year=None, season=None, episode=None):
         if not desc:
             desc = tmdb_info.get("overview", "")
 
+    # 2️⃣ OMDb
     omdb_info = query_omdb(title, year)
     if omdb_info and not desc:
         desc = omdb_info.get("Plot", "")
 
-    prompt = f"""
-    Mejora esta sinopsis para el programa:
-    Title: {title}
-    Subtitle: {subtitle}
-    Description: {desc}
-    Season: {season}
-    Episode: {episode}
-    Español, precisa y basada en la información existente, sin inventar datos.
-    """
-    desc = query_openai(prompt, key_cycle)
+    # 3️⃣ GPT solo si sigue vacía
+    if not desc:
+        prompt = f"""
+        Mejora esta sinopsis para el programa:
+        Title: {title}
+        Subtitle: {subtitle}
+        Description: {desc}
+        Season: {season}
+        Episode: {episode}
+        Español, precisa y basada en la información existente, sin inventar datos.
+        """
+        desc = query_openai(prompt, key_cycle) or "Sin descripción disponible"
 
     library[key] = {"title": title, "subtitle": subtitle, "desc": desc}
     return title, subtitle, desc
@@ -264,8 +225,8 @@ for url in EPG_SOURCES:
     for channel in tree.findall("channel"):
         chan_id = channel.attrib.get("id")
         if chan_id in CHANNELS:
-            print(f"[INFO] Agregando canal: {chan_id}")
             root.append(channel)
+            print(f"[INFO] Agregando canal: {chan_id}")
 
     for prog in tree.findall("programme"):
         chan_id = prog.attrib.get("channel")
