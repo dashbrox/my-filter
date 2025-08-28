@@ -3,27 +3,40 @@
 
 """
 Genera guide_custom.xml filtrando canales específicos y enriqueciendo metadatos
-con TMDB (series/películas, sinopsis en español, título de episodio, etc.)
-y OMDb como respaldo para películas. Mantiene una biblioteca/cache para no
-repetir consultas a GPT y conservar cuota. Nunca modifica <channel> original.
+con TMDB (series/películas, sinopsis en español) y OMDb como respaldo para películas.
+Opcional: usa GPT para mejorar sinopsis si hay claves OpenAI disponibles.
+
+Principios:
+- NUNCA modificamos <channel> (id, display-name, icon, url).
+- No inventamos S/E ni años.
+- Añadimos sinopsis solo si es confiable (TMDB, OMDb, GPT como mejora opcional).
+- Primera comprobación: TMDB/OMDb; GPT solo mejora si hay clave disponible.
 
 Requerido en entorno:
 - TMDB_API_KEY
-- OMDB_API_KEY
-- OPENAI_API_KEY (opcional, para mejorar descripciones)
+- OMDB_API_KEY  (recomendado)
+- OPENAI_API_KEY(s) (opcional; para mejorar sinopsis)
 
 Salida:
 - guide_custom.xml
-- .epg_cache_tmdb_omdb.json (biblioteca)
 """
 
 from __future__ import annotations
-import os, re, io, gzip, json, time, hashlib, html, unicodedata, threading, logging
+import os
+import re
+import io
+import gzip
+import json
+import time
+import hashlib
+import html
+import unicodedata
+import threading
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, Dict, Any
 import requests
 import xml.etree.ElementTree as ET
-import openai
 
 # ---------------------------
 # CONFIG / KEYS
@@ -38,6 +51,7 @@ GUIDE_URLS = [
 ]
 
 CHANNEL_IDS_RAW = [
+    # (mantén todos los canales que ya tenías, no borrar)
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
     "Canal.A&amp;E.(México).mx",
     "Canal.AMC.(México).mx",
@@ -139,11 +153,26 @@ CHANNEL_IDS_RAW = [
 OUT_FILE = "guide_custom.xml"
 TMDB_KEY = os.getenv("TMDB_API_KEY", "").strip()
 OMDB_KEY = os.getenv("OMDB_API_KEY", "").strip()
-OPENAI_KEYS = [os.getenv(k) for k in ["OPENAI_API_KEY","OPENAI_API_KEY_1","OPENAI_API_KEY_2","OPENAI_API_KEY_3",
-                                      "OPENAI_API_KEY_4","OPENAI_API_KEY_5","OPENAI_API_KEY_6","OPENAI_API_KEY_7","OPENAI_API_KEY_8"] if os.getenv(k)]
-OPENAI_KEY_INDEX = 0
 
-HEADERS = {"User-Agent": "EPG-Builder/1.0", "Accept-Language": "es-ES,es;q=0.9"}
+OPENAI_KEYS = [
+    os.getenv("OPENAI_API_KEY","").strip(),
+    os.getenv("OPENAI_API_KEY_1","").strip(),
+    os.getenv("OPENAI_API_KEY_2","").strip(),
+    os.getenv("OPENAI_API_KEY_3","").strip(),
+    os.getenv("OPENAI_API_KEY_4","").strip(),
+    os.getenv("OPENAI_API_KEY_5","").strip(),
+    os.getenv("OPENAI_API_KEY_6","").strip(),
+    os.getenv("OPENAI_API_KEY_7","").strip(),
+    os.getenv("OPENAI_API_KEY_8","").strip(),
+]
+OPENAI_KEYS = [k for k in OPENAI_KEYS if k]
+_openai_key_index = 0
+
+HEADERS = {
+    "User-Agent": "EPG-Builder/1.0 (+https://github.com/dashbrox/my-filter)",
+    "Accept-Language": "es-ES,es;q=0.9",
+}
+
 CACHE_PATH = ".epg_cache_tmdb_omdb.json"
 CACHE: Dict[str, Any] = {}
 
@@ -155,38 +184,40 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 # ---------------------------
 # UTILITIES & CACHE
 # ---------------------------
+
 def load_cache():
     global CACHE
     if os.path.exists(CACHE_PATH):
         try:
-            with open(CACHE_PATH,"r",encoding="utf-8") as f:
+            with open(CACHE_PATH, "r", encoding="utf-8") as f:
                 CACHE = json.load(f)
         except Exception:
             CACHE = {}
 
 def save_cache():
     try:
-        with open(CACHE_PATH,"w",encoding="utf-8") as f:
-            json.dump(CACHE,f,ensure_ascii=False,indent=2)
+        with open(CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(CACHE, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
 
-def cache_get(ns:str, key:str):
-    return CACHE.get(ns,{}).get(key)
+def cache_get(ns: str, key: str):
+    return CACHE.get(ns, {}).get(key)
 
-def cache_set(ns:str, key:str, value:Any):
-    CACHE.setdefault(ns,{})[key] = value
+def cache_set(ns: str, key: str, value: Any):
+    CACHE.setdefault(ns, {})[key] = value
 
-def normalize_id(ch_id:str) -> str:
-    if ch_id is None: return ""
+def normalize_id(ch_id: str) -> str:
+    if ch_id is None:
+        return ""
     s = html.unescape(ch_id).strip()
-    s = unicodedata.normalize('NFKD',s).encode('ASCII','ignore').decode('ASCII')
-    s = re.sub(r"\s+"," ",s)
+    s = unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('ASCII')
+    s = re.sub(r"\s+", " ", s)
     return s.lower()
 
 FILTER_SET = {normalize_id(x) for x in CHANNEL_IDS_RAW}
 
-def http_get(url:str, params:dict=None, timeout:int=30, retries:int=3):
+def http_get(url: str, params: dict = None, timeout: int = 30, retries: int = 3):
     last_exc = None
     for attempt in range(retries):
         try:
@@ -195,238 +226,231 @@ def http_get(url:str, params:dict=None, timeout:int=30, retries:int=3):
             return r
         except Exception as e:
             last_exc = e
-            time.sleep(0.8*(attempt+1))
+            time.sleep(0.8 * (attempt+1))
     raise last_exc
 
-def parse_gz_xml(url:str) -> ET.Element:
-    r = http_get(url,timeout=60)
+def parse_gz_xml(url: str) -> ET.Element:
+    r = http_get(url, timeout=60)
     buf = io.BytesIO(r.content)
-    with gzip.open(buf,"rb") as gz:
+    with gzip.open(buf, "rb") as gz:
         xml_bytes = gz.read()
     return ET.fromstring(xml_bytes)
 
-def xmltv_datetime_parse(dt_raw:str) -> datetime:
-    m = re.match(r"(\d{14})(?:\s*([+-]\d{4}))?",dt_raw)
+def xmltv_datetime_parse(dt_raw: str) -> datetime:
+    m = re.match(r"(\d{14})(?:\s*([+-]\d{4}))?", dt_raw)
     if not m:
         raise ValueError(f"Invalid xmltv datetime: {dt_raw}")
-    base, tzpart = m.group(1), m.group(2)
-    dt = datetime.strptime(base,"%Y%m%d%H%M%S")
+    base = m.group(1)
+    tzpart = m.group(2)
+    dt = datetime.strptime(base, "%Y%m%d%H%M%S")
     if tzpart:
-        sign = 1 if tzpart[0]=='+' else -1
-        hours, mins = int(tzpart[1:3]), int(tzpart[3:5])
-        offset = timedelta(hours=hours,minutes=mins)*sign
+        sign = 1 if tzpart[0] == '+' else -1
+        hours = int(tzpart[1:3])
+        mins = int(tzpart[3:5])
+        offset = timedelta(hours=hours, minutes=mins) * sign
         return (dt - offset).replace(tzinfo=timezone.utc)
     return dt.replace(tzinfo=timezone.utc)
 
-def duration_minutes_from_prog(prog:ET.Element) -> Optional[int]:
+def duration_minutes_from_prog(prog: ET.Element) -> Optional[int]:
     try:
-        s, e = prog.attrib.get("start",""), prog.attrib.get("stop","")
-        if not s or not e: return None
-        delta = xmltv_datetime_parse(e) - xmltv_datetime_parse(s)
-        return int(delta.total_seconds()//60)
+        start = prog.attrib.get("start","")
+        stop = prog.attrib.get("stop","")
+        if not start or not stop:
+            return None
+        s_dt = xmltv_datetime_parse(start)
+        e_dt = xmltv_datetime_parse(stop)
+        delta = e_dt - s_dt
+        return int(delta.total_seconds() // 60)
     except Exception:
         return None
 
-def safe_text(el:Optional[ET.Element]) -> str:
-    return (el.text or "").strip() if el else ""
+def safe_text(el: Optional[ET.Element]) -> str:
+    return (el.text or "").strip() if el is not None else ""
 
-def set_or_create(parent:ET.Element, tag:str, text:str, lang:str="es", overwrite=True) -> ET.Element:
+def set_or_create(parent: ET.Element, tag: str, text: str, lang: str = "es", overwrite=True) -> ET.Element:
     el = parent.find(tag)
     if el is None:
-        el = ET.SubElement(parent,tag,{"lang":lang} if tag in ("title","sub-title","desc") else {})
+        el = ET.SubElement(parent, tag, {"lang": lang} if tag in ("title","sub-title","desc") else {})
     if overwrite or not (el.text and el.text.strip()):
         el.text = text
     return el
 
 # ---------------------------
-# TMDB / OMDb LOOKUPS
+# TMDB / OMDb lookups
 # ---------------------------
-def tmdb_search_movie(query:str) -> Optional[Dict[str,Any]]:
+
+def tmdb_search_movie(query: str) -> Optional[Dict[str,Any]]:
     key = f"tmdb_movie:{query}".lower()
-    cached = cache_get("tmdb",key)
-    if cached is not None: return cached
+    cached = cache_get("tmdb", key)
+    if cached is not None:
+        return cached
     try:
         r = http_get("https://api.themoviedb.org/3/search/movie",
-                     {"api_key":TMDB_KEY,"query":query,"language":"es","include_adult":"false"})
-        res = r.json().get("results",[None])[0]
+                     {"api_key": TMDB_KEY, "query": query, "language": "es", "include_adult":"false"})
+        data = r.json()
+        res = data.get("results", [None])[0]
     except Exception:
         res = None
-    cache_set("tmdb",key,res)
+    cache_set("tmdb", key, res)
     return res
 
-def tmdb_search_tv(query:str) -> Optional[Dict[str,Any]]:
+def tmdb_search_tv(query: str) -> Optional[Dict[str,Any]]:
     key = f"tmdb_tv:{query}".lower()
-    cached = cache_get("tmdb",key)
-    if cached is not None: return cached
+    cached = cache_get("tmdb", key)
+    if cached is not None:
+        return cached
     try:
         r = http_get("https://api.themoviedb.org/3/search/tv",
-                     {"api_key":TMDB_KEY,"query":query,"language":"es","include_adult":"false"})
-        res = r.json().get("results",[None])[0]
+                     {"api_key": TMDB_KEY, "query": query, "language": "es", "include_adult":"false"})
+        data = r.json()
+        res = data.get("results", [None])[0]
     except Exception:
         res = None
-    cache_set("tmdb",key,res)
+    cache_set("tmdb", key, res)
     return res
 
-def tmdb_get_tv(tv_id:int) -> Optional[Dict[str,Any]]:
-    key = f"tv_id:{tv_id}"
-    cached = cache_get("tmdb",key)
-    if cached is not None: return cached
+def omdb_lookup(title: str, year: Optional[int] = None, type_: str="movie") -> Optional[Dict[str,Any]]:
+    key = f"omdb:{title}:{year}:{type_}".lower()
+    cached = cache_get("omdb", key)
+    if cached is not None:
+        return cached
     try:
-        r = http_get(f"https://api.themoviedb.org/3/tv/{tv_id}",{"api_key":TMDB_KEY,"language":"es"})
-        res = r.json()
+        params = {"apikey": OMDB_KEY, "t": title, "type": type_}
+        if year:
+            params["y"] = str(year)
+        r = http_get("http://www.omdbapi.com/", params=params)
+        data = r.json()
+        res = data if data.get("Response","False")=="True" else None
     except Exception:
         res = None
-    cache_set("tmdb",key,res)
-    return res
-
-def tmdb_get_season(tv_id:int,season:int) -> Optional[Dict[str,Any]]:
-    key = f"tmdb_season:{tv_id}:{season}"
-    cached = cache_get("tmdb",key)
-    if cached is not None: return cached
-    try:
-        r = http_get(f"https://api.themoviedb.org/3/tv/{tv_id}/season/{season}",
-                     {"api_key":TMDB_KEY,"language":"es"})
-        res = r.json()
-    except Exception:
-        res = None
-    cache_set("tmdb",key,res)
-    return res
-
-def omdb_search_movie(title:str, year:Optional[int]=None) -> Optional[Dict[str,Any]]:
-    key = f"omdb:{title}:{year}"
-    cached = cache_get("omdb",key)
-    if cached is not None: return cached
-    try:
-        params = {"apikey":OMDB_KEY,"t":title,"y":year} if year else {"apikey":OMDB_KEY,"t":title}
-        r = http_get("http://www.omdbapi.com/",params=params)
-        res = r.json() if r.json().get("Response","False")=="True" else None
-    except Exception:
-        res = None
-    cache_set("omdb",key,res)
+    cache_set("omdb", key, res)
     return res
 
 # ---------------------------
-# GPT ENRICHMENT
+# GPT SYNOPSIS
 # ---------------------------
-def rotate_openai_key() -> str:
-    global OPENAI_KEY_INDEX
-    if not OPENAI_KEYS: return ""
-    key = OPENAI_KEYS[OPENAI_KEY_INDEX%len(OPENAI_KEYS)]
-    OPENAI_KEY_INDEX += 1
+
+def rotate_openai_key():
+    global _openai_key_index
+    if not OPENAI_KEYS:
+        return None
+    key = OPENAI_KEYS[_openai_key_index]
+    _openai_key_index = (_openai_key_index + 1) % len(OPENAI_KEYS)
     return key
 
-def gpt_enrich_desc(title:str, context:str) -> str:
-    """
-    Enriquecer sinopsis o completar info con GPT
-    """
-    key = rotate_openai_key()
-    if not key: return context
-    try:
-        openai.api_key = key
-        prompt = f"Completa y mejora la sinopsis de este contenido:\nTitulo: {title}\nInfo: {context}"
-        resp = openai.ChatCompletion.create(
-            model="gpt-5-mini",
-            messages=[{"role":"user","content":prompt}],
-            temperature=0.7,
-            max_tokens=300,
-        )
-        result = resp["choices"][0]["message"]["content"].strip()
-        return result or context
-    except Exception as e:
-        logging.warning(f"No se pudo mejorar sinopsis GPT: {e}")
-        return context
+def gpt_enhance_synopsis(prompt: str, existing_desc: str = "") -> str:
+    import openai
+    retries = 3
+    delay = 1.0
+    for attempt in range(retries):
+        key = rotate_openai_key()
+        if not key:
+            logging.warning("No hay claves OpenAI disponibles. Se mantiene descripción existente.")
+            return existing_desc
+        try:
+            openai.api_key = key
+            response = openai.ChatCompletion.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role":"system","content":"Eres un asistente que resume y mejora sinopsis de series y películas."},
+                    {"role":"user","content":prompt}
+                ],
+                temperature=0.7,
+                max_tokens=300
+            )
+            text = response.choices[0].message.content.strip()
+            return text
+        except openai.error.RateLimitError as e:
+            logging.warning("Clave OpenAI saturada, rotando a siguiente... intento %d/%d", attempt+1, retries)
+            time.sleep(delay)
+            delay *= 2
+        except Exception as e:
+            logging.warning("Error GPT: %s", e)
+            return existing_desc
+    logging.warning("No se pudo generar sinopsis con GPT, se mantiene la existente.")
+    return existing_desc
 
 # ---------------------------
-# PROCESAMIENTO
+# EPISODE PARSING
 # ---------------------------
-def enrich_program(prog:ET.Element):
+
+def parse_episode_number(elem: ET.Element) -> Optional[Tuple[int,int]]:
+    """
+    Intenta detectar S/E en:
+    <episode-num system="onscreen">S7 E8</episode-num>
+    """
+    en = elem.find("episode-num")
+    if en is not None and en.text:
+        m = re.search(r"S(\d+)\s*E(\d+)", en.text, re.IGNORECASE)
+        if m:
+            return int(m.group(1)), int(m.group(2))
+    return None
+
+# ---------------------------
+# MAIN PROCESS
+# ---------------------------
+
+def process_programme(prog: ET.Element):
     title_el = prog.find("title")
     sub_el = prog.find("sub-title")
     desc_el = prog.find("desc")
-    ch_id = prog.attrib.get("channel","")
-    raw_title = safe_text(title_el)
-    raw_sub = safe_text(sub_el)
-    raw_desc = safe_text(desc_el)
+    category_el = prog.find("category")
+    title_text = safe_text(title_el)
+    sub_text = safe_text(sub_el)
+    desc_text = safe_text(desc_el)
+    category_text = safe_text(category_el).lower()
+    season_episode = parse_episode_number(prog)
 
-    # Evitar programas sin título
-    if not raw_title.strip(): return
+    # Solo intentamos mejorar si hay TMDB/OMDb
+    enhanced_desc = desc_text
+    if "serie" in category_text and season_episode:
+        tv_data = tmdb_search_tv(title_text)
+        if tv_data:
+            enhanced_desc = tv_data.get("overview") or enhanced_desc
+            set_or_create(prog, "sub-title", tv_data.get("name",""))
+    elif "película" in category_text or "movie" in category_text:
+        movie_data = tmdb_search_movie(title_text)
+        if movie_data:
+            enhanced_desc = movie_data.get("overview") or enhanced_desc
+        else:
+            omdb_data = omdb_lookup(title_text)
+            if omdb_data:
+                enhanced_desc = omdb_data.get("Plot") or enhanced_desc
 
-    is_series = bool(re.search(r"[sS]\d{1,2}[eE]\d{1,2}", raw_title))
-    enriched_title = raw_title
-    enriched_sub = raw_sub
-    enriched_desc = raw_desc
+    # GPT mejora opcional
+    if OPENAI_KEYS:
+        prompt = f"Mejora esta sinopsis para '{title_text}': {enhanced_desc}"
+        enhanced_desc = gpt_enhance_synopsis(prompt, existing_desc=enhanced_desc)
 
-    # --- SERIES ---
-    if is_series:
-        match = re.search(r"(S(\d{1,2})E(\d{1,2}))", raw_title, re.IGNORECASE)
-        season, episode = (int(match.group(2)), int(match.group(3))) if match else (None,None)
-        series_name = re.sub(r"(S\d{1,2}E\d{1,2})","",raw_title,flags=re.IGNORECASE).strip()
+    set_or_create(prog, "desc", enhanced_desc)
 
-        # TMDB lookup
-        tv_info = tmdb_search_tv(series_name)
-        if tv_info:
-            if season and episode:
-                season_info = tmdb_get_season(tv_info.get("id"),season)
-                if season_info:
-                    ep_info = next((ep for ep in season_info.get("episodes",[]) if ep.get("episode_number")==episode),{})
-                    enriched_title = f"{series_name} ({season_info.get('season_number')}x{episode:02d}) - {ep_info.get('name',raw_sub)}"
-                    enriched_sub = ep_info.get("name",raw_sub)
-                    enriched_desc = ep_info.get("overview",raw_desc)
-            else:
-                enriched_desc = tv_info.get("overview",raw_desc)
-
-    # --- PELÍCULAS ---
-    else:
-        # Extraer año si viene
-        m_year = re.search(r"\((\d{4})\)", raw_title)
-        year = int(m_year.group(1)) if m_year else None
-        movie_info = tmdb_search_movie(raw_title) or omdb_search_movie(raw_title,year)
-        if movie_info:
-            enriched_title = f"{movie_info.get('title','')}" + (f" ({movie_info.get('release_date','')[:4]})" if movie_info.get('release_date') else "")
-            enriched_desc = movie_info.get("overview", enriched_desc) or movie_info.get("Plot", enriched_desc)
-
-    # GPT enhancement si hay desc
-    if enriched_desc:
-        enriched_desc = gpt_enrich_desc(enriched_title,enriched_desc)
-
-    # Aplicar cambios
-    set_or_create(prog,"title",enriched_title)
-    if enriched_sub:
-        set_or_create(prog,"sub-title",enriched_sub)
-    if enriched_desc:
-        set_or_create(prog,"desc",enriched_desc)
-
-def process_guide(root:ET.Element):
-    for prog in root.findall("programme"):
-        ch_id = normalize_id(prog.attrib.get("channel",""))
-        if ch_id in FILTER_SET:
-            enrich_program(prog)
-
-def save_xml(root:ET.Element, file_path:str):
-    tree = ET.ElementTree(root)
-    tree.write(file_path,encoding="utf-8",xml_declaration=True)
-
-# ---------------------------
-# MAIN
-# ---------------------------
 def main():
     load_cache()
-    all_roots = []
+    # Descargar y combinar todos los XML
+    programmes = []
     for url in GUIDE_URLS:
-        try:
-            logging.info(f"Procesando {url}")
-            root = parse_gz_xml(url)
-            process_guide(root)
-            all_roots.append(root)
-        except Exception as e:
-            logging.warning(f"No se pudo procesar {url}: {e}")
+        logging.info("Descargando y parseando: %s", url)
+        root = parse_gz_xml(url)
+        for prog in root.findall("programme"):
+            ch_id = normalize_id(prog.attrib.get("channel",""))
+            if ch_id in FILTER_SET:
+                programmes.append(prog)
+    logging.info("Programas filtrados: %d", len(programmes))
 
-    # Guardar la primer guía enriquecida
-    if all_roots:
-        save_xml(all_roots[0],OUT_FILE)
-        logging.info(f"Archivo generado: {OUT_FILE}")
+    # Procesar programas
+    for idx, prog in enumerate(programmes,1):
+        process_programme(prog)
+        if idx % 50 == 0:
+            logging.info("Procesados %d programas...", idx)
+
+    # Guardar resultado
+    tv = ET.Element("tv")
+    for prog in programmes:
+        tv.append(prog)
+    tree = ET.ElementTree(tv)
+    tree.write(OUT_FILE, encoding="utf-8", xml_declaration=True)
+    logging.info("Archivo generado: %s", OUT_FILE)
     save_cache()
-    logging.info("Cache guardado")
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
