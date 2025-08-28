@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import quote
 from itertools import cycle
 import time
+from openai import OpenAI
 
 # ================= CONFIG =================
 CHANNELS = [
@@ -122,6 +123,8 @@ EPG_SOURCES = [
 
 OMDB_API_KEY = os.getenv("OMDB_API_KEY")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+
+# ================= OPENAI CONFIG =================
 OPENAI_KEYS = [
     os.getenv("OPENAI_API_KEY"),
     os.getenv("OPENAI_API_KEY_1"),
@@ -134,9 +137,18 @@ OPENAI_KEYS = [
     os.getenv("OPENAI_API_KEY_8"),
 ]
 
+# Filtrar keys None
+OPENAI_KEYS = [k for k in OPENAI_KEYS if k]
+
+if not OPENAI_KEYS:
+    raise RuntimeError("No se encontraron claves de OpenAI válidas en las variables de entorno")
+
+key_cycle = cycle(OPENAI_KEYS)
+OPENAI_MODEL = "gpt-5-mini"
+
+# ================= ARCHIVOS =================
 LIBRARY_FILE = Path("library.json")
 OUTPUT_FILE = Path("guide_custom.xml")
-OPENAI_MODEL = "gpt-5-mini"
 
 # ================= UTILIDADES =================
 def download_and_parse(url):
@@ -161,7 +173,7 @@ def normalize_episode(ep_str):
     ep_str = ep_str.lower().replace(" ", "")
     if ep_str.startswith("s") and ep_str[1:].isdigit():
         ep_num = int(ep_str[1:])
-        season = (ep_num - 1) // 22 + 1  # asumiendo 22 episodios por temporada
+        season = (ep_num - 1) // 22 + 1
         episode = (ep_num - 1) % 22 + 1
         return f"S{season}E{episode}"
     elif ep_str.startswith("e") and ep_str[1:].isdigit():
@@ -187,12 +199,11 @@ def query_tmdb(title, year=None):
     return results[0] if results else None
 
 def query_openai(prompt, key_cycle):
-    from openai import OpenAI
     max_retries = len(OPENAI_KEYS)
     for _ in range(max_retries):
         key = next(key_cycle)
-        client = OpenAI(api_key=key)
         try:
+            client = OpenAI(api_key=key)
             resp = client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=[{"role": "user", "content": prompt}],
@@ -203,7 +214,7 @@ def query_openai(prompt, key_cycle):
         except Exception as e:
             print(f"[WARN] OpenAI key falló, cambiando a siguiente: {e}")
             time.sleep(1)
-    return ""  # fallback si todas las keys fallan
+    return ""
 
 # ================= PROCESAMIENTO =================
 def enrich_program(title, subtitle, desc, year=None, season=None, episode=None):
@@ -214,7 +225,6 @@ def enrich_program(title, subtitle, desc, year=None, season=None, episode=None):
 
     print(f"[INFO] Enriqueciendo: {title} S{season}E{episode}")
 
-    # Intentar TMDB
     tmdb_info = query_tmdb(title, year)
     if tmdb_info:
         if "release_date" in tmdb_info:
@@ -222,12 +232,10 @@ def enrich_program(title, subtitle, desc, year=None, season=None, episode=None):
         if not desc:
             desc = tmdb_info.get("overview", "")
 
-    # Intentar OMDb
     omdb_info = query_omdb(title, year)
     if omdb_info and not desc:
         desc = omdb_info.get("Plot", "")
 
-    # Mejorar con OpenAI
     prompt = f"""
     Mejora esta sinopsis para el programa:
     Title: {title}
@@ -245,7 +253,6 @@ def enrich_program(title, subtitle, desc, year=None, season=None, episode=None):
 # ================= MAIN =================
 library = load_library()
 root = ET.Element("tv", attrib={"generator-info-name": "my-filter"})
-key_cycle = cycle(OPENAI_KEYS)
 
 for url in EPG_SOURCES:
     try:
@@ -273,7 +280,6 @@ for url in EPG_SOURCES:
         sub_text = sub_el.text if sub_el is not None else ""
         desc_text = desc_el.text if desc_el is not None else ""
 
-        # Detectar temporada y episodio
         ep_el = prog.find("episode-num")
         season, episode = None, None
         if ep_el is not None and ep_el.text:
