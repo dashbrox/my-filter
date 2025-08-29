@@ -6,16 +6,14 @@ import gzip
 import xml.etree.ElementTree as ET
 import requests
 import json
+import io
 from pathlib import Path
 from urllib.parse import quote
-from itertools import cycle
-import time
-from openai import OpenAI
 
 # ================= CONFIG =================
 CHANNELS = [
     "Canal.2.de.México.(Canal.Las.Estrellas.-.XEW).mx",
-    "Canal.A&amp;E.(México).mx",
+    "Canal.A&E.(México).mx",
     "Canal.AMC.(México).mx",
     "Canal.Animal.Planet.(México).mx",
     "Canal.Atreseries.(Internacional).mx",
@@ -24,14 +22,14 @@ CHANNELS = [
     "Canal.Cinecanal.(México).mx",
     "Canal.Cinemax.(México).mx",
     "Canal.Discovery.Channel.(México).mx",
-    "Canal.Discovery.Home.&amp;.Health.(México).mx",
+    "Canal.Discovery.Home.&.Health.(México).mx",
     "Canal.Discovery.World.Latinoamérica.mx",
     "Canal.Disney.Channel.(México).mx",
     "Canal.DW.(Latinoamérica).mx",
     "Canal.E!.Entertainment.Television.(México).mx",
     "Canal.Elgourmet.mx",
     "Canal.Europa.Europa.mx",
-    "Canal.Film.&amp;.Arts.mx",
+    "Canal.Film.&.Arts.mx",
     "Canal.FX.(México).mx",
     "Canal.HBO.2.Latinoamérica.mx",
     "Canal.HBO.Family.Latinoamérica.mx",
@@ -70,26 +68,6 @@ EPG_SOURCES = [
 OMDB_API_KEY = os.getenv("OMDB_API_KEY")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
-# ================= OPENAI CONFIG =================
-OPENAI_KEYS = [
-    os.getenv("OPENAI_API_KEY"),
-    os.getenv("OPENAI_API_KEY_1"),
-    os.getenv("OPENAI_API_KEY_2"),
-    os.getenv("OPENAI_API_KEY_3"),
-    os.getenv("OPENAI_API_KEY_4"),
-    os.getenv("OPENAI_API_KEY_5"),
-    os.getenv("OPENAI_API_KEY_6"),
-    os.getenv("OPENAI_API_KEY_7"),
-    os.getenv("OPENAI_API_KEY_8"),
-]
-
-OPENAI_KEYS = [k for k in OPENAI_KEYS if k]
-if not OPENAI_KEYS:
-    raise RuntimeError("No se encontraron claves de OpenAI válidas en las variables de entorno")
-
-key_cycle = cycle(OPENAI_KEYS)
-OPENAI_MODEL = "gpt-5-mini"
-
 # ================= ARCHIVOS =================
 LIBRARY_FILE = Path("library.json")
 OUTPUT_FILE = Path("guide_custom.xml")
@@ -97,9 +75,9 @@ OUTPUT_FILE = Path("guide_custom.xml")
 # ================= UTILIDADES =================
 def download_and_parse(url):
     print(f"[INFO] Descargando y descomprimiendo: {url}")
-    resp = requests.get(url, stream=True)
+    resp = requests.get(url, timeout=20)
     resp.raise_for_status()
-    with gzip.GzipFile(fileobj=resp.raw) as f:
+    with gzip.GzipFile(fileobj=io.BytesIO(resp.content)) as f:
         tree = ET.parse(f)
     return tree
 
@@ -126,6 +104,8 @@ def normalize_episode(ep_str):
 
 # ================= API CONSULTAS =================
 def query_omdb(title, year=None):
+    if not OMDB_API_KEY:
+        return None
     url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&t={quote(title)}"
     if year:
         url += f"&y={year}"
@@ -138,6 +118,8 @@ def query_omdb(title, year=None):
     return None
 
 def query_tmdb(title, year=None):
+    if not TMDB_API_KEY:
+        return None
     url = f"https://api.themoviedb.org/3/search/multi?api_key={TMDB_API_KEY}&query={quote(title)}"
     if year:
         url += f"&year={year}"
@@ -148,68 +130,31 @@ def query_tmdb(title, year=None):
     except Exception:
         return None
 
-def query_openai(prompt, key_cycle, max_tokens=500):
-    used_keys = set()
-    backoff = 1
-    while len(used_keys) < len(OPENAI_KEYS):
-        key = next(key_cycle)
-        if key in used_keys:
-            continue
-        try:
-            client = OpenAI(api_key=key)
-            resp = client.chat.completions.create(
-                model=OPENAI_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=max_tokens
-            )
-            return resp.choices[0].message.content.strip()
-        except Exception as e:
-            msg = str(e)
-            if "insufficient_quota" in msg.lower():
-                print(f"[WARN] Clave agotada, descartando: {key}")
-                used_keys.add(key)
-            else:
-                print(f"[WARN] Error temporal con clave {key}: {e}, reintentando en {backoff}s")
-                time.sleep(backoff)
-                backoff = min(backoff * 2, 16)
-    print("[ERROR] No hay claves disponibles con cuota para procesar OpenAI")
-    return None
-
 # ================= PROCESAMIENTO =================
 def enrich_program(title, subtitle, desc, year=None, season=None, episode=None):
-    key = f"{title}_{season}_{episode}"
+    key = f"{title.strip().lower()}_{season or ''}_{episode or ''}"
     if key in library:
         return library[key]["title"], library[key]["subtitle"], library[key]["desc"]
+
+    enriched_desc = desc
 
     # 1️⃣ TMDb
     tmdb_info = query_tmdb(title, year)
     if tmdb_info:
-        if "release_date" in tmdb_info:
-            year = tmdb_info["release_date"][:4]
-        if not desc:
-            desc = tmdb_info.get("overview", "")
+        if not enriched_desc and tmdb_info.get("overview"):
+            enriched_desc = tmdb_info["overview"]
 
     # 2️⃣ OMDb
     omdb_info = query_omdb(title, year)
-    if omdb_info and not desc:
-        desc = omdb_info.get("Plot", "")
+    if omdb_info and not enriched_desc:
+        enriched_desc = omdb_info.get("Plot", "")
 
-    # 3️⃣ GPT solo si sigue vacía
-    if not desc:
-        prompt = f"""
-        Mejora esta sinopsis para el programa:
-        Title: {title}
-        Subtitle: {subtitle}
-        Description: {desc}
-        Season: {season}
-        Episode: {episode}
-        Español, precisa y basada en la información existente, sin inventar datos.
-        """
-        desc = query_openai(prompt, key_cycle) or "Sin descripción disponible"
+    # Validación: si no es confiable, mantenemos el original
+    if not enriched_desc or len(enriched_desc.strip()) < 20:
+        enriched_desc = desc
 
-    library[key] = {"title": title, "subtitle": subtitle, "desc": desc}
-    return title, subtitle, desc
+    library[key] = {"title": title, "subtitle": subtitle, "desc": enriched_desc}
+    return title, subtitle, enriched_desc
 
 # ================= MAIN =================
 library = load_library()
@@ -222,12 +167,15 @@ for url in EPG_SOURCES:
         print(f"[ERROR] No se pudo procesar {url}: {e}")
         continue
 
+    # --- Procesar canales ---
     for channel in tree.findall("channel"):
         chan_id = channel.attrib.get("id")
         if chan_id in CHANNELS:
+            # copiar canal completo con todos sus hijos
             root.append(channel)
             print(f"[INFO] Agregando canal: {chan_id}")
 
+    # --- Procesar programas ---
     for prog in tree.findall("programme"):
         chan_id = prog.attrib.get("channel")
         if chan_id not in CHANNELS:
@@ -264,6 +212,11 @@ for url in EPG_SOURCES:
 
 # Guardar biblioteca y XML final
 save_library(library)
-tree_final = ET.ElementTree(root)
-tree_final.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
+
+# salida XML bonita
+import xml.dom.minidom as minidom
+xml_str = ET.tostring(root, encoding="utf-8")
+pretty_xml = minidom.parseString(xml_str).toprettyxml(indent="  ")
+OUTPUT_FILE.write_text(pretty_xml, encoding="utf-8")
+
 print(f"[FIN] Guía final generada en {OUTPUT_FILE}")
