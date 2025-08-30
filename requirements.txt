@@ -1,5 +1,0 @@
-requests
-lxml
-beautifulsoup4
-openai>=1.0.0
-deep-translator
