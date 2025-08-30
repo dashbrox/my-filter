@@ -3,13 +3,13 @@ name: Update EPG
 on:
   schedule:
     - cron: "0 */12 * * *"  # cada 12 horas
-  workflow_dispatch:        # ejecución manual
+  workflow_dispatch:        # permite ejecución manual
 
 jobs:
   update:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write   # necesario para que github-actions[bot] pueda hacer push
 
     steps:
       - name: Clonar repositorio
@@ -25,21 +25,24 @@ jobs:
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade requests lxml beautifulsoup4 openai>=1.0.0 deep-translator
+          pip install --upgrade -r requirements.txt
 
-      # -------------------- EJECUTAR SCRIPT --------------------
-      - name: Ejecutar script EPG
+      # -------------------- PRIMER RUN CON RESET --------------------
+      - name: Ejecutar script EPG con RESET (solo la primera vez)
+        if: github.ref == 'refs/heads/main' # opcional: limitar a main
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
-          OPENAI_API_KEY_1: ${{ secrets.OPENAI_API_KEY_1 }}
-          OPENAI_API_KEY_2: ${{ secrets.OPENAI_API_KEY_2 }}
-          OPENAI_API_KEY_3: ${{ secrets.OPENAI_API_KEY_3 }}
-          OPENAI_API_KEY_4: ${{ secrets.OPENAI_API_KEY_4 }}
-          OPENAI_API_KEY_5: ${{ secrets.OPENAI_API_KEY_5 }}
-          OPENAI_API_KEY_6: ${{ secrets.OPENAI_API_KEY_6 }}
-          OPENAI_API_KEY_7: ${{ secrets.OPENAI_API_KEY_7 }}
-          OPENAI_API_KEY_8: ${{ secrets.OPENAI_API_KEY_8 }}
+        run: |
+          echo "🚀 Ejecutando generate_epg.py con --reset (solo primera vez)..."
+          python generate_epg.py --reset
+          echo "✅ Script finalizado."
+
+      # -------------------- RUNS FUTUROS SIN RESET --------------------
+      - name: Ejecutar script EPG (normal)
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
         run: |
           echo "🚀 Ejecutando generate_epg.py..."
           python generate_epg.py
