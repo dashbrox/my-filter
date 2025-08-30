@@ -21,17 +21,25 @@ jobs:
           python-version: "3.x"
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install -r requirements.txt
 
       - name: Run script
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
-        run: python update_guide.py
+        run: python generate_epg.py
+
+      - name: Move output files
+        run: |
+          mkdir -p public
+          mv guide_custom.xml public/
+          if [ -f guide_custom.xml.gz ]; then
+            mv guide_custom.xml.gz public/
+          fi
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .   # publica guide_custom.xml desde raíz
+          publish_dir: ./public
           publish_branch: gh-pages
