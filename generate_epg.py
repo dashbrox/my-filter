@@ -1,37 +1,128 @@
-name: Update Guide
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-on:
-  schedule:
-    - cron: "0 */12 * * *"   # cada 12 horas
-  workflow_dispatch:
+"""
+Script para enriquecer guía EPG con datos de TMDB/OMDb.
+- Mantiene la sinopsis original (desc).
+- Para series: agrega título con temporada/episodio y nombre del episodio.
+- Para películas: agrega año al título.
+"""
 
-jobs:
-  update:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+import os
+import gzip
+import requests
+import xml.etree.ElementTree as ET
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+OMDB_API_KEY = os.getenv("OMDB_API_KEY")
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
+INPUT_URL = "http://m3u4u.com/xml/w16vy5vmkrbxp889n39p"
+OUTPUT_FILE = "guide_custom.xml"
 
-      - name: Install dependencies
-        run: pip install requests
 
-      - name: Run script
-        env:
-          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
-        run: python update_guide.py
+def fetch_xml(url):
+    print(f"[INFO] Descargando guía desde {url} ...")
+    r = requests.get(url, timeout=30)
+    r.raise_for_status()
+    content = r.content
+    if content[:2] == b"\x1f\x8b":  # gzip
+        content = gzip.decompress(content)
+    return ET.ElementTree(ET.fromstring(content))
 
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .   # publica guide_custom.xml desde raíz
-          publish_branch: gh-pages
+
+def tmdb_search(title, type_hint="movie"):
+    import urllib.parse
+    query = urllib.parse.quote(title)
+    url = f"https://api.themoviedb.org/3/search/{type_hint}?api_key={TMDB_API_KEY}&query={query}&language=es-ES"
+    r = requests.get(url, timeout=15)
+    if r.ok:
+        data = r.json()
+        if data.get("results"):
+            return data["results"][0]
+    return None
+
+
+def omdb_search(title):
+    url = f"http://www.omdbapi.com/?apikey={OMDB_API_KEY}&t={title}"
+    r = requests.get(url, timeout=15)
+    if r.ok:
+        data = r.json()
+        if data.get("Response") == "True":
+            return data
+    return None
+
+
+def enrich_programme(prog):
+    title_el = prog.find("title")
+    desc_el = prog.find("desc")
+
+    if title_el is None:
+        return
+
+    title = title_el.text or ""
+    desc = desc_el.text if desc_el is not None else ""
+
+    # Intentar como serie
+    info = tmdb_search(title, "tv")
+    if info:
+        show_id = info["id"]
+        show_name = info["name"]
+        year = info.get("first_air_date", "")[:4]
+
+        # buscar temporada/episodio por coincidencia en la sinopsis
+        season_num, ep_num, ep_name = None, None, None
+        url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language=es-ES"
+        show_data = requests.get(url, timeout=15).json()
+
+        for season in range(1, show_data.get("number_of_seasons", 0) + 1):
+            url_season = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}?api_key={TMDB_API_KEY}&language=es-ES"
+            season_data = requests.get(url_season, timeout=15).json()
+            for ep in season_data.get("episodes", []):
+                if desc and desc[:40].lower() in (ep.get("overview", "").lower()):
+                    season_num = season
+                    ep_num = ep.get("episode_number")
+                    ep_name = ep.get("name")
+                    break
+            if ep_name:
+                break
+
+        # --- armar título y sinopsis final ---
+        if season_num and ep_num:
+            title_el.text = f"{show_name} (S{season_num} E{ep_num})"
+            if desc_el is not None and ep_name:
+                desc_el.text = f"“{ep_name}”\n{desc}"
+        else:
+            # fallback solo con año
+            if year:
+                title_el.text = f"{show_name} ({year})"
+            else:
+                title_el.text = show_name
+        return
+
+    # Si no es serie, intentar película
+    info = tmdb_search(title, "movie")
+    if not info:
+        info = omdb_search(title)
+
+    if info:
+        year = info.get("release_date", "")[:4] or info.get("Year", "")
+        movie_name = info.get("title") or info.get("Title") or title
+        if year:
+            title_el.text = f"{movie_name} ({year})"
+        else:
+            title_el.text = movie_name
+
+
+def main():
+    tree = fetch_xml(INPUT_URL)
+    root = tree.getroot()
+
+    for prog in root.findall("programme"):
+        enrich_programme(prog)
+
+    tree.write(OUTPUT_FILE, encoding="utf-8", xml_declaration=True)
+    print(f"[INFO] Guía enriquecida guardada en {OUTPUT_FILE}")
+
+
+if __name__ == "__main__":
+    main()
