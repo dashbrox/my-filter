@@ -221,8 +221,13 @@ def load_allowed_channels(path: Path) -> set[str]:
 
 def download_xml(session: requests.Session, url: str, output_path: Path, chunk_size: int, timeout: int) -> None:
     logger.info("Descargando: %s", url)
+    
+    # CORRECCION: Se añade User-Agent para evitar bloqueos del servidor
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
 
-    with session.get(url, stream=True, timeout=timeout) as response:
+    with session.get(url, stream=True, timeout=timeout, headers=headers) as response:
         response.raise_for_status()
 
         with output_path.open("wb") as f:
@@ -253,9 +258,17 @@ def process_xml_file(
     written_channels: set[str],
     written_programmes: set[tuple[str, str, str, str]],
 ) -> None:
-    context = ET.iterparse(xml_path, events=("end",))
-
-    for _, elem in context:
+    # CORRECCION: Uso de events=('start', 'end') para manejar memoria correctamente
+    context = ET.iterparse(xml_path, events=("start", "end"))
+    
+    root = None
+    for event, elem in context:
+        if event == "start":
+            if root is None:
+                root = elem
+            continue
+        
+        # event == "end"
         if elem.tag == "channel":
             process_channel_element(elem, allowed_channels, out_f, written_channels)
 
@@ -267,7 +280,12 @@ def process_xml_file(
                 written_programmes=written_programmes,
             )
 
+        # Limpieza de memoria crítica
         elem.clear()
+        if root is not None:
+            # Eliminar hijos ya procesados del root para liberar RAM
+            for child in list(root):
+                root.remove(child)
 
 
 def process_channel_element(
@@ -351,6 +369,10 @@ def run_once(config: Config) -> None:
 
             for url in config.epg_urls:
                 try:
+                    # Log para saber qué país se está procesando
+                    country_code = url.split('-')[-1].replace('.xml', '')
+                    logger.info("Procesando pais: %s", country_code.upper())
+                    
                     download_xml(
                         session=session,
                         url=url,
@@ -406,6 +428,7 @@ def run_forever(config: Config) -> None:
 
 
 def main() -> None:
+    # Cambia a run_once(CONFIG) si solo quieres ejecutarlo una vez y salir.
     run_forever(CONFIG)
 
 
