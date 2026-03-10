@@ -3,23 +3,92 @@ import gzip
 import xml.etree.ElementTree as ET
 import re
 import os
-import io
 
-# CONFIGURACIÓN
+# CONFIGURACION
 URL_EPG_USA = "https://iptv-epg.org/files/epg-us.xml"
 CHANNELS_FILE = "channels.txt"
 OUTPUT_FILE = "guia.xml.gz"
 TEMP_INPUT = "temp_input.xml"
+TEMP_OUTPUT = "output_temp.xml"
+
+
+def normalize_season_ep(text):
+    if not text:
+        return None
+    # Convierte "S04 E06" o "s04e06" a "S04E06"
+    return re.sub(r"\s+", "", text.upper())
+
+
+def extract_new_marker(text):
+    if not text:
+        return text, False
+
+    has_new = False
+    clean = text
+
+    # Detectar la version rara
+    if "ᴺᵉʷ" in clean:
+        has_new = True
+        clean = clean.replace("ᴺᵉʷ", " ")
+
+    # Detectar NEW normal
+    if re.search(r"\bNEW\b", clean, re.IGNORECASE):
+        has_new = True
+        clean = re.sub(r"\bNEW\b", " ", clean, flags=re.IGNORECASE)
+
+    # Limpiar espacios
+    clean = " ".join(clean.split())
+    return clean, has_new
+
+
+def extract_season_ep_from_desc(desc_text):
+    if not desc_text:
+        return None, desc_text
+
+    desc_text = desc_text.strip()
+
+    # Busca S04E06 o S04 E06 al inicio
+    match = re.match(r"^(S\d+\s*E\d+)\s+(.*)", desc_text, re.IGNORECASE | re.DOTALL)
+    if match:
+        season_ep = normalize_season_ep(match.group(1))
+        remaining_desc = match.group(2).strip()
+        return season_ep, remaining_desc
+
+    return None, desc_text
+
+
+def build_final_title(original_title, season_ep):
+    clean_title, has_new = extract_new_marker(original_title)
+
+    final_title = clean_title
+
+    if season_ep:
+        final_title += f" ({season_ep})"
+
+    if has_new:
+        final_title += " ᴺᵉʷ"
+
+    return final_title
+
+
+def safe_remove(path):
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception:
+        pass
+
 
 def main():
-    # 1. Descargar archivo al disco (seguro para memoria)
+    # 1. Descargar XML fuente
     print("1. Descargando EPG de EE.UU. al disco...")
     try:
-        with requests.get(URL_EPG_USA, stream=True) as r:
+        with requests.get(URL_EPG_USA, stream=True, timeout=60) as r:
             r.raise_for_status()
-            with open(TEMP_INPUT, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
+            with open(TEMP_INPUT, "wb") as f:
+                for chunk in r.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
         print("   Descarga completa.")
     except Exception as e:
         print(f"Error descargando: {e}")
@@ -28,123 +97,93 @@ def main():
     # 2. Leer canales permitidos
     if not os.path.exists(CHANNELS_FILE):
         print("Error: No existe channels.txt")
+        safe_remove(TEMP_INPUT)
         return
-    
-    with open(CHANNELS_FILE, 'r') as f:
-        allowed_channels = set(line.strip() for line in f if line.strip())
+
+    try:
+        with open(CHANNELS_FILE, "r", encoding="utf-8") as f:
+            allowed_channels = {line.strip() for line in f if line.strip()}
+    except Exception as e:
+        print(f"Error leyendo {CHANNELS_FILE}: {e}")
+        safe_remove(TEMP_INPUT)
+        return
+
+    if not allowed_channels:
+        print("Error: channels.txt esta vacio")
+        safe_remove(TEMP_INPUT)
+        return
 
     # 3. Procesar XML
     print("2. Procesando XML...")
-    
-    with open("output_temp.xml", 'wb') as out_f:
-        out_f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
-        
-        context = ET.iterparse(TEMP_INPUT, events=('start', 'end'))
-        
-        for event, elem in context:
-            if event == 'end':
-                if elem.tag == 'channel':
-                    ch_id = elem.get('id')
+
+    try:
+        with open(TEMP_OUTPUT, "wb") as out_f:
+            out_f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
+
+            context = ET.iterparse(TEMP_INPUT, events=("start", "end"))
+
+            for event, elem in context:
+                if event != "end":
+                    continue
+
+                if elem.tag == "channel":
+                    ch_id = elem.get("id")
                     if ch_id in allowed_channels:
-                        out_f.write(ET.tostring(elem, encoding='utf-8'))
+                        out_f.write(ET.tostring(elem, encoding="utf-8"))
                     elem.clear()
 
-                elif elem.tag == 'programme':
-                    ch_id = elem.get('channel')
+                elif elem.tag == "programme":
+                    ch_id = elem.get("channel")
+
                     if ch_id in allowed_channels:
-                        
-                        title_elem = elem.find('title')
-                        desc_elem = elem.find('desc')
-                        
-                        # --- LÓGICA DE TRANSFORMACIÓN MEJORADA ---
-                        
-                        # Variables por defecto
+                        title_elem = elem.find("title")
+                        desc_elem = elem.find("desc")
+
                         season_ep = None
-                        new_desc_text = None
-                        
-                        # 1. PROCESAR DESCRIPCIÓN PRIMERO (Para extraer S04E06 y Título Episodio)
+
+                        # Extraer temporada/episodio desde la descripcion
                         if desc_elem is not None and desc_elem.text:
-                            desc_text = desc_elem.text
-                            
-                            # Regex para encontrar "S04 E06" o "S04E06" al inicio
-                            match = re.match(r'^(S\d+\s*E\d+)\s+(.*)', desc_text, re.IGNORECASE | re.DOTALL)
-                            
-                            if match:
-                                season_ep = match.group(1) # Ej: "S04 E06"
-                                content = match.group(2)   # Ej: "Gossip Boy\nAs Alesia..."
-                                
-                                # Separar el título del episodio del resto
-                                # Asumimos que el título está en la primera línea
-                                if '\n' in content:
-                                    parts = content.split('\n', 1)
-                                    ep_title = parts[0].strip()
-                                    rest_desc = parts[1].strip()
-                                    # Formato: <b>Titulo Episodio</b> + salto de linea + resto
-                                    new_desc_text = f"<b>{ep_title}</b>\n{rest_desc}"
-                                else:
-                                    # Si no hay salto de linea, ponemos todo en negrita
-                                    new_desc_text = f"<b>{content.strip()}</b>"
-                                
-                                # Actualizar la descripción en el elemento XML
-                                desc_elem.text = new_desc_text
-                            else:
-                                # Si no coincide el patrón, mantener descripción original
-                                pass
+                            season_ep, cleaned_desc = extract_season_ep_from_desc(desc_elem.text)
+                            desc_elem.text = cleaned_desc
 
-                        # 2. PROCESAR TÍTULO
+                        # Reescribir titulo
                         if title_elem is not None and title_elem.text:
-                            original_title = title_elem.text
-                            
-                            # Detectar si es NEW (caracteres raros o texto normal)
-                            has_new = False
-                            clean_title = original_title
-                            
-                            # Buscar caracteres unicode ᴺᵉʷ
-                            if "ᴺᵉʷ" in clean_title:
-                                has_new = True
-                                clean_title = clean_title.replace("ᴺᵉʷ", "").strip()
-                            # Buscar texto NEW (case insensitive)
-                            elif re.search(r'\bNEW\b', clean_title, re.IGNORECASE):
-                                has_new = True
-                                clean_title = re.sub(r'\s*NEW\s*', '', clean_title, flags=re.IGNORECASE).strip()
-                            
-                            # Limpiar espacios dobles
-                            clean_title = " ".join(clean_title.split())
-                            
-                            # Construir Título Final
-                            final_title = clean_title
-                            
-                            # Agregar Temporada/Episodio si lo encontramos en la descripción
-                            if season_ep:
-                                final_title += f" ({season_ep})"
-                                
-                            # Agregar NEW formateado
-                            if has_new:
-                                final_title += " <b>NEW</b>"
-                            
-                            title_elem.text = final_title
+                            title_elem.text = build_final_title(title_elem.text, season_ep)
 
-                        # --- FIN TRANSFORMACIÓN ---
-                        
-                        out_f.write(ET.tostring(elem, encoding='utf-8'))
-                    
+                        out_f.write(ET.tostring(elem, encoding="utf-8"))
+
                     elem.clear()
 
-        out_f.write(b'</tv>')
+            out_f.write(b"\n</tv>")
 
-    # 4. Comprimir
+    except Exception as e:
+        print(f"Error procesando XML: {e}")
+        safe_remove(TEMP_INPUT)
+        safe_remove(TEMP_OUTPUT)
+        return
+
+    # 4. Comprimir resultado
     print("3. Comprimiendo resultado...")
-    with open("output_temp.xml", 'rb') as f_in:
-        with gzip.open(OUTPUT_FILE, 'wb') as f_out:
-            f_out.writelines(f_in)
+    try:
+        with open(TEMP_OUTPUT, "rb") as f_in:
+            with gzip.open(OUTPUT_FILE, "wb") as f_out:
+                while True:
+                    chunk = f_in.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    f_out.write(chunk)
+    except Exception as e:
+        print(f"Error comprimiendo: {e}")
+        safe_remove(TEMP_INPUT)
+        safe_remove(TEMP_OUTPUT)
+        return
 
-    # 5. Limpiar
-    if os.path.exists(TEMP_INPUT):
-        os.remove(TEMP_INPUT)
-    if os.path.exists("output_temp.xml"):
-        os.remove("output_temp.xml")
+    # 5. Limpiar temporales
+    safe_remove(TEMP_INPUT)
+    safe_remove(TEMP_OUTPUT)
 
-    print(f"¡Listo! Archivo generado: {OUTPUT_FILE}")
+    print(f"Listo. Archivo generado: {OUTPUT_FILE}")
+
 
 if __name__ == "__main__":
     main()
