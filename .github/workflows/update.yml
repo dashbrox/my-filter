@@ -1,0 +1,30 @@
+name: Generar EPG Bravo
+
+on:
+  schedule:
+    - cron: '0 5 * * *' # Se ejecuta todos los días a las 5am UTC
+  workflow_dispatch: # Botón para ejecutar manualmente
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Instalar librería requests
+      run: pip install requests
+
+    - name: Ejecutar generador
+      run: python main.py
+
+    - name: Subir resultado
+      uses: actions/upload-artifact@v3
+      with:
+        name: mi-guia-xml
+        path: guia.xml.gz
