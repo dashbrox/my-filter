@@ -91,3 +91,4 @@ filmAndarts.ar
 NationalGeographic.ar
 E!EntertainmentTelevisionAndes.ec
 FX.ar
+Cinecanal.co
