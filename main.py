@@ -1,192 +1,74 @@
-from __future__ import annotations
-
-import gzip
-import logging
-import os
-import re
-import time
-import xml.etree.ElementTree as ET
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Iterable, Optional
-
 import requests
+import gzip
+import xml.etree.ElementTree as ET
+import re
+import os
 
-
-# =========================
 # CONFIGURACION
-# =========================
-
 EPG_COUNTRY_CODES = """
-ar au at bo ca cl co cr hr do ec sv
-gt hn
-mx me nl nz ni ng no pa py pe
+al ar am au at by be bo ba br bg ca cl co cr hr cz dk do ec eg sv
+fi fr ge de gh gr gt hn hk hu is in id il it jp lv lb lt lu mk my
+mt mx me nl nz ni ng no pa py pe ph pl pt ro ru sa rs sg si za kr
 es se ch tw th tr ug ua ae gb us uy ve vn zw
 """.split()
 
+EPG_URLS = [
+    f"https://iptv-epg.org/files/epg-{code}.xml"
+    for code in EPG_COUNTRY_CODES
+]
 
-@dataclass(frozen=True)
-class Config:
-    channels_file: Path = Path("channels.txt")
-    output_file: Path = Path("guia.xml.gz")
-    temp_input_file: Path = Path("temp_input.xml")
-    temp_output_file: Path = Path("output_temp.xml")
-    update_every_hours: int = 6
-    request_timeout: int = 120
-    chunk_size: int = 1024 * 1024
-
-    @property
-    def epg_urls(self) -> list[str]:
-        return [f"https://iptv-epg.org/files/epg-{code}.xml" for code in EPG_COUNTRY_CODES]
-
-    @property
-    def update_interval_seconds(self) -> int:
-        return self.update_every_hours * 3600
+CHANNELS_FILE = "channels.txt"
+OUTPUT_FILE = "guia.xml.gz"
+TEMP_INPUT = "temp_input.xml"
+TEMP_OUTPUT = "output_temp.xml"
 
 
-CONFIG = Config()
-
-
-# =========================
-# LOGGING
-# =========================
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(asctime)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger(__name__)
-
-
-# =========================
-# HELPERS DE TEXTO
-# =========================
-
-SEASON_EP_RE = re.compile(r"S\s*(\d+)\s*E\s*(\d+)", re.IGNORECASE)
-YEAR_RE = re.compile(r"\b(19\d{2}|20\d{2})\b")
-NEW_RE = re.compile(r"\bNEW\b", re.IGNORECASE)
-
-TITLE_YEAR_RE = re.compile(
-    r"^(.*?)(?:\s*[\(\[]\s*(19\d{2}|20\d{2})\s*[\)\]]|\s*-\s*(19\d{2}|20\d{2})|\s+(19\d{2}|20\d{2}))\s*$"
-)
-
-DESC_SEASON_EP_RE = re.compile(
-    r"^\s*(S\s*\d+\s*E\s*\d+)\s+(.*)",
-    re.IGNORECASE | re.DOTALL,
-)
-
-DESC_YEAR_RE = re.compile(
-    r"^\s*[\(\[]?\s*(19\d{2}|20\d{2})\s*[\)\]]?[\s\-.:\u2013\u2014]+(.*)",
-    re.DOTALL,
-)
-
-
-def normalize_season_ep(text: str | None) -> Optional[str]:
+def normalize_season_ep(text):
     if not text:
         return None
-
-    match = SEASON_EP_RE.search(text)
-    if not match:
-        return None
-
-    season = int(match.group(1))
-    episode = int(match.group(2))
-    return f"S{season:02d} E{episode:02d}"
+    return re.sub(r"\s+", "", text.upper())
 
 
-def extract_new_marker(text: str | None) -> tuple[str, bool]:
+def extract_new_marker(text):
     if not text:
-        return "", False
+        return text, False
 
-    cleaned = text
     has_new = False
+    clean = text
 
-    if "ᴺᵉʷ" in cleaned:
+    if "ᴺᵉʷ" in clean:
         has_new = True
-        cleaned = cleaned.replace("ᴺᵉʷ", " ")
+        clean = clean.replace("ᴺᵉʷ", " ")
 
-    if NEW_RE.search(cleaned):
+    if re.search(r"\bNEW\b", clean, re.IGNORECASE):
         has_new = True
-        cleaned = NEW_RE.sub(" ", cleaned)
+        clean = re.sub(r"\bNEW\b", " ", clean, flags=re.IGNORECASE)
 
-    cleaned = " ".join(cleaned.split())
-    return cleaned, has_new
-
-
-def extract_year_from_title(title_text: str | None) -> tuple[str, Optional[str]]:
-    if not title_text:
-        return "", None
-
-    clean_title = title_text.strip()
-    match = TITLE_YEAR_RE.match(clean_title)
-
-    if not match:
-        return clean_title, None
-
-    base_title = match.group(1).strip()
-    year = match.group(2) or match.group(3) or match.group(4)
-
-    if base_title:
-        return base_title, year
-
-    return clean_title, None
+    clean = " ".join(clean.split())
+    return clean, has_new
 
 
-def extract_season_ep_from_desc(desc_text: str | None) -> tuple[Optional[str], str]:
+def extract_season_ep_from_desc(desc_text):
     if not desc_text:
-        return None, ""
+        return None, desc_text
 
-    cleaned = desc_text.strip()
-    match = DESC_SEASON_EP_RE.match(cleaned)
+    desc_text = desc_text.strip()
 
-    if not match:
-        return None, cleaned
+    match = re.match(r"^(S\d+\s*E\d+)\s+(.*)", desc_text, re.IGNORECASE | re.DOTALL)
+    if match:
+        season_ep = normalize_season_ep(match.group(1))
+        remaining_desc = match.group(2).strip()
+        return season_ep, remaining_desc
 
-    season_ep = normalize_season_ep(match.group(1))
-    remaining_desc = match.group(2).strip()
-    return season_ep, remaining_desc
-
-
-def extract_year_from_desc(desc_text: str | None) -> tuple[Optional[str], str]:
-    if not desc_text:
-        return None, ""
-
-    cleaned = desc_text.strip()
-    match = DESC_YEAR_RE.match(cleaned)
-
-    if not match:
-        return None, cleaned
-
-    year = match.group(1)
-    remaining_desc = match.group(2).strip()
-
-    if remaining_desc:
-        return year, remaining_desc
-
-    return None, cleaned
+    return None, desc_text
 
 
-def build_final_title(
-    original_title: str | None,
-    season_ep: str | None = None,
-    year: str | None = None,
-) -> str:
+def build_final_title(original_title, season_ep):
     clean_title, has_new = extract_new_marker(original_title)
-    clean_title, year_in_title = extract_year_from_title(clean_title)
-
     final_title = clean_title
-    meta_parts: list[str] = []
 
     if season_ep:
-        meta_parts.append(season_ep)
-    elif year:
-        meta_parts.append(year)
-    elif year_in_title:
-        meta_parts.append(year_in_title)
-
-    if meta_parts:
-        final_title += f" ({' | '.join(meta_parts)})"
+        final_title += f" ({season_ep})"
 
     if has_new:
         final_title += " ᴺᵉʷ"
@@ -194,242 +76,133 @@ def build_final_title(
     return final_title
 
 
-# =========================
-# HELPERS DE ARCHIVOS / I-O
-# =========================
-
-def safe_remove(path: Path) -> None:
+def safe_remove(path):
     try:
-        if path.exists():
-            path.unlink()
+        if os.path.exists(path):
+            os.remove(path)
     except Exception:
-        logger.exception("No se pudo borrar %s", path)
+        pass
 
 
-def load_allowed_channels(path: Path) -> set[str]:
-    if not path.exists():
-        raise FileNotFoundError(f"No existe el archivo: {path}")
-
-    with path.open("r", encoding="utf-8-sig") as f:
-        channels = {line.strip() for line in f if line.strip()}
-
-    if not channels:
-        raise ValueError(f"El archivo {path} esta vacio")
-
-    return channels
-
-
-def download_xml(session: requests.Session, url: str, output_path: Path, chunk_size: int, timeout: int) -> None:
-    logger.info("Descargando: %s", url)
-    
-    # CORRECCION: Se añade User-Agent para evitar bloqueos del servidor
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-
-    with session.get(url, stream=True, timeout=timeout, headers=headers) as response:
-        response.raise_for_status()
-
-        with output_path.open("wb") as f:
-            for chunk in response.iter_content(chunk_size=chunk_size):
+def download_xml(url, output_path):
+    print(f"Descargando: {url}")
+    with requests.get(url, stream=True, timeout=120) as r:
+        r.raise_for_status()
+        with open(output_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024 * 1024):
                 if chunk:
                     f.write(chunk)
 
 
-def gzip_file(source_path: Path, target_path: Path, chunk_size: int) -> None:
-    logger.info("Comprimiendo resultado...")
+def process_xml_file(xml_path, allowed_channels, out_f, written_channels, written_programmes):
+    context = ET.iterparse(xml_path, events=("end",))
 
-    with source_path.open("rb") as f_in, gzip.open(target_path, "wb") as f_out:
-        while True:
-            chunk = f_in.read(chunk_size)
-            if not chunk:
-                break
-            f_out.write(chunk)
-
-
-# =========================
-# PROCESAMIENTO XML
-# =========================
-
-def process_xml_file(
-    xml_path: Path,
-    allowed_channels: set[str],
-    out_f,
-    written_channels: set[str],
-    written_programmes: set[tuple[str, str, str, str]],
-) -> None:
-    # CORRECCION: Uso de events=('start', 'end') para manejar memoria correctamente
-    context = ET.iterparse(xml_path, events=("start", "end"))
-    
-    root = None
     for event, elem in context:
-        if event == "start":
-            if root is None:
-                root = elem
-            continue
-        
-        # event == "end"
         if elem.tag == "channel":
-            process_channel_element(elem, allowed_channels, out_f, written_channels)
+            ch_id = elem.get("id")
+
+            if ch_id in allowed_channels and ch_id not in written_channels:
+                out_f.write(ET.tostring(elem, encoding="utf-8"))
+                out_f.write(b"\n")
+                written_channels.add(ch_id)
+
+            elem.clear()
 
         elif elem.tag == "programme":
-            process_programme_element(
-                elem=elem,
-                allowed_channels=allowed_channels,
-                out_f=out_f,
-                written_programmes=written_programmes,
-            )
+            ch_id = elem.get("channel")
 
-        # Limpieza de memoria crítica
-        elem.clear()
-        if root is not None:
-            # Eliminar hijos ya procesados del root para liberar RAM
-            for child in list(root):
-                root.remove(child)
+            if ch_id in allowed_channels:
+                title_elem = elem.find("title")
+                desc_elem = elem.find("desc")
+
+                season_ep = None
+
+                if desc_elem is not None and desc_elem.text:
+                    season_ep, cleaned_desc = extract_season_ep_from_desc(desc_elem.text)
+                    desc_elem.text = cleaned_desc
+
+                final_title = ""
+                if title_elem is not None and title_elem.text:
+                    title_elem.text = build_final_title(title_elem.text, season_ep)
+                    final_title = title_elem.text
+
+                prog_key = (
+                    ch_id,
+                    elem.get("start", ""),
+                    elem.get("stop", ""),
+                    final_title,
+                )
+
+                if prog_key not in written_programmes:
+                    out_f.write(ET.tostring(elem, encoding="utf-8"))
+                    out_f.write(b"\n")
+                    written_programmes.add(prog_key)
+
+            elem.clear()
 
 
-def process_channel_element(
-    elem: ET.Element,
-    allowed_channels: set[str],
-    out_f,
-    written_channels: set[str],
-) -> None:
-    channel_id = elem.get("id")
-
-    if channel_id in allowed_channels and channel_id not in written_channels:
-        out_f.write(ET.tostring(elem, encoding="utf-8"))
-        out_f.write(b"\n")
-        written_channels.add(channel_id)
-
-
-def process_programme_element(
-    elem: ET.Element,
-    allowed_channels: set[str],
-    out_f,
-    written_programmes: set[tuple[str, str, str, str]],
-) -> None:
-    channel_id = elem.get("channel")
-
-    if channel_id not in allowed_channels:
+def main():
+    if not os.path.exists(CHANNELS_FILE):
+        print("Error: No existe channels.txt")
         return
-
-    title_elem = elem.find("title")
-    desc_elem = elem.find("desc")
-
-    season_ep = None
-    year = None
-
-    if desc_elem is not None and desc_elem.text:
-        season_ep, cleaned_desc = extract_season_ep_from_desc(desc_elem.text)
-        desc_elem.text = cleaned_desc
-
-        if not season_ep:
-            year, cleaned_desc = extract_year_from_desc(desc_elem.text)
-            desc_elem.text = cleaned_desc
-
-    final_title = ""
-    if title_elem is not None and title_elem.text:
-        final_title = build_final_title(
-            original_title=title_elem.text,
-            season_ep=season_ep,
-            year=year,
-        )
-        title_elem.text = final_title
-
-    programme_key = (
-        channel_id or "",
-        elem.get("start", ""),
-        elem.get("stop", ""),
-        final_title,
-    )
-
-    if programme_key in written_programmes:
-        return
-
-    out_f.write(ET.tostring(elem, encoding="utf-8"))
-    out_f.write(b"\n")
-    written_programmes.add(programme_key)
-
-
-# =========================
-# ORQUESTACION
-# =========================
-
-def run_once(config: Config) -> None:
-    allowed_channels = load_allowed_channels(config.channels_file)
-
-    written_channels: set[str] = set()
-    written_programmes: set[tuple[str, str, str, str]] = set()
-
-    session = requests.Session()
 
     try:
-        with config.temp_output_file.open("wb") as out_f:
+        with open(CHANNELS_FILE, "r", encoding="utf-8-sig") as f:
+            allowed_channels = {line.strip() for line in f if line.strip()}
+    except Exception as e:
+        print(f"Error leyendo {CHANNELS_FILE}: {e}")
+        return
+
+    if not allowed_channels:
+        print("Error: channels.txt esta vacio")
+        return
+
+    written_channels = set()
+    written_programmes = set()
+
+    try:
+        with open(TEMP_OUTPUT, "wb") as out_f:
             out_f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
 
-            for url in config.epg_urls:
+            for url in EPG_URLS:
                 try:
-                    # Log para saber qué país se está procesando
-                    country_code = url.split('-')[-1].replace('.xml', '')
-                    logger.info("Procesando pais: %s", country_code.upper())
-                    
-                    download_xml(
-                        session=session,
-                        url=url,
-                        output_path=config.temp_input_file,
-                        chunk_size=config.chunk_size,
-                        timeout=config.request_timeout,
-                    )
+                    download_xml(url, TEMP_INPUT)
                     process_xml_file(
-                        xml_path=config.temp_input_file,
-                        allowed_channels=allowed_channels,
-                        out_f=out_f,
-                        written_channels=written_channels,
-                        written_programmes=written_programmes,
+                        TEMP_INPUT,
+                        allowed_channels,
+                        out_f,
+                        written_channels,
+                        written_programmes
                     )
                 except Exception as e:
-                    logger.error("Error procesando %s: %s", url, e)
+                    print(f"Error procesando {url}: {e}")
                 finally:
-                    safe_remove(config.temp_input_file)
+                    safe_remove(TEMP_INPUT)
 
             out_f.write(b"</tv>\n")
 
-        gzip_file(
-            source_path=config.temp_output_file,
-            target_path=config.output_file,
-            chunk_size=config.chunk_size,
-        )
+    except Exception as e:
+        print(f"Error generando XML combinado: {e}")
+        safe_remove(TEMP_INPUT)
+        safe_remove(TEMP_OUTPUT)
+        return
 
-        logger.info("Listo. Archivo generado: %s", config.output_file)
+    print("Comprimiendo resultado...")
+    try:
+        with open(TEMP_OUTPUT, "rb") as f_in:
+            with gzip.open(OUTPUT_FILE, "wb") as f_out:
+                while True:
+                    chunk = f_in.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    f_out.write(chunk)
+    except Exception as e:
+        print(f"Error comprimiendo: {e}")
+        safe_remove(TEMP_OUTPUT)
+        return
 
-    finally:
-        safe_remove(config.temp_input_file)
-        safe_remove(config.temp_output_file)
-        session.close()
-
-
-def run_forever(config: Config) -> None:
-    logger.info(
-        "Iniciando actualizacion automatica cada %s horas...",
-        config.update_every_hours,
-    )
-
-    while True:
-        try:
-            run_once(config)
-        except Exception as e:
-            logger.exception("Error general en la ejecucion: %s", e)
-
-        logger.info(
-            "Esperando %s horas para la siguiente actualizacion...",
-            config.update_every_hours,
-        )
-        time.sleep(config.update_interval_seconds)
-
-
-def main() -> None:
-    # Cambia a run_once(CONFIG) si solo quieres ejecutarlo una vez y salir.
-    run_forever(CONFIG)
+    safe_remove(TEMP_OUTPUT)
+    print(f"Listo. Archivo generado: {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":
