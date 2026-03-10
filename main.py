@@ -5,7 +5,12 @@ import re
 import os
 
 # CONFIGURACION
-URL_EPG_USA = "https://iptv-epg.org/files/epg-us.xml"
+EPG_URLS = [
+    "https://iptv-epg.org/files/epg-us.xml",
+    "https://iptv-epg.org/files/epg-gb.xml",
+    "https://iptv-epg.org/files/epg-es.xml",
+    "https://iptv-epg.org/files/epg-ca.xml",
+]
 CHANNELS_FILE = "channels.txt"
 OUTPUT_FILE = "guia.xml.gz"
 TEMP_INPUT = "temp_input.xml"
