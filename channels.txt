@@ -50,3 +50,7 @@ HBOPlusEste.co
 HBOFamily.co
 HBO2.co
 HBO.mx
+CinemaxAction.us
+CinemaxClassics.us
+CinemaxHits.us
+Cinemax.mx
