@@ -17,6 +17,14 @@ EPG_URLS = [
     for code in EPG_COUNTRY_CODES
 ]
 
+# NUEVAS GUIAS EXTRA
+EXTRA_EPG_URLS = [
+    "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
+]
+
+EPG_URLS.extend(EXTRA_EPG_URLS)
+
 CHANNELS_FILE = "channels.txt"
 OUTPUT_FILE = "guia.xml.gz"
 TEMP_INPUT = "temp_input.xml"
@@ -71,8 +79,7 @@ def extract_year_from_title(text):
     temp = re.sub(r"\s*[-–|]\s*$", "", temp)
     temp = " ".join(temp.split())
 
-    # Seguridad: si al quitar el año el título queda vacío,
-    # se deja el título original para no romper casos como "1917" o "1984".
+    # Seguridad para no romper títulos como "1917" o "1984"
     if not temp:
         return clean, None
 
@@ -121,12 +128,23 @@ def safe_remove(path):
 
 def download_xml(url, output_path):
     print(f"Descargando: {url}")
+
     with requests.get(url, stream=True, timeout=120) as r:
         r.raise_for_status()
-        with open(output_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1024 * 1024):
-                if chunk:
-                    f.write(chunk)
+
+        if url.lower().endswith(".gz"):
+            with gzip.GzipFile(fileobj=r.raw) as gz:
+                with open(output_path, "wb") as f:
+                    while True:
+                        chunk = gz.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+        else:
+            with open(output_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
 
 
 def process_xml_file(xml_path, allowed_channels, out_f, written_channels, written_programmes):
