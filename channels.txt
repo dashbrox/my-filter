@@ -96,3 +96,4 @@ AandE.ar
 FashionTV.uk
 CWWPIX.us
 DisneyChannel.mx
+StarChannel.ar
