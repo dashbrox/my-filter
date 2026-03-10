@@ -87,3 +87,4 @@ ESPN.mx
 Space.ar
 Lifetime.ar
 filmAndarts.ar
+NationalGeographic.ar
