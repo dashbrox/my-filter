@@ -3,6 +3,7 @@ import gzip
 import xml.etree.ElementTree as ET
 import re
 import os
+import time
 
 # CONFIGURACION
 EPG_COUNTRY_CODES = """
@@ -26,7 +27,14 @@ TEMP_OUTPUT = "output_temp.xml"
 def normalize_season_ep(text):
     if not text:
         return None
-    return re.sub(r"\s+", "", text.upper())
+
+    match = re.search(r"S\s*(\d+)\s*E\s*(\d+)", text, re.IGNORECASE)
+    if match:
+        season = int(match.group(1))
+        episode = int(match.group(2))
+        return f"S{season:02d} E{episode:02d}"
+
+    return " ".join(text.upper().split())
 
 
 def extract_new_marker(text):
@@ -205,5 +213,19 @@ def main():
     print(f"Listo. Archivo generado: {OUTPUT_FILE}")
 
 
+def run_every_6_hours():
+    interval_seconds = 6 * 60 * 60
+
+    while True:
+        try:
+            print("Iniciando generación de guía...")
+            main()
+        except Exception as e:
+            print(f"Error en ejecución automática: {e}")
+
+        print("Esperando 6 horas para la próxima ejecución...")
+        time.sleep(interval_seconds)
+
+
 if __name__ == "__main__":
-    main()
+    run_every_6_hours()
