@@ -70,3 +70,6 @@ FoxEast_WNYW.us
 CBSEast_WCBS.us
 MovistarEstrenos.es
 MovistarPlus+.es
+Sony.pe
+SonyMovieChannel.ec
+EuropaEuropa.mx
