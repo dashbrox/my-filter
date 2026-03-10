@@ -92,3 +92,4 @@ NationalGeographic.ar
 E!EntertainmentTelevisionAndes.ec
 FX.ar
 Cinecanal.co
+AandE.ar
