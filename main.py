@@ -3,7 +3,6 @@ import gzip
 import xml.etree.ElementTree as ET
 import re
 import os
-import time
 
 # CONFIGURACION
 EPG_COUNTRY_CODES = """
@@ -56,6 +55,30 @@ def extract_new_marker(text):
     return clean, has_new
 
 
+def extract_year_from_title(text):
+    if not text:
+        return text, None
+
+    clean = text.strip()
+
+    match = re.search(r"\b(19\d{2}|20\d{2})\b", clean)
+    if not match:
+        return clean, None
+
+    year = match.group(1)
+
+    temp = re.sub(r"\(?\b" + re.escape(year) + r"\b\)?", " ", clean)
+    temp = re.sub(r"\s*[-–|]\s*$", "", temp)
+    temp = " ".join(temp.split())
+
+    # Seguridad: si al quitar el año el título queda vacío,
+    # se deja el título original para no romper casos como "1917" o "1984".
+    if not temp:
+        return clean, None
+
+    return temp, year
+
+
 def extract_season_ep_from_desc(desc_text):
     if not desc_text:
         return None, desc_text
@@ -73,10 +96,14 @@ def extract_season_ep_from_desc(desc_text):
 
 def build_final_title(original_title, season_ep):
     clean_title, has_new = extract_new_marker(original_title)
+    clean_title, year = extract_year_from_title(clean_title)
+
     final_title = clean_title
 
     if season_ep:
         final_title += f" ({season_ep})"
+    elif year:
+        final_title += f" ({year})"
 
     if has_new:
         final_title += " ᴺᵉʷ"
@@ -213,19 +240,5 @@ def main():
     print(f"Listo. Archivo generado: {OUTPUT_FILE}")
 
 
-def run_every_6_hours():
-    interval_seconds = 6 * 60 * 60
-
-    while True:
-        try:
-            print("Iniciando generación de guía...")
-            main()
-        except Exception as e:
-            print(f"Error en ejecución automática: {e}")
-
-        print("Esperando 6 horas para la próxima ejecución...")
-        time.sleep(interval_seconds)
-
-
 if __name__ == "__main__":
-    run_every_6_hours()
+    main()
