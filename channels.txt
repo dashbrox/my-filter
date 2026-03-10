@@ -11,6 +11,7 @@ StarzCinema.us
 StarzComedy.us
 StarzEncoreSuspense.us
 StarzEncoreFamilyPacific.us
+HBO.us
 HBOLatino.us
 HBOHits.us
 HBOMovies.us
@@ -38,11 +39,11 @@ AztecaUno.mx
 LasEstrellas.mx
 Canal5.mx
 UniversalTV.mx
-UniversalPremiere.ec
+UNIVERSALPREMIERE.uy
 UniversalPremiereOeste.ec
-UniversalCrime.ec
+UNIVERSALCRIME.uy
 UniversalCrimeOeste.ec
-UniversalComedy.ec
+UNIVERSALCRIME.uy
 StudioUniversal.sv
 HBOPop.co
 HBOMundi.co
@@ -75,7 +76,7 @@ MovistarPlus+.es
 Sony.pe
 SonyMovieChannel.ec
 EuropaEuropa.mx
-InvestigationDiscovery.sv
+InvestigationDiscovery.co
 DiscoveryWorld.mx
 DiscoveryChannel.cl
 MTV.mx
@@ -89,3 +90,4 @@ Lifetime.ar
 filmAndarts.ar
 NationalGeographic.ar
 E!EntertainmentTelevisionAndes.ec
+FX.ar
