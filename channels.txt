@@ -81,3 +81,5 @@ MTV.mx
 MTV.us
 ElGourmet.mx
 Panico.cr
+ESPN2.mx
+ESPN.mx
