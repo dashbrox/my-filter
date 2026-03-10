@@ -42,3 +42,11 @@ UniversalCrime.ec
 UniversalCrimeOeste.ec
 UniversalComedy.ec
 StudioUniversal.sv
+HBOPop.co
+HBOMundi.co
+HBOSignature.co
+HBOXtreme.co
+HBOPlusEste.co
+HBOFamily.co
+HBO2.co
+HBO.mx
