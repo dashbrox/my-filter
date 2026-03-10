@@ -8,9 +8,9 @@ from datetime import datetime
 
 # CONFIGURACION
 EPG_COUNTRY_CODES = """
-al ar am au at by be bo ba br bg ca cl co cr hr cz dk do ec eg sv
-fi fr ge de gh gr gt hn hk hu is in id il it jp lv lb lt lu mk my
-mt mx me nl nz ni ng no pa py pe ph pl pt ro ru sa rs sg si za kr
+ar au at bo ca cl co cr hr do ec sv
+gt hn
+mx me nl nz ni ng no pa py pe
 es se ch tw th tr ug ua ae gb us uy ve vn zw
 """.split()
 
