@@ -15,3 +15,17 @@ HBOMovies.us
 HBODrama.us
 HBOComedy.us
 WarnerChannel.gt
+ABCEast_WABC.us
+ABCKABC.us
+NBCEast_WNBC.us
+NBCKNBC.us
+BBCOne.uk
+BBCTwo.uk
+M+Deportes.es
+M+Deportes1.es
+M+Deportes2.es
+M+Deportes3.es
+M+Deportes4.es
+M+Deportes5.es
+M+Deportes6.es
+M+Deportes7.es
