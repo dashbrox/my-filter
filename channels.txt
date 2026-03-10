@@ -74,3 +74,10 @@ MovistarPlus+.es
 Sony.pe
 SonyMovieChannel.ec
 EuropaEuropa.mx
+InvestigationDiscovery.sv
+DiscoveryWorld.mx
+DiscoveryChannel.cl
+MTV.mx
+MTV.us
+ElGourmet.mx
+Panico.cr
