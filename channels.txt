@@ -3,6 +3,7 @@ TSN1.ca
 TSN2.ca
 TSN3.ca
 TSN4.ca
+TSN5.ca
 Starz.us
 StarzEncoreAction.us
 StarzCinema.us
