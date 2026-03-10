@@ -3,3 +3,15 @@ TSN1.ca
 TSN2.ca
 TSN3.ca
 TSN4.ca
+Starz.us
+StarzEncoreAction.us
+StarzCinema.us
+StarzComedy.us
+StarzEncoreSuspense.us
+StarzEncoreFamilyPacific.us
+HBOLatino.us
+HBOHits.us
+HBOMovies.us
+HBODrama.us
+HBOComedy.us
+WarnerChannel.gt
