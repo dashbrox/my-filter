@@ -88,3 +88,4 @@ Space.ar
 Lifetime.ar
 filmAndarts.ar
 NationalGeographic.ar
+E!EntertainmentTelevisionAndes.ec
