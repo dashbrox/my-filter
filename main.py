@@ -36,16 +36,13 @@ CACHE_FILE = "api_cache.json"
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
 
-# Si es True, remueve <episode-num> para que muchas apps no muestren Sxx Exx fuera del title.
 FORCE_SEASON_EPISODE_IN_TITLE_ONLY = True
-
-# Si es True, elimina por completo <sub-title>.
 REMOVE_SUBTITLE_ENTIRELY = False
 
 DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/1.2"
+USER_AGENT = "xmltv-title-normalizer/1.3"
 
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
@@ -58,7 +55,6 @@ STOPWORDS = {
     "que", "se", "su", "sus", "the", "a", "an", "and", "of", "to", "in"
 }
 
-# Palabras que deben ir en minúscula en títulos en español, salvo si son la primera palabra.
 SPANISH_MINOR_WORDS = {
     "a", "al", "ante", "bajo", "cabe", "con", "contra", "de", "del",
     "desde", "durante", "en", "entre", "hacia", "hasta", "mediante",
@@ -339,15 +335,12 @@ def spanish_title_case(text):
         if not core:
             return token
 
-        # Mantener siglas
         if re.fullmatch(r"[A-ZÁÉÍÓÚÜÑ0-9]{2,6}", core):
             return f"{prefix}{core}{suffix}"
 
-        # Mantener números romanos
         if re.fullmatch(r"[ivxlcdmIVXLCDM]+", core):
             return f"{prefix}{core.upper()}{suffix}"
 
-        # Procesar palabras compuestas con guión
         if "-" in core:
             subparts = core.split("-")
             rebuilt = []
@@ -376,6 +369,34 @@ def spanish_title_case(text):
         parts[idx] = transform_token(parts[idx], is_first, is_last)
 
     return "".join(parts)
+
+def split_episode_title_from_desc(desc_text):
+    """
+    Si la descripción empieza con:
+    S4 E13 Título del episodio
+    Sinopsis...
+    devuelve ('Título del episodio', 'Sinopsis...')
+    """
+    if not desc_text:
+        return None, desc_text
+
+    text = desc_text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not text:
+        return None, text
+
+    first_line, sep, rest = text.partition("\n")
+    first_line_clean = first_line.strip()
+
+    se = normalize_season_ep(first_line_clean)
+    if not se:
+        return None, text
+
+    ep_title = strip_leading_se_from_text(first_line_clean).strip()
+    if not ep_title:
+        return None, text
+
+    remaining = rest.strip()
+    return ep_title, remaining
 
 # =========================
 # TMDB
@@ -597,35 +618,64 @@ def replace_all_title_elements(elem, new_title, prefer_latam=False):
         new_title_elem.set("lang", "es")
     elem.insert(0, new_title_elem)
 
-def normalize_subtitle_elements(elem, prefer_latam=False):
-    subtitle_elems = elem.findall("sub-title")
-    if not subtitle_elems:
-        return
-
-    best_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
-    best_subtitle = strip_leading_se_from_text(best_subtitle)
-
-    should_spanish_case = prefer_latam or has_spanish_variant(elem, "sub-title")
-    if best_subtitle and should_spanish_case:
-        best_subtitle = spanish_title_case(best_subtitle)
-
-    for s in subtitle_elems:
+def set_or_replace_subtitle(elem, subtitle_text, prefer_latam=False):
+    for s in list(elem.findall("sub-title")):
         elem.remove(s)
 
-    if REMOVE_SUBTITLE_ENTIRELY:
+    if REMOVE_SUBTITLE_ENTIRELY or not subtitle_text:
         return
 
-    if best_subtitle:
-        new_sub = ET.Element("sub-title")
-        new_sub.text = best_subtitle
-        if prefer_latam:
-            new_sub.set("lang", "es")
-        title_index = 0
-        for i, child in enumerate(list(elem)):
-            if child.tag == "title":
-                title_index = i
-                break
-        elem.insert(title_index + 1, new_sub)
+    new_sub = ET.Element("sub-title")
+    new_sub.text = subtitle_text
+    if prefer_latam:
+        new_sub.set("lang", "es")
+
+    title_index = 0
+    for i, child in enumerate(list(elem)):
+        if child.tag == "title":
+            title_index = i
+            break
+    elem.insert(title_index + 1, new_sub)
+
+def normalize_subtitle_and_desc(elem, prefer_latam=False):
+    current_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
+    current_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
+
+    extracted_ep_title = None
+    cleaned_desc = current_desc
+
+    ep_title_from_desc, desc_without_ep_title = split_episode_title_from_desc(current_desc)
+    if ep_title_from_desc:
+        extracted_ep_title = ep_title_from_desc
+        cleaned_desc = desc_without_ep_title
+
+    chosen_subtitle = current_subtitle.strip() if current_subtitle else ""
+    if not chosen_subtitle and extracted_ep_title:
+        chosen_subtitle = extracted_ep_title
+
+    chosen_subtitle = strip_leading_se_from_text(chosen_subtitle)
+
+    should_spanish_case_subtitle = bool(chosen_subtitle) and (
+        prefer_latam or has_spanish_variant(elem, "sub-title") or extracted_ep_title is not None
+    )
+    if chosen_subtitle and should_spanish_case_subtitle:
+        chosen_subtitle = spanish_title_case(chosen_subtitle)
+
+    set_or_replace_subtitle(elem, chosen_subtitle, prefer_latam=prefer_latam)
+
+    for desc in elem.findall("desc"):
+        if desc.text:
+            lang = norm_lang(desc.get("lang"))
+            if not cleaned_desc:
+                desc.text = ""
+                continue
+
+            cleaned = cleaned_desc.strip()
+
+            if prefer_latam or lang in SPANISH_TITLE_LANGS:
+                cleaned = cleaned.strip()
+
+            desc.text = cleaned
 
 def normalize_episode_num_elements(elem):
     if not FORCE_SEASON_EPISODE_IN_TITLE_ONLY:
@@ -660,7 +710,7 @@ def process_programme(elem, start_time_str, prefer_latam=False):
     if need_tmdb or need_tv or prefer_latam:
         tmdb_data = get_tmdb_data(final_title, raw_desc, prefer_latam=prefer_latam)
 
-    # Solo reemplazar el título por TMDB si el XML no trae ya una variante en español
+    # SOLO usar TMDB para traducir si el XML no trae ya la traducción
     if prefer_latam and not xml_has_spanish_title and tmdb_data and tmdb_data.get("localized_title"):
         final_title = tmdb_data["localized_title"].strip()
 
@@ -679,7 +729,6 @@ def process_programme(elem, start_time_str, prefer_latam=False):
         except ValueError:
             pass
 
-    # Capitalización de títulos en español
     if final_title and (prefer_latam or xml_has_spanish_title):
         final_title = spanish_title_case(final_title)
 
@@ -772,7 +821,7 @@ def main():
 
                                 new_title = process_programme(elem, start, prefer_latam=prefer_latam)
                                 replace_all_title_elements(elem, new_title, prefer_latam=prefer_latam)
-                                normalize_subtitle_elements(elem, prefer_latam=prefer_latam)
+                                normalize_subtitle_and_desc(elem, prefer_latam=prefer_latam)
                                 normalize_episode_num_elements(elem)
 
                                 prog_key = (ch_id, start, stop)
