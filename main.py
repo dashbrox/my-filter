@@ -394,7 +394,7 @@ def format_season_episode_display(se_text, use_spanish=False):
     if use_spanish:
         return f"Temp. {season} Ep. {episode}"
 
-    return f"Season {season}, Episode {episode}"
+    return f"Season {season} Episode {episode}"
 
 def spanish_title_case(text):
     if not text:
@@ -902,9 +902,7 @@ def process_programme(
             final_se,
             use_spanish=spanish_season_episode_format
         )
-        display_title += f" ({display_se})"
-    elif final_year:
-        display_title += f" ({final_year})"
+        display_title += f" | {display_se}"
 
     if has_new:
         display_title += " ᴺᵉʷ"
