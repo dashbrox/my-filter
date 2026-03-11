@@ -61,6 +61,15 @@ STOPWORDS = {
     "que", "se", "su", "sus", "the", "a", "an", "and", "of", "to", "in"
 }
 
+SPANISH_MINOR_WORDS = {
+    "a", "al", "ante", "bajo", "cabe", "con", "contra", "de", "del",
+    "desde", "durante", "en", "entre", "hacia", "hasta", "mediante",
+    "para", "por", "segun", "según", "sin", "so", "sobre", "tras",
+    "y", "e", "o", "u", "ni",
+    "el", "la", "los", "las", "lo",
+    "un", "una", "unos", "unas"
+}
+
 # =========================
 # SESION HTTP
 # =========================
@@ -197,7 +206,6 @@ def extract_xmltv_episode_num(elem):
                 episode = int(nums[1]) + 1
                 return normalize_season_ep_from_numbers(season, episode)
 
-        # on-screen / genérico
         se = normalize_season_ep(value)
         if se:
             return se
@@ -245,6 +253,100 @@ def pick_best_localized_text(parent, tag, prefer_latam=False):
                 return text
 
     return candidates[0][1]
+
+def strip_leading_se_from_text(text):
+    if not text:
+        return ""
+
+    text = text.strip()
+
+    patterns = [
+        r"^\s*\(?\s*[ST]\s*\d+\s*E\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*\d+\s*x\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*Season\s*\d+\s*Episode\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*Temporada\s*\d+\s*Episodio\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*Temporada\s*\d+\s*Cap[ií]tulo\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+    ]
+
+    changed = True
+    while changed:
+        changed = False
+        for pattern in patterns:
+            new_text = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
+            if new_text != text:
+                text = new_text
+                changed = True
+
+    return " ".join(text.split()).strip()
+
+def format_season_episode_display(se_text, prefer_latam=False):
+    if not se_text:
+        return None
+
+    m = re.match(r"^\s*S(\d{2})\s*E(\d{2})\s*$", se_text, flags=re.IGNORECASE)
+    if not m:
+        return se_text
+
+    season = m.group(1)
+    episode = m.group(2)
+
+    if prefer_latam:
+        return f"T{season} E{episode}"
+    return f"S{season} E{episode}"
+
+def spanish_title_case(text):
+    if not text:
+        return ""
+
+    parts = re.split(r"(\s+)", text.strip())
+    word_indexes = [i for i, p in enumerate(parts) if p and not p.isspace()]
+
+    if not word_indexes:
+        return text
+
+    def transform_token(token, is_first, is_last):
+        m = re.match(r'^([\"“”¿¡(\[]*)(.*?)([\"”?!:;.,)\]]*)$', token)
+        if not m:
+            return token
+
+        prefix, core, suffix = m.groups()
+        if not core:
+            return token
+
+        if re.fullmatch(r"[A-ZÁÉÍÓÚÜÑ0-9]{2,6}", core):
+            return f"{prefix}{core}{suffix}"
+
+        if re.fullmatch(r"[ivxlcdmIVXLCDM]+", core):
+            return f"{prefix}{core.upper()}{suffix}"
+
+        if "-" in core:
+            subparts = core.split("-")
+            rebuilt = []
+            for j, sp in enumerate(subparts):
+                sp_low = sp.lower()
+                if not sp:
+                    rebuilt.append(sp)
+                elif (not is_first and not is_last and j > 0 and sp_low in SPANISH_MINOR_WORDS):
+                    rebuilt.append(sp_low)
+                else:
+                    rebuilt.append(sp_low[:1].upper() + sp_low[1:])
+            return f"{prefix}{'-'.join(rebuilt)}{suffix}"
+
+        core_low = core.lower()
+
+        if not is_first and not is_last and core_low in SPANISH_MINOR_WORDS:
+            core_new = core_low
+        else:
+            core_new = core_low[:1].upper() + core_low[1:]
+
+        return f"{prefix}{core_new}{suffix}"
+
+    for pos, idx in enumerate(word_indexes):
+        is_first = pos == 0
+        is_last = pos == len(word_indexes) - 1
+        parts[idx] = transform_token(parts[idx], is_first, is_last)
+
+    return "".join(parts)
 
 # =========================
 # TMDB
@@ -339,23 +441,18 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
 
         score = 0.0
 
-        # 1) Titulo
         title_ratio = SequenceMatcher(None, norm_title, normalize_text(candidate_title)).ratio()
         score += title_ratio * 5
 
-        # 2) Sinopsis XML vs overview de TMDB
         if desc and overview:
             score += overlap_score(desc, overview) * 4
 
-        # 3) Bonus si description sugiere movie/tv y coincide
         if expected_type and media_type == expected_type:
             score += 2
 
-        # 4) Castigo si hay sinopsis pero TMDB no trae overview util
         if desc and not overview.strip():
             score -= 1
 
-        # 5) Bonus pequeno por popularidad para desempates
         popularity = item.get("popularity") or 0
         try:
             score += min(float(popularity) / 1000.0, 0.5)
@@ -366,7 +463,6 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
             best_score = score
             best_item = item
 
-    # Umbral conservador para evitar falsos positivos
     if not best_item or best_score < 2.5:
         api_cache[cache_key] = None
         return None
@@ -437,13 +533,6 @@ def get_tvmaze_episode(show_name, air_date):
 # XML HELPERS
 # =========================
 
-def strip_leading_se_from_text(text):
-    if not text:
-        return ""
-    text = re.sub(r"^\s*(S|T)\s*\d+\s*E\s*\d+\s*[:\-]?\s*", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"^\s*\d+\s*x\s*\d+\s*[:\-]?\s*", "", text, flags=re.IGNORECASE)
-    return " ".join(text.split()).strip()
-
 def replace_all_title_elements(elem, new_title, prefer_latam=False):
     title_elems = elem.findall("title")
     for t in title_elems:
@@ -513,18 +602,15 @@ def process_programme(elem, start_time_str, prefer_latam=False):
     if need_tmdb or need_tv or prefer_latam:
         tmdb_data = get_tmdb_data(final_title, raw_desc, prefer_latam=prefer_latam)
 
-    # Titulo traducido para feeds LatAm
     if prefer_latam and tmdb_data and tmdb_data.get("localized_title"):
         final_title = tmdb_data["localized_title"].strip()
 
-    # Año para peliculas / fallback para series
     if not final_year and tmdb_data:
         if tmdb_data.get("type") == "movie":
             final_year = tmdb_data.get("year")
         elif tmdb_data.get("type") == "tv":
             final_year = tmdb_data.get("year")
 
-    # Temporada / episodio para series
     if not final_se and tmdb_data and tmdb_data.get("type") == "tv":
         try:
             air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
@@ -534,9 +620,14 @@ def process_programme(elem, start_time_str, prefer_latam=False):
         except ValueError:
             pass
 
+    if prefer_latam and final_title:
+        final_title = spanish_title_case(final_title)
+
     display_title = final_title
+
     if final_se:
-        display_title += f" ({final_se})"
+        display_se = format_season_episode_display(final_se, prefer_latam=prefer_latam)
+        display_title += f" ({display_se})"
     elif final_year:
         display_title += f" ({final_year})"
 
