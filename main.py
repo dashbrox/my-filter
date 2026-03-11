@@ -7,7 +7,7 @@ import json
 import time
 import unicodedata
 from difflib import SequenceMatcher
-from datetime import datetime
+from datetime import datetime, timedelta
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -43,7 +43,7 @@ REMOVE_SUBTITLE_ENTIRELY = False
 DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/1.3"
+USER_AGENT = "xmltv-title-normalizer/1.4"
 
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
@@ -67,6 +67,13 @@ SPANISH_MINOR_WORDS = {
 
 SPANISH_TITLE_LANGS = {
     "es", "es-419", "es-mx", "es-ar", "es-co", "es-cl", "es-pe", "es-us", "es-es"
+}
+
+# Ajustes manuales por canal (en minutos)
+# Negativo = mover la guía hacia atrás
+# Positivo = mover la guía hacia adelante
+CHANNEL_TIME_OFFSETS = {
+    "WarnerChannel.pe": -14
 }
 
 # =========================
@@ -243,7 +250,7 @@ def pick_best_localized_text(parent, tag, prefer_latam=False):
             "es-us", "es", ""
         ]
     else:
-        priority = ["es-es", "es", "en-us", "en", ""]
+        priority = ["es", "es-es", "en", "en-us", ""]
 
     for wanted in priority:
         for lang, text in candidates:
@@ -390,7 +397,7 @@ def split_episode_title_from_desc(desc_text):
         return None, text
 
     ep_title = strip_leading_se_from_text(first_line_clean).strip()
-    if not ep_title:
+    if not ep_title or len(ep_title) < 3:
         return None, text
 
     remaining = rest.strip()
@@ -400,6 +407,50 @@ def first_line(text):
     if not text:
         return ""
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n", 1)[0].strip()
+
+# =========================
+# AJUSTE HORARIO POR CANAL
+# =========================
+
+def shift_xmltv_datetime(xmltv_dt, minutes):
+    """
+    Ajusta una fecha XMLTV conservando el timezone si existe.
+    Ejemplos:
+    20260311123000 +0000
+    20260311123000
+    """
+    if not xmltv_dt or not minutes:
+        return xmltv_dt
+
+    xmltv_dt = xmltv_dt.strip()
+    m = re.match(r"^(\d{14})(?:\s*([+-]\d{4}))?$", xmltv_dt)
+    if not m:
+        return xmltv_dt
+
+    base = m.group(1)
+    tz = m.group(2)
+
+    dt = datetime.strptime(base, "%Y%m%d%H%M%S")
+    dt = dt + timedelta(minutes=minutes)
+
+    if tz:
+        return f"{dt.strftime('%Y%m%d%H%M%S')} {tz}"
+    return dt.strftime("%Y%m%d%H%M%S")
+
+def apply_channel_offset(elem):
+    ch_id = elem.get("channel")
+    offset = CHANNEL_TIME_OFFSETS.get(ch_id, 0)
+
+    if not offset:
+        return
+
+    start = elem.get("start")
+    stop = elem.get("stop")
+
+    if start:
+        elem.set("start", shift_xmltv_datetime(start, offset))
+    if stop:
+        elem.set("stop", shift_xmltv_datetime(stop, offset))
 
 # =========================
 # TMDB
@@ -468,7 +519,11 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
     if not TMDB_API_KEY or not title:
         return None
 
-    cache_key = f"tmdb_best:{normalize_text(title)}:{normalize_text(desc)[:120]}:{'latam' if prefer_latam else 'default'}"
+    cache_key = (
+        f"tmdb_best:{normalize_text(title)}:"
+        f"{normalize_text(desc)[:120]}:"
+        f"{'latam' if prefer_latam else 'default'}"
+    )
     if cache_key in api_cache:
         return api_cache[cache_key]
 
@@ -726,27 +781,30 @@ def process_programme(elem, start_time_str, prefer_latam=False):
     final_se = se_title or se_desc or se_xml
     final_title = clean_title.strip()
 
-    need_tmdb = not final_year or (prefer_latam and not final_title)
+    should_translate = prefer_latam and not xml_has_spanish_title
+    need_tmdb = (not final_year) or should_translate
     need_tv = not final_se
 
     tmdb_data = None
-    if need_tmdb or need_tv or prefer_latam:
+    if need_tmdb or need_tv:
         tmdb_data = get_tmdb_data(final_title, raw_desc, prefer_latam=prefer_latam)
 
-    # SOLO usar TMDB para traducir si el XML no trae ya la traducción
-    if prefer_latam and not xml_has_spanish_title and tmdb_data and tmdb_data.get("localized_title"):
+    if should_translate and tmdb_data and tmdb_data.get("localized_title"):
         final_title = tmdb_data["localized_title"].strip()
 
     if not final_year and tmdb_data:
-        if tmdb_data.get("type") == "movie":
-            final_year = tmdb_data.get("year")
-        elif tmdb_data.get("type") == "tv":
-            final_year = tmdb_data.get("year")
+        final_year = tmdb_data.get("year")
 
     if not final_se and tmdb_data and tmdb_data.get("type") == "tv":
         try:
             air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
-            tvmaze_data = get_tvmaze_episode(final_title or clean_title, air_date)
+
+            query_title = clean_title or final_title
+            tvmaze_data = get_tvmaze_episode(query_title, air_date)
+
+            if not tvmaze_data and final_title and final_title != query_title:
+                tvmaze_data = get_tvmaze_episode(final_title, air_date)
+
             if tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
         except ValueError:
@@ -756,7 +814,7 @@ def process_programme(elem, start_time_str, prefer_latam=False):
         final_title = spanish_title_case(final_title)
 
     display_title = final_title
-    is_series = bool(final_se)
+    is_series = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
 
     if final_se:
         display_se = format_season_episode_display(final_se)
@@ -847,6 +905,11 @@ def main():
                                 replace_all_title_elements(elem, new_title, prefer_latam=prefer_latam)
                                 normalize_subtitle_and_desc(elem, prefer_latam=prefer_latam, is_series=is_series)
                                 normalize_episode_num_elements(elem)
+
+                                apply_channel_offset(elem)
+
+                                start = elem.get("start", "")
+                                stop = elem.get("stop", "")
 
                                 prog_key = (ch_id, start, stop)
                                 if prog_key not in written_programmes:
