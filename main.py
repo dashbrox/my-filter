@@ -16,7 +16,7 @@ from urllib3.util.retry import Retry
 # =========================
 
 EPG_COUNTRY_CODES = """
-al ar am au at by be bo ba br bg ca cl co cr hr cz dk do ec eg sv
+al ar am au at by be bo ba br bg ca cl cr hr cz dk do ec eg sv
 fi fr ge de gh gr gt hn hk hu is in id il it jp lv lb lt lu mk my
 mt mx me nl nz ni ng no pa py pe ph pl pt ro ru sa rs sg si za kr
 es se ch tw th tr ug ua ae gb us uy ve vn zw
