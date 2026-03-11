@@ -1,37 +1,59 @@
-name: Generar EPG Bravo
+name: Generar guía EPG
 
 on:
-  schedule:
-    - cron: '0 5 * * *'
   workflow_dispatch:
-
-# PERMISOS: Necesario para que el robot pueda escribir en tu repo
-permissions:
-  contents: write
+  schedule:
+    - cron: "0 */6 * * *"
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      PYTHONUNBUFFERED: "1"
+      TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Configurar Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    - name: Instalar dependencias
-      run: pip install requests
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests urllib3
 
-    - name: Ejecutar script
-      run: python main.py
+      - name: Verificar archivos requeridos
+        run: |
+          test -f main.py || (echo "Falta main.py" && exit 1)
+          test -f channels.txt || (echo "Falta channels.txt" && exit 1)
 
-    # NUEVO PASO: Guardar el archivo en el repositorio
-    - name: Guardar cambios en GitHub
-      run: |
-        git config --global user.name "GitHub Action"
-        git config --global user.email "action@github.com"
-        git add guia.xml.gz
-        git commit -m "Actualización automática de EPG" || echo "Sin cambios para guardar"
-        git push
+      - name: Ejecutar script
+        run: python main.py
+
+      - name: Verificar salida
+        run: |
+          test -f guia.xml.gz || (echo "No se generó guia.xml.gz" && exit 1)
+          ls -lh guia.xml.gz
+          if [ -f api_cache.json ]; then ls -lh api_cache.json; fi
+
+      - name: Subir artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: guia-epg
+          path: |
+            guia.xml.gz
+            api_cache.json
+          if-no-files-found: warn
+
+      - name: Commit de cache y guía
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add guia.xml.gz api_cache.json || true
+          git diff --cached --quiet || git commit -m "Actualizar guía EPG"
+          git push
