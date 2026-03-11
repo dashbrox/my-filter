@@ -34,7 +34,6 @@ TEMP_INPUT = "temp_input.xml"
 TEMP_OUTPUT = "output_temp.xml"
 CACHE_FILE = "api_cache.json"
 
-# Usa variables de entorno / secrets en GitHub Actions
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
 
 # Si es True, remueve <episode-num> para que muchas apps no muestren Sxx Exx fuera del title.
@@ -43,13 +42,11 @@ FORCE_SEASON_EPISODE_IN_TITLE_ONLY = True
 # Si es True, elimina por completo <sub-title>.
 REMOVE_SUBTITLE_ENTIRELY = False
 
-# Tiempos / red
-DOWNLOAD_TIMEOUT = (20, 120)  # connect, read
+DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/1.0"
+USER_AGENT = "xmltv-title-normalizer/1.2"
 
-# Feeds que se trataran como Latinoamerica
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
     "gt", "hn", "mx", "ni", "pa", "py", "pe", "uy", "ve"
@@ -61,13 +58,18 @@ STOPWORDS = {
     "que", "se", "su", "sus", "the", "a", "an", "and", "of", "to", "in"
 }
 
+# Palabras que deben ir en minúscula en títulos en español, salvo si son la primera palabra.
 SPANISH_MINOR_WORDS = {
     "a", "al", "ante", "bajo", "cabe", "con", "contra", "de", "del",
     "desde", "durante", "en", "entre", "hacia", "hasta", "mediante",
     "para", "por", "segun", "según", "sin", "so", "sobre", "tras",
-    "y", "e", "o", "u", "ni",
+    "y", "e", "o", "u", "ni", "pero", "mas", "más",
     "el", "la", "los", "las", "lo",
     "un", "una", "unos", "unas"
+}
+
+SPANISH_TITLE_LANGS = {
+    "es", "es-419", "es-mx", "es-ar", "es-co", "es-cl", "es-pe", "es-us", "es-es"
 }
 
 # =========================
@@ -198,7 +200,6 @@ def extract_xmltv_episode_num(elem):
         if not value:
             continue
 
-        # xmltv_ns: zero-based, formato tipo "1 . 3 ."
         if system == "xmltv_ns":
             nums = re.findall(r"\d+", value)
             if len(nums) >= 2:
@@ -253,6 +254,31 @@ def pick_best_localized_text(parent, tag, prefer_latam=False):
                 return text
 
     return candidates[0][1]
+
+def has_spanish_variant(parent, tag):
+    for e in parent.findall(tag):
+        text = (e.text or "").strip()
+        if not text:
+            continue
+        if norm_lang(e.get("lang")) in SPANISH_TITLE_LANGS:
+            return True
+    return False
+
+def detect_sequel_marker(text):
+    if not text:
+        return None
+
+    norm = normalize_text(text)
+    patterns = [
+        r"\b(?:parte|part)\s+(2|3|4|5|6|7|8|9|ii|iii|iv|v|vi|vii|viii|ix|x)\b",
+        r"\b(2|3|4|5|6|7|8|9|ii|iii|iv|v|vi|vii|viii|ix|x)\b$",
+    ]
+
+    for pattern in patterns:
+        m = re.search(pattern, norm, re.IGNORECASE)
+        if m:
+            return m.group(1).lower()
+    return None
 
 def strip_leading_se_from_text(text):
     if not text:
@@ -313,12 +339,15 @@ def spanish_title_case(text):
         if not core:
             return token
 
+        # Mantener siglas
         if re.fullmatch(r"[A-ZÁÉÍÓÚÜÑ0-9]{2,6}", core):
             return f"{prefix}{core}{suffix}"
 
+        # Mantener números romanos
         if re.fullmatch(r"[ivxlcdmIVXLCDM]+", core):
             return f"{prefix}{core.upper()}{suffix}"
 
+        # Procesar palabras compuestas con guión
         if "-" in core:
             subparts = core.split("-")
             rebuilt = []
@@ -326,7 +355,7 @@ def spanish_title_case(text):
                 sp_low = sp.lower()
                 if not sp:
                     rebuilt.append(sp)
-                elif (not is_first and not is_last and j > 0 and sp_low in SPANISH_MINOR_WORDS):
+                elif not is_first and not is_last and j > 0 and sp_low in SPANISH_MINOR_WORDS:
                     rebuilt.append(sp_low)
                 else:
                     rebuilt.append(sp_low[:1].upper() + sp_low[1:])
@@ -427,6 +456,7 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
 
     expected_type = infer_media_type_from_desc(desc)
     norm_title = normalize_text(title)
+    source_sequel = detect_sequel_marker(title)
 
     best_item = None
     best_score = -999.0
@@ -436,26 +466,49 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
         if media_type not in ("movie", "tv"):
             continue
 
-        candidate_title = item.get("title") or item.get("name") or ""
+        candidate_title = (item.get("title") or item.get("name") or "").strip()
+        candidate_original = (item.get("original_title") or item.get("original_name") or "").strip()
         overview = item.get("overview") or ""
+
+        norm_candidate_title = normalize_text(candidate_title)
+        norm_candidate_original = normalize_text(candidate_original)
+        candidate_sequel = detect_sequel_marker(candidate_title) or detect_sequel_marker(candidate_original)
 
         score = 0.0
 
-        title_ratio = SequenceMatcher(None, norm_title, normalize_text(candidate_title)).ratio()
+        title_ratio = SequenceMatcher(None, norm_title, norm_candidate_title).ratio()
         score += title_ratio * 5
 
+        if norm_title and norm_title == norm_candidate_title:
+            score += 7
+
+        if norm_title and norm_candidate_original and norm_title == norm_candidate_original:
+            score += 4
+
         if desc and overview:
-            score += overlap_score(desc, overview) * 4
+            score += overlap_score(desc, overview) * 6
 
         if expected_type and media_type == expected_type:
             score += 2
 
         if desc and not overview.strip():
-            score -= 1
+            score -= 1.5
+
+        if source_sequel is None and candidate_sequel is not None:
+            score -= 6
+
+        if source_sequel is not None and candidate_sequel is not None:
+            if source_sequel == candidate_sequel:
+                score += 1.5
+            else:
+                score -= 7
+
+        if source_sequel is None and candidate_sequel is not None and norm_candidate_title.startswith(norm_title + " "):
+            score -= 2
 
         popularity = item.get("popularity") or 0
         try:
-            score += min(float(popularity) / 1000.0, 0.5)
+            score += min(float(popularity) / 1000.0, 0.3)
         except Exception:
             pass
 
@@ -463,7 +516,7 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
             best_score = score
             best_item = item
 
-    if not best_item or best_score < 2.5:
+    if not best_item or best_score < 3.5:
         api_cache[cache_key] = None
         return None
 
@@ -552,6 +605,10 @@ def normalize_subtitle_elements(elem, prefer_latam=False):
     best_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
     best_subtitle = strip_leading_se_from_text(best_subtitle)
 
+    should_spanish_case = prefer_latam or has_spanish_variant(elem, "sub-title")
+    if best_subtitle and should_spanish_case:
+        best_subtitle = spanish_title_case(best_subtitle)
+
     for s in subtitle_elems:
         elem.remove(s)
 
@@ -583,6 +640,7 @@ def normalize_episode_num_elements(elem):
 def process_programme(elem, start_time_str, prefer_latam=False):
     raw_title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam)
     raw_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
+    xml_has_spanish_title = has_spanish_variant(elem, "title")
 
     clean_title, has_new = extract_new_marker(raw_title)
     clean_title, year_regex = extract_year_regex(clean_title)
@@ -602,7 +660,8 @@ def process_programme(elem, start_time_str, prefer_latam=False):
     if need_tmdb or need_tv or prefer_latam:
         tmdb_data = get_tmdb_data(final_title, raw_desc, prefer_latam=prefer_latam)
 
-    if prefer_latam and tmdb_data and tmdb_data.get("localized_title"):
+    # Solo reemplazar el título por TMDB si el XML no trae ya una variante en español
+    if prefer_latam and not xml_has_spanish_title and tmdb_data and tmdb_data.get("localized_title"):
         final_title = tmdb_data["localized_title"].strip()
 
     if not final_year and tmdb_data:
@@ -620,7 +679,8 @@ def process_programme(elem, start_time_str, prefer_latam=False):
         except ValueError:
             pass
 
-    if prefer_latam and final_title:
+    # Capitalización de títulos en español
+    if final_title and (prefer_latam or xml_has_spanish_title):
         final_title = spanish_title_case(final_title)
 
     display_title = final_title
