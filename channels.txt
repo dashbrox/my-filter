@@ -17,7 +17,6 @@ HBOHits.us
 HBOMovies.us
 HBODrama.us
 HBOComedy.us
-WarnerChannel.gt
 ABCEast_WABC.us
 ABCKABC.us
 NBCEast_WNBC.us
