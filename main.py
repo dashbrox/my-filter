@@ -301,7 +301,7 @@ def strip_leading_se_from_text(text):
 
     return " ".join(text.split()).strip()
 
-def format_season_episode_display(se_text, prefer_latam=False):
+def format_season_episode_display(se_text):
     if not se_text:
         return None
 
@@ -311,10 +311,7 @@ def format_season_episode_display(se_text, prefer_latam=False):
 
     season = m.group(1)
     episode = m.group(2)
-
-    if prefer_latam:
-        return f"T{season} E{episode}"
-    return f"S{season} E{episode}"
+    return f"T{season} E{episode}"
 
 def spanish_title_case(text):
     if not text:
@@ -397,6 +394,11 @@ def split_episode_title_from_desc(desc_text):
 
     remaining = rest.strip()
     return ep_title, remaining
+
+def first_line(text):
+    if not text:
+        return ""
+    return text.replace("\r\n", "\n").replace("\r", "\n").split("\n", 1)[0].strip()
 
 # =========================
 # TMDB
@@ -637,23 +639,44 @@ def set_or_replace_subtitle(elem, subtitle_text, prefer_latam=False):
             break
     elem.insert(title_index + 1, new_sub)
 
-def normalize_subtitle_and_desc(elem, prefer_latam=False):
+def set_or_replace_desc(elem, desc_text, prefer_latam=False):
+    for d in list(elem.findall("desc")):
+        elem.remove(d)
+
+    if not desc_text:
+        return
+
+    new_desc = ET.Element("desc")
+    new_desc.text = desc_text
+    if prefer_latam:
+        new_desc.set("lang", "es")
+
+    children = list(elem)
+    insert_index = len(children)
+
+    for i, child in enumerate(children):
+        if child.tag in ("sub-title", "title"):
+            insert_index = i + 1
+
+    elem.insert(insert_index, new_desc)
+
+def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False):
     current_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
     current_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
 
     extracted_ep_title = None
-    cleaned_desc = current_desc
+    cleaned_desc = current_desc.strip() if current_desc else ""
 
     ep_title_from_desc, desc_without_ep_title = split_episode_title_from_desc(current_desc)
     if ep_title_from_desc:
         extracted_ep_title = ep_title_from_desc
-        cleaned_desc = desc_without_ep_title
+        cleaned_desc = (desc_without_ep_title or "").strip()
 
     chosen_subtitle = current_subtitle.strip() if current_subtitle else ""
     if not chosen_subtitle and extracted_ep_title:
         chosen_subtitle = extracted_ep_title
 
-    chosen_subtitle = strip_leading_se_from_text(chosen_subtitle)
+    chosen_subtitle = strip_leading_se_from_text(chosen_subtitle).strip()
 
     should_spanish_case_subtitle = bool(chosen_subtitle) and (
         prefer_latam or has_spanish_variant(elem, "sub-title") or extracted_ep_title is not None
@@ -663,19 +686,18 @@ def normalize_subtitle_and_desc(elem, prefer_latam=False):
 
     set_or_replace_subtitle(elem, chosen_subtitle, prefer_latam=prefer_latam)
 
-    for desc in elem.findall("desc"):
-        if desc.text:
-            lang = norm_lang(desc.get("lang"))
-            if not cleaned_desc:
-                desc.text = ""
-                continue
+    final_desc = cleaned_desc
 
-            cleaned = cleaned_desc.strip()
+    if is_series and chosen_subtitle:
+        first = first_line(cleaned_desc)
+        if normalize_text(first) == normalize_text(chosen_subtitle):
+            final_desc = cleaned_desc
+        elif cleaned_desc:
+            final_desc = f"{chosen_subtitle}\n{cleaned_desc}"
+        else:
+            final_desc = chosen_subtitle
 
-            if prefer_latam or lang in SPANISH_TITLE_LANGS:
-                cleaned = cleaned.strip()
-
-            desc.text = cleaned
+    set_or_replace_desc(elem, final_desc, prefer_latam=prefer_latam)
 
 def normalize_episode_num_elements(elem):
     if not FORCE_SEASON_EPISODE_IN_TITLE_ONLY:
@@ -733,9 +755,10 @@ def process_programme(elem, start_time_str, prefer_latam=False):
         final_title = spanish_title_case(final_title)
 
     display_title = final_title
+    is_series = bool(final_se)
 
     if final_se:
-        display_se = format_season_episode_display(final_se, prefer_latam=prefer_latam)
+        display_se = format_season_episode_display(final_se)
         display_title += f" ({display_se})"
     elif final_year:
         display_title += f" ({final_year})"
@@ -743,7 +766,7 @@ def process_programme(elem, start_time_str, prefer_latam=False):
     if has_new:
         display_title += " ᴺᵉʷ"
 
-    return display_title
+    return display_title, is_series
 
 def download_xml(url, output_path):
     print(f"Descargando: {url}", flush=True)
@@ -819,9 +842,9 @@ def main():
                                 start = elem.get("start", "")
                                 stop = elem.get("stop", "")
 
-                                new_title = process_programme(elem, start, prefer_latam=prefer_latam)
+                                new_title, is_series = process_programme(elem, start, prefer_latam=prefer_latam)
                                 replace_all_title_elements(elem, new_title, prefer_latam=prefer_latam)
-                                normalize_subtitle_and_desc(elem, prefer_latam=prefer_latam)
+                                normalize_subtitle_and_desc(elem, prefer_latam=prefer_latam, is_series=is_series)
                                 normalize_episode_num_elements(elem)
 
                                 prog_key = (ch_id, start, stop)
