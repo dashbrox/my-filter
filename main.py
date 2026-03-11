@@ -43,12 +43,14 @@ REMOVE_SUBTITLE_ENTIRELY = False
 DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/1.4"
+USER_AGENT = "xmltv-title-normalizer/1.5"
 
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
     "gt", "hn", "mx", "ni", "pa", "py", "pe", "uy", "ve"
 }
+
+IBERO_SPANISH_CODES = LATAM_FEED_CODES | {"es"}
 
 STOPWORDS = {
     "de", "la", "el", "los", "las", "un", "una", "unos", "unas",
@@ -144,9 +146,26 @@ def overlap_score(a, b):
 def norm_lang(lang):
     return (lang or "").strip().lower().replace("_", "-")
 
+def get_feed_code(url):
+    u = url.lower()
+
+    m = re.search(r"epg-([a-z]{2})\.xml", u)
+    if m:
+        return m.group(1)
+
+    m = re.search(r"epg_ripper_([a-z]{2})\d*\.xml\.gz", u)
+    if m:
+        return m.group(1)
+
+    return None
+
 def is_latam_feed(url):
-    m = re.search(r"epg-([a-z]{2})\.xml", url.lower())
-    return bool(m and m.group(1) in LATAM_FEED_CODES)
+    code = get_feed_code(url)
+    return code in LATAM_FEED_CODES
+
+def use_spanish_season_episode_format(url):
+    code = get_feed_code(url)
+    return code in IBERO_SPANISH_CODES
 
 def extract_new_marker(text):
     if not text:
@@ -173,25 +192,71 @@ def extract_year_regex(text):
 
 def normalize_season_ep_from_numbers(season, episode):
     try:
-        return f"S{int(season):02d} E{int(episode):02d}"
+        season_num = int(season)
+        episode_num = int(episode)
+        return f"S{season_num:02d} E{episode_num:02d}"
     except Exception:
         return None
+
+def extract_labeled_season_episode(text):
+    """
+    Detecta formatos variados y devuelve (season, episode) si encuentra ambos.
+    Ejemplos:
+    - Season 1 Episode 2
+    - Temporada 1 Episodio 2
+    - Temp 1 Ep 2
+    - Episode 2 Season 1
+    - Ep. 2 Temp. 1
+    - Capítulo 3 Temporada 2
+    """
+    if not text:
+        return None
+
+    patterns = [
+        r"\bseason\s*(\d+)\s*[,:\-]?\s*episode\s*(\d+)\b",
+        r"\btemporada\s*(\d+)\s*[,:\-]?\s*(?:episodio|capitulo|capítulo|ep|cap)\s*(\d+)\b",
+        r"\btemp\.?\s*(\d+)\s*[,:\-]?\s*(?:ep\.?|episodio|cap\.?|capitulo|capítulo)\s*(\d+)\b",
+        r"\b(?:episode|ep)\.?\s*(\d+)\s*[,:\-]?\s*season\s*(\d+)\b",
+        r"\b(?:episodio|capitulo|capítulo|ep\.?|cap\.?)\s*(\d+)\s*[,:\-]?\s*temporada\s*(\d+)\b",
+        r"\b(?:ep\.?|episodio|cap\.?|capitulo|capítulo)\s*(\d+)\s*[,:\-]?\s*temp\.?\s*(\d+)\b",
+    ]
+
+    for pattern in patterns:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            g1 = m.group(1)
+            g2 = m.group(2)
+
+            if "episode" in pattern or "ep" in pattern and "season" in pattern and pattern.startswith(r"\b(?:episode"):
+                return normalize_season_ep_from_numbers(g2, g1)
+            if ("episodio" in pattern or "capitulo" in pattern or "capítulo" in pattern or "cap" in pattern) and ("temporada" in pattern or "temp" in pattern) and pattern.startswith(r"\b(?:episodio"):
+                return normalize_season_ep_from_numbers(g2, g1)
+            return normalize_season_ep_from_numbers(g1, g2)
+
+    return None
 
 def normalize_season_ep(text):
     if not text:
         return None
+
     patterns = [
         r"\bS\s*(\d+)\s*E\s*(\d+)\b",
+        r"\bS\s*(\d+)\s*[:.\-]?\s*E\s*(\d+)\b",
         r"\bT\s*(\d+)\s*E\s*(\d+)\b",
+        r"\bT\s*(\d+)\s*[:.\-]?\s*E\s*(\d+)\b",
         r"\b(\d+)\s*x\s*(\d+)\b",
-        r"\bSeason\s*(\d+)\s*Episode\s*(\d+)\b",
-        r"\bTemporada\s*(\d+)\s*Episodio\s*(\d+)\b",
-        r"\bTemporada\s*(\d+)\s*Cap[ií]tulo\s*(\d+)\b",
+        r"\b(\d+)\s*-\s*(\d+)\b",
     ]
+
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             return normalize_season_ep_from_numbers(match.group(1), match.group(2))
+
+    labeled = extract_labeled_season_episode(text)
+    if labeled:
+        return labeled
+
     return None
 
 def extract_se_regex(text):
@@ -214,6 +279,7 @@ def extract_xmltv_episode_num(elem):
         se = normalize_season_ep(value)
         if se:
             return se
+
     return None
 
 def infer_media_type_from_desc(desc):
@@ -291,11 +357,13 @@ def strip_leading_se_from_text(text):
     text = text.strip()
 
     patterns = [
-        r"^\s*\(?\s*[ST]\s*\d+\s*E\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*[:.\-–—]?\s*",
         r"^\s*\(?\s*\d+\s*x\s*\d+\s*\)?\s*[:.\-–—]?\s*",
-        r"^\s*\(?\s*Season\s*\d+\s*Episode\s*\d+\s*\)?\s*[:.\-–—]?\s*",
-        r"^\s*\(?\s*Temporada\s*\d+\s*Episodio\s*\d+\s*\)?\s*[:.\-–—]?\s*",
-        r"^\s*\(?\s*Temporada\s*\d+\s*Cap[ií]tulo\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*Season\s*\d+\s*[,:\-]?\s*Episode\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Cap[ií]tulo)\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*Temp\.?\s*\d+\s*[,:\-]?\s*(?:Ep\.?|Cap\.?)\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*(?:Episode|Ep\.?)\s*\d+\s*[,:\-]?\s*Season\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*(?:Episodio|Cap[ií]tulo|Ep\.?|Cap\.?)\s*\d+\s*[,:\-]?\s*(?:Temporada|Temp\.?)\s*\d+\s*\)?\s*[:.\-–—]?\s*",
     ]
 
     changed = True
@@ -309,7 +377,7 @@ def strip_leading_se_from_text(text):
 
     return " ".join(text.split()).strip()
 
-def format_season_episode_display(se_text):
+def format_season_episode_display(se_text, use_spanish=False):
     if not se_text:
         return None
 
@@ -317,9 +385,13 @@ def format_season_episode_display(se_text):
     if not m:
         return se_text
 
-    season = m.group(1)
-    episode = m.group(2)
-    return f"T{season} E{episode}"
+    season = int(m.group(1))
+    episode = int(m.group(2))
+
+    if use_spanish:
+        return f"Temp. {season} Ep. {episode}"
+
+    return f"Season {season}, Episode {episode}"
 
 def spanish_title_case(text):
     if not text:
@@ -377,10 +449,11 @@ def spanish_title_case(text):
 
 def split_episode_title_from_desc(desc_text):
     """
-    Si la descripción empieza con:
-    S4 E13 Título del episodio
-    Sinopsis...
-    devuelve ('Título del episodio', 'Sinopsis...')
+    Si la descripción empieza con temporada/episodio + título:
+    - S4 E13 Título
+    - Temp. 4 Ep. 13 Título
+    - Season 4 Episode 13 Title
+    devuelve ('Título', 'Sinopsis...')
     """
     if not desc_text:
         return None, desc_text
@@ -765,7 +838,12 @@ def normalize_episode_num_elements(elem):
 # PROCESAMIENTO PRINCIPAL
 # =========================
 
-def process_programme(elem, start_time_str, prefer_latam=False):
+def process_programme(
+    elem,
+    start_time_str,
+    prefer_latam=False,
+    spanish_season_episode_format=False
+):
     raw_title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam)
     raw_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
     xml_has_spanish_title = has_spanish_variant(elem, "title")
@@ -817,7 +895,10 @@ def process_programme(elem, start_time_str, prefer_latam=False):
     is_series = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
 
     if final_se:
-        display_se = format_season_episode_display(final_se)
+        display_se = format_season_episode_display(
+            final_se,
+            use_spanish=spanish_season_episode_format
+        )
         display_title += f" ({display_se})"
     elif final_year:
         display_title += f" ({final_year})"
@@ -869,6 +950,7 @@ def main():
                 t0 = time.time()
                 processed_programmes = 0
                 prefer_latam = is_latam_feed(url)
+                spanish_season_episode_format = use_spanish_season_episode_format(url)
 
                 try:
                     print(f"[{idx}/{len(EPG_URLS)}] Fuente: {url}", flush=True)
@@ -901,7 +983,13 @@ def main():
                                 start = elem.get("start", "")
                                 stop = elem.get("stop", "")
 
-                                new_title, is_series = process_programme(elem, start, prefer_latam=prefer_latam)
+                                new_title, is_series = process_programme(
+                                    elem,
+                                    start,
+                                    prefer_latam=prefer_latam,
+                                    spanish_season_episode_format=spanish_season_episode_format
+                                )
+
                                 replace_all_title_elements(elem, new_title, prefer_latam=prefer_latam)
                                 normalize_subtitle_and_desc(elem, prefer_latam=prefer_latam, is_series=is_series)
                                 normalize_episode_num_elements(elem)
