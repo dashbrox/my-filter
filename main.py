@@ -81,6 +81,12 @@ CHANNEL_TIME_OFFSETS = {
     "HBOXtreme.co": -1,
 }
 
+# Restricción opcional por canal -> fuente(s) permitida(s)
+# Si un canal no aparece aquí, funciona normal con cualquier fuente.
+CHANNEL_SOURCE_RULES = {
+    "Space.co": ["https://epgshare01.online/epgshare01/epg_ripper_CO1.xml.gz"],
+}
+
 # =========================
 # SESION HTTP
 # =========================
@@ -528,6 +534,12 @@ def apply_channel_offset(elem):
     if stop:
         elem.set("stop", shift_xmltv_datetime(stop, offset))
 
+def is_source_allowed_for_channel(channel_id, source_url):
+    allowed_sources = CHANNEL_SOURCE_RULES.get(channel_id)
+    if not allowed_sources:
+        return True
+    return source_url in allowed_sources
+
 # =========================
 # TMDB
 # =========================
@@ -963,7 +975,11 @@ def main():
                     for event, elem in context:
                         if elem.tag == "channel":
                             ch_id = elem.get("id")
-                            if ch_id in allowed_channels and ch_id not in written_channels:
+                            if (
+                                ch_id in allowed_channels
+                                and is_source_allowed_for_channel(ch_id, url)
+                                and ch_id not in written_channels
+                            ):
                                 out_f.write(ET.tostring(elem, encoding="utf-8"))
                                 out_f.write(b"\n")
                                 written_channels.add(ch_id)
@@ -980,7 +996,7 @@ def main():
                                 )
 
                             ch_id = elem.get("channel")
-                            if ch_id in allowed_channels:
+                            if ch_id in allowed_channels and is_source_allowed_for_channel(ch_id, url):
                                 start = elem.get("start", "")
                                 stop = elem.get("stop", "")
 
