@@ -101,3 +101,5 @@ plex.tv.Tennis+.plex
 WarnerChannel.pe
 M+.Estrenos.es
 DAZN.F1.es
+Sony.hn
+StudioUniversal.hn
