@@ -58,14 +58,14 @@ STOPWORDS = {
     "y", "o", "en", "por", "para", "con", "sin", "del", "al",
     "que", "se", "su", "sus", "the", "a", "an", "and", "of", "to", "in"
 }
-
 SPANISH_MINOR_WORDS = {
     "a", "al", "ante", "bajo", "cabe", "con", "contra", "de", "del",
     "desde", "durante", "en", "entre", "hacia", "hasta", "mediante",
     "para", "por", "segun", "según", "sin", "so", "sobre", "tras",
     "y", "e", "o", "u", "ni", "pero", "mas", "más",
     "el", "la", "los", "las", "lo",
-    "un", "una", "unos", "unas"
+    "un", "una", "unos", "unas",
+    "vs", "v"
 }
 
 SPANISH_TITLE_LANGS = {
