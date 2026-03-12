@@ -38,7 +38,6 @@ TEMP_OUTPUT = "output_temp.xml"
 CACHE_FILE = "api_cache.json"
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
-ZAI_API_KEY = os.getenv("ZAI_API_KEY", "").strip()
 
 FORCE_SEASON_EPISODE_IN_TITLE_ONLY = True
 REMOVE_SUBTITLE_ENTIRELY = False
@@ -46,7 +45,7 @@ REMOVE_SUBTITLE_ENTIRELY = False
 DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/1.6"
+USER_AGENT = "xmltv-title-normalizer/1.5"
 
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
@@ -95,16 +94,6 @@ CHANNEL_SOURCE_RULES = {
 }
 
 # =========================
-# AI PREFILL (SOLO CON DATOS DEL XML)
-# =========================
-
-ENABLE_AI_PREFILL = bool(ZAI_API_KEY)
-ZAI_MODEL = (os.getenv("ZAI_MODEL", "glm-5") or "glm-5").strip()
-AI_PREFILL_CONFIDENCE = 0.68
-MAX_AI_PREFILL_CALLS_PER_RUN = int(os.getenv("MAX_AI_PREFILL_CALLS_PER_RUN", "120"))
-ai_prefill_calls_made = 0
-
-# =========================
 # SESION HTTP
 # =========================
 
@@ -116,7 +105,7 @@ def build_session():
         read=MAX_RETRIES,
         backoff_factor=1,
         status_forcelist=(429, 500, 502, 503, 504),
-        allowed_methods=frozenset(["GET", "POST"]),
+        allowed_methods=frozenset(["GET"]),
         raise_on_status=False,
     )
     adapter = HTTPAdapter(max_retries=retry, pool_connections=20, pool_maxsize=20)
@@ -169,29 +158,8 @@ def overlap_score(a, b):
         return 0.0
     return len(ta & tb) / max(len(ta), len(tb))
 
-def title_similarity(a, b):
-    na = normalize_text(a)
-    nb = normalize_text(b)
-    if not na or not nb:
-        return 0.0
-    return SequenceMatcher(None, na, nb).ratio()
-
 def norm_lang(lang):
     return (lang or "").strip().lower().replace("_", "-")
-
-def clean_text(value):
-    if value is None:
-        return ""
-    text = str(value).replace("\r\n", "\n").replace("\r", "\n").strip()
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
-
-def safe_int(value):
-    try:
-        return int(value)
-    except Exception:
-        return None
 
 def get_feed_code(url):
     u = url.lower()
@@ -236,13 +204,6 @@ def extract_year_regex(text):
         clean = re.sub(r"\(?\b" + re.escape(year) + r"\b\)?", " ", text)
         return " ".join(clean.split()), year
     return text, None
-
-def normalize_year_value(value):
-    if value is None:
-        return None
-    text = str(value).strip()
-    m = re.search(r"\b(19\d{2}|20\d{2})\b", text)
-    return m.group(1) if m else None
 
 def normalize_season_ep_from_numbers(season, episode):
     try:
@@ -338,8 +299,8 @@ def extract_xmltv_episode_num(elem):
 
 def infer_media_type_from_desc(desc):
     d = normalize_text(desc)
-    tv_hints = ["temporada", "episodio", "capitulo", "serie", "novela", "reality", "miniserie", "show"]
-    movie_hints = ["pelicula", "film", "largometraje", "cine", "documental", "documentary"]
+    tv_hints = ["temporada", "episodio", "capitulo", "serie", "novela", "reality", "miniserie"]
+    movie_hints = ["pelicula", "film", "largometraje", "cine", "documental"]
     tv_score = sum(1 for w in tv_hints if w in d)
     movie_score = sum(1 for w in movie_hints if w in d)
     if tv_score > movie_score:
@@ -347,14 +308,6 @@ def infer_media_type_from_desc(desc):
     if movie_score > tv_score:
         return "movie"
     return None
-
-def get_all_categories(elem):
-    categories = []
-    for c in elem.findall("category"):
-        text = (c.text or "").strip()
-        if text:
-            categories.append(text)
-    return categories
 
 def pick_best_localized_text(parent, tag, prefer_latam=False):
     elems = parent.findall(tag)
@@ -547,211 +500,6 @@ def first_line(text):
     if not text:
         return ""
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n", 1)[0].strip()
-
-def looks_episodic(title, subtitle, desc, categories):
-    joined = normalize_text(" ".join(filter(None, [title, subtitle, desc, " ".join(categories)])))
-    hints = [
-        "temporada", "episodio", "capitulo", "capitulo",
-        "serie", "show", "reality", "novela", "miniserie"
-    ]
-    return any(h in joined for h in hints)
-
-# =========================
-# AI PREFILL HELPERS
-# =========================
-
-def needs_ai_prefill(raw_title, raw_subtitle, raw_desc, final_year, final_se):
-    if not ENABLE_AI_PREFILL:
-        return False
-    if ai_prefill_calls_made >= MAX_AI_PREFILL_CALLS_PER_RUN:
-        return False
-    if not raw_title:
-        return False
-    if not final_year:
-        return True
-    if not final_se:
-        return True
-    if not raw_subtitle:
-        return True
-    if len(clean_text(raw_desc)) < 30:
-        return True
-    return False
-
-def build_xml_only_context(elem, start_time_str, raw_title, raw_subtitle, raw_desc, clean_title, final_year, final_se):
-    return {
-        "channel_id": (elem.get("channel") or "").strip(),
-        "start": start_time_str or "",
-        "raw_title": clean_text(raw_title),
-        "raw_subtitle": clean_text(raw_subtitle),
-        "raw_desc": clean_text(raw_desc),
-        "clean_title": clean_text(clean_title),
-        "current_year": final_year or None,
-        "current_season_episode": final_se or None,
-        "categories": get_all_categories(elem),
-        "episode_num_values": [
-            {
-                "system": (ep.get("system") or "").strip(),
-                "value": (ep.text or "").strip()
-            }
-            for ep in elem.findall("episode-num")
-            if (ep.text or "").strip()
-        ],
-    }
-
-def ai_prefill_cache_key(ctx):
-    return (
-        "zai_prefill:"
-        f"{normalize_text(ctx.get('channel_id', ''))}:"
-        f"{normalize_text(ctx.get('raw_title', ''))}:"
-        f"{normalize_text(ctx.get('raw_subtitle', ''))}:"
-        f"{normalize_text(ctx.get('raw_desc', ''))[:180]}:"
-        f"{ctx.get('start', '')[:14]}"
-    )
-
-def should_accept_ai_lookup_title(candidate_title, raw_title, clean_title):
-    candidate_title = clean_text(candidate_title)
-    if not candidate_title:
-        return False
-
-    base = clean_title or raw_title
-    if not base:
-        return False
-
-    sim = title_similarity(base, candidate_title)
-    overlap = overlap_score(base, candidate_title)
-
-    if sim >= 0.45 or overlap >= 0.45:
-        return True
-
-    # Permite que la AI quite ruido si el texto base venía contaminado con año o "NEW"
-    stripped_base, _ = extract_year_regex(base)
-    stripped_base, _ = extract_new_marker(stripped_base)
-    if title_similarity(stripped_base, candidate_title) >= 0.42:
-        return True
-
-    return False
-
-def clean_ai_prefill_result(raw_result, raw_title, clean_title):
-    if not isinstance(raw_result, dict):
-        return None
-
-    confidence = raw_result.get("confidence")
-    try:
-        confidence = float(confidence)
-    except Exception:
-        confidence = 0.0
-
-    lookup_title = clean_text(raw_result.get("lookup_title"))
-    episode_title = clean_text(raw_result.get("episode_title"))
-    year = normalize_year_value(raw_result.get("year"))
-    media_type = clean_text(raw_result.get("media_type")).lower()
-
-    season = safe_int(raw_result.get("season"))
-    episode = safe_int(raw_result.get("episode"))
-
-    if lookup_title and not should_accept_ai_lookup_title(lookup_title, raw_title, clean_title):
-        lookup_title = ""
-
-    if season is not None and episode is not None:
-        se = normalize_season_ep_from_numbers(season, episode)
-    else:
-        se = None
-
-    return {
-        "lookup_title": lookup_title or None,
-        "episode_title": episode_title or None,
-        "year": year or None,
-        "season_episode": se,
-        "media_type": media_type if media_type in {"tv", "movie", "unknown"} else "unknown",
-        "confidence": confidence,
-    }
-
-def call_ai_prefill_from_xml(ctx):
-    global ai_prefill_calls_made
-
-    if not ENABLE_AI_PREFILL or not ZAI_API_KEY:
-        return None
-
-    cache_key = ai_prefill_cache_key(ctx)
-    if cache_key in api_cache:
-        return api_cache[cache_key]
-
-    if ai_prefill_calls_made >= MAX_AI_PREFILL_CALLS_PER_RUN:
-        return None
-
-    url = "https://api.z.ai/api/paas/v4/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {ZAI_API_KEY}",
-        "Content-Type": "application/json",
-    }
-
-    payload = {
-        "model": ZAI_MODEL,
-        "temperature": 0,
-        "max_tokens": 500,
-        "response_format": {"type": "json_object"},
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "Eres un normalizador estricto de metadata XMLTV. "
-                    "Usa SOLO la informacion proporcionada por el XML. "
-                    "No uses conocimiento externo ni inventes datos. "
-                    "Tu trabajo es limpiar y reorganizar la informacion ya presente para mejorar consultas posteriores. "
-                    "Si no puedes inferir un campo solo desde el XML, devuelve null. "
-                    "Devuelve un JSON valido con esta forma exacta: "
-                    "{"
-                    "\"lookup_title\":null,"
-                    "\"episode_title\":null,"
-                    "\"year\":null,"
-                    "\"season\":null,"
-                    "\"episode\":null,"
-                    "\"media_type\":\"unknown\","
-                    "\"confidence\":0.0"
-                    "}."
-                ),
-            },
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {
-                        "xml_context": ctx,
-                        "goal": (
-                            "Extrae el mejor lookup_title posible para buscar luego en TMDB/TVMaze, "
-                            "sin agregar informacion externa. "
-                            "Si el desc o subtitle permiten separar titulo de serie y titulo de episodio, hazlo. "
-                            "Si detectas season/episode solo por el XML, devolvelos. "
-                            "Si detectas year solo por el XML, devuelvelo."
-                        ),
-                    },
-                    ensure_ascii=False,
-                ),
-            },
-        ],
-    }
-
-    try:
-        ai_prefill_calls_made += 1
-        r = SESSION.post(url, headers=headers, json=payload, timeout=(10, 60))
-        r.raise_for_status()
-        data = r.json()
-        content = (
-            data.get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
-            .strip()
-        )
-        if not content:
-            api_cache[cache_key] = None
-            return None
-
-        parsed = json.loads(content)
-        api_cache[cache_key] = parsed
-        return parsed
-    except Exception as e:
-        print(f"Error AI prefill: {e}", flush=True)
-        api_cache[cache_key] = None
-        return None
 
 # =========================
 # AJUSTE HORARIO POR CANAL
@@ -1067,7 +815,7 @@ def set_or_replace_desc(elem, desc_text, prefer_latam=False):
 
     elem.insert(insert_index, new_desc)
 
-def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False, fallback_subtitle=""):
+def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False):
     current_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
     current_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
 
@@ -1080,8 +828,6 @@ def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False, fallb
         cleaned_desc = (desc_without_ep_title or "").strip()
 
     chosen_subtitle = current_subtitle.strip() if current_subtitle else ""
-    if not chosen_subtitle and fallback_subtitle:
-        chosen_subtitle = fallback_subtitle.strip()
     if not chosen_subtitle and extracted_ep_title:
         chosen_subtitle = extracted_ep_title
 
@@ -1125,7 +871,6 @@ def process_programme(
     spanish_season_episode_format=False
 ):
     raw_title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam)
-    raw_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
     raw_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
     xml_has_spanish_title = has_spanish_variant(elem, "title")
 
@@ -1139,35 +884,6 @@ def process_programme(
     final_year = year_regex
     final_se = se_title or se_desc or se_xml
     final_title = clean_title.strip()
-    fallback_subtitle = raw_subtitle.strip() if raw_subtitle else ""
-
-    # AI PREFILL ANTES DE TMDB / TVMAZE, SOLO CON EL XML
-    if needs_ai_prefill(raw_title, raw_subtitle, raw_desc, final_year, final_se):
-        ai_ctx = build_xml_only_context(
-            elem=elem,
-            start_time_str=start_time_str,
-            raw_title=raw_title,
-            raw_subtitle=raw_subtitle,
-            raw_desc=raw_desc,
-            clean_title=clean_title,
-            final_year=final_year,
-            final_se=final_se,
-        )
-        ai_raw = call_ai_prefill_from_xml(ai_ctx)
-        ai_prefill = clean_ai_prefill_result(ai_raw, raw_title, clean_title)
-
-        if ai_prefill and ai_prefill.get("confidence", 0.0) >= AI_PREFILL_CONFIDENCE:
-            if ai_prefill.get("lookup_title"):
-                final_title = ai_prefill["lookup_title"].strip()
-
-            if not final_year and ai_prefill.get("year"):
-                final_year = ai_prefill["year"]
-
-            if not final_se and ai_prefill.get("season_episode"):
-                final_se = ai_prefill["season_episode"]
-
-            if not fallback_subtitle and ai_prefill.get("episode_title"):
-                fallback_subtitle = ai_prefill["episode_title"].strip()
 
     should_translate = prefer_latam and not xml_has_spanish_title
     need_tmdb = (not final_year) or should_translate
@@ -1187,16 +903,14 @@ def process_programme(
         try:
             air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
 
-            query_title = final_title or clean_title
+            query_title = clean_title or final_title
             tvmaze_data = get_tvmaze_episode(query_title, air_date)
 
-            if not tvmaze_data and clean_title and clean_title != query_title:
-                tvmaze_data = get_tvmaze_episode(clean_title, air_date)
+            if not tvmaze_data and final_title and final_title != query_title:
+                tvmaze_data = get_tvmaze_episode(final_title, air_date)
 
             if tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
-                if not fallback_subtitle and tvmaze_data.get("name"):
-                    fallback_subtitle = tvmaze_data["name"].strip()
         except ValueError:
             pass
 
@@ -1204,7 +918,7 @@ def process_programme(
         final_title = spanish_title_case(final_title)
 
     display_title = final_title
-    is_series = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv") or looks_episodic(raw_title, raw_subtitle, raw_desc, get_all_categories(elem))
+    is_series = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
 
     if final_se:
         display_se = format_season_episode_display(
@@ -1216,7 +930,7 @@ def process_programme(
     if has_new:
         display_title += " ᴺᵉʷ"
 
-    return display_title, is_series, fallback_subtitle
+    return display_title, is_series
 
 def download_xml(url, output_path):
     print(f"Descargando: {url}", flush=True)
@@ -1288,8 +1002,7 @@ def main():
                                 print(
                                     f"{url} -> programmes procesados: {processed_programmes} | "
                                     f"canales escritos: {len(written_channels)} | "
-                                    f"programas escritos: {len(written_programmes)} | "
-                                    f"ai_prefill: {ai_prefill_calls_made}",
+                                    f"programas escritos: {len(written_programmes)}",
                                     flush=True,
                                 )
 
@@ -1298,7 +1011,7 @@ def main():
                                 start = elem.get("start", "")
                                 stop = elem.get("stop", "")
 
-                                new_title, is_series, fallback_subtitle = process_programme(
+                                new_title, is_series = process_programme(
                                     elem,
                                     start,
                                     prefer_latam=prefer_latam,
@@ -1306,12 +1019,7 @@ def main():
                                 )
 
                                 replace_all_title_elements(elem, new_title, prefer_latam=prefer_latam)
-                                normalize_subtitle_and_desc(
-                                    elem,
-                                    prefer_latam=prefer_latam,
-                                    is_series=is_series,
-                                    fallback_subtitle=fallback_subtitle,
-                                )
+                                normalize_subtitle_and_desc(elem, prefer_latam=prefer_latam, is_series=is_series)
                                 normalize_episode_num_elements(elem)
 
                                 apply_channel_offset(elem)
@@ -1331,8 +1039,7 @@ def main():
 
                     print(
                         f"Fuente terminada en {time.time() - t0:.1f}s | "
-                        f"programmes leidos: {processed_programmes} | "
-                        f"ai_prefill acumulado: {ai_prefill_calls_made}",
+                        f"programmes leidos: {processed_programmes}",
                         flush=True,
                     )
 
@@ -1359,7 +1066,6 @@ def main():
         f"Proceso completado: {OUTPUT_FILE} | "
         f"canales: {len(written_channels)} | "
         f"programas: {len(written_programmes)} | "
-        f"ai_prefill: {ai_prefill_calls_made} | "
         f"tiempo total: {time.time() - t_global:.1f}s",
         flush=True,
     )
