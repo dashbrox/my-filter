@@ -103,3 +103,6 @@ M+.Estrenos.es
 DAZN.F1.es
 Sony.hn
 StudioUniversal.hn
+UniversalTV.hn
+DiscoveryChannel.hn
+AnimalPlanet.hn
