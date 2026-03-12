@@ -81,10 +81,15 @@ CHANNEL_TIME_OFFSETS = {
     "HBOXtreme.co": -1,
 }
 
+EPG_CO1 = "https://epgshare01.online/epgshare01/epg_ripper_CO1.xml.gz"
+EPG_ES1 = "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz"
+
 # Restricción opcional por canal -> fuente(s) permitida(s)
 # Si un canal no aparece aquí, funciona normal con cualquier fuente.
 CHANNEL_SOURCE_RULES = {
-    "Space.co": ["https://epgshare01.online/epgshare01/epg_ripper_CO1.xml.gz"],
+    "Space.co": [EPG_CO1],
+    "M+.Estrenos.es": [EPG_ES1],
+    "DAZN.F1.es": [EPG_ES1],
 }
 
 # =========================
