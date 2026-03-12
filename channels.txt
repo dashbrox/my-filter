@@ -99,3 +99,5 @@ StarChannel.pe
 plex.tv.Tennis.Channel.2.plex
 plex.tv.Tennis+.plex
 WarnerChannel.pe
+M+.Estrenos.es
+DAZN.F1.es
