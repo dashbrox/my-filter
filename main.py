@@ -407,52 +407,57 @@ def spanish_title_case(text):
         return ""
 
     parts = re.split(r"(\s+)", text.strip())
-    word_indexes = [i for i, p in enumerate(parts) if p and not p.isspace()]
+    capitalize_next = True  # primera palabra y primera después de ":"
 
-    if not word_indexes:
-        return text
+    def transform_word(word, force_capitalize=False):
+        if not word:
+            return word
 
-    def transform_token(token, is_first, is_last):
+        if re.fullmatch(r"[A-ZÁÉÍÓÚÜÑ0-9]{2,6}", word):
+            return word
+
+        if re.fullmatch(r"[ivxlcdmIVXLCDM]+", word):
+            return word.upper()
+
+        if "-" in word:
+            subparts = word.split("-")
+            rebuilt = []
+            for idx, sub in enumerate(subparts):
+                rebuilt.append(transform_word(sub, force_capitalize=(force_capitalize or idx > 0)))
+            return "-".join(rebuilt)
+
+        low = word.lower()
+
+        if low in {"vs", "v"}:
+            return low
+
+        if not force_capitalize and low in SPANISH_MINOR_WORDS:
+            return low
+
+        return low[:1].upper() + low[1:]
+
+    def transform_token(token, force_capitalize=False):
         m = re.match(r'^([\"“”¿¡(\[]*)(.*?)([\"”?!:;.,)\]]*)$', token)
         if not m:
-            return token
+            return token, False
 
         prefix, core, suffix = m.groups()
+
         if not core:
-            return token
+            return token, ":" in suffix
 
-        if re.fullmatch(r"[A-ZÁÉÍÓÚÜÑ0-9]{2,6}", core):
-            return f"{prefix}{core}{suffix}"
+        new_core = transform_word(core, force_capitalize=force_capitalize)
+        return f"{prefix}{new_core}{suffix}", ":" in suffix
 
-        if re.fullmatch(r"[ivxlcdmIVXLCDM]+", core):
-            return f"{prefix}{core.upper()}{suffix}"
+    for i, part in enumerate(parts):
+        if not part or part.isspace():
+            continue
 
-        if "-" in core:
-            subparts = core.split("-")
-            rebuilt = []
-            for j, sp in enumerate(subparts):
-                sp_low = sp.lower()
-                if not sp:
-                    rebuilt.append(sp)
-                elif not is_first and not is_last and j > 0 and sp_low in SPANISH_MINOR_WORDS:
-                    rebuilt.append(sp_low)
-                else:
-                    rebuilt.append(sp_low[:1].upper() + sp_low[1:])
-            return f"{prefix}{'-'.join(rebuilt)}{suffix}"
-
-        core_low = core.lower()
-
-        if not is_first and not is_last and core_low in SPANISH_MINOR_WORDS:
-            core_new = core_low
-        else:
-            core_new = core_low[:1].upper() + core_low[1:]
-
-        return f"{prefix}{core_new}{suffix}"
-
-    for pos, idx in enumerate(word_indexes):
-        is_first = pos == 0
-        is_last = pos == len(word_indexes) - 1
-        parts[idx] = transform_token(parts[idx], is_first, is_last)
+        parts[i], should_capitalize_next = transform_token(
+            part,
+            force_capitalize=capitalize_next
+        )
+        capitalize_next = should_capitalize_next
 
     return "".join(parts)
 
