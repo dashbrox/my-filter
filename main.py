@@ -45,7 +45,7 @@ REMOVE_SUBTITLE_ENTIRELY = False
 DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/1.5"
+USER_AGENT = "xmltv-title-normalizer/1.6"
 
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
@@ -59,6 +59,7 @@ STOPWORDS = {
     "y", "o", "en", "por", "para", "con", "sin", "del", "al",
     "que", "se", "su", "sus", "the", "a", "an", "and", "of", "to", "in"
 }
+
 SPANISH_MINOR_WORDS = {
     "a", "al", "ante", "bajo", "cabe", "con", "contra", "de", "del",
     "desde", "durante", "en", "entre", "hacia", "hasta", "mediante",
@@ -92,6 +93,10 @@ CHANNEL_SOURCE_RULES = {
     "M+.Estrenos.es": [EPG_ES1],
     "DAZN.F1.es": [EPG_ES1],
 }
+
+# Modo opcional para completar JSON si existe este archivo.
+METADATA_INPUT_JSON = "metadata_input.json"
+METADATA_OUTPUT_JSON = "metadata_output.json"
 
 # =========================
 # SESION HTTP
@@ -213,16 +218,17 @@ def normalize_season_ep_from_numbers(season, episode):
     except Exception:
         return None
 
+def parse_season_episode_text(se_text):
+    if not se_text:
+        return None, None
+    m = re.match(r"^\s*S(\d{2})\s*E(\d{2})\s*$", se_text, flags=re.IGNORECASE)
+    if not m:
+        return None, None
+    return int(m.group(1)), int(m.group(2))
+
 def extract_labeled_season_episode(text):
     """
-    Detecta formatos variados y devuelve (season, episode) si encuentra ambos.
-    Ejemplos:
-    - Season 1 Episode 2
-    - Temporada 1 Episodio 2
-    - Temp 1 Ep 2
-    - Episode 2 Season 1
-    - Ep. 2 Temp. 1
-    - Capítulo 3 Temporada 2
+    Detecta formatos variados y devuelve Sxx Exx si encuentra ambos.
     """
     if not text:
         return None
@@ -242,7 +248,7 @@ def extract_labeled_season_episode(text):
             g1 = m.group(1)
             g2 = m.group(2)
 
-            if "episode" in pattern or "ep" in pattern and "season" in pattern and pattern.startswith(r"\b(?:episode"):
+            if "episode" in pattern or ("ep" in pattern and "season" in pattern and pattern.startswith(r"\b(?:episode")):
                 return normalize_season_ep_from_numbers(g2, g1)
             if ("episodio" in pattern or "capitulo" in pattern or "capítulo" in pattern or "cap" in pattern) and ("temporada" in pattern or "temp" in pattern) and pattern.startswith(r"\b(?:episodio"):
                 return normalize_season_ep_from_numbers(g2, g1)
@@ -413,7 +419,7 @@ def spanish_title_case(text):
         return ""
 
     parts = re.split(r"(\s+)", text.strip())
-    capitalize_next = True  # primera palabra y primera después de ":"
+    capitalize_next = True
 
     def transform_word(word, force_capitalize=False):
         if not word:
@@ -470,9 +476,6 @@ def spanish_title_case(text):
 def split_episode_title_from_desc(desc_text):
     """
     Si la descripción empieza con temporada/episodio + título:
-    - S4 E13 Título
-    - Temp. 4 Ep. 13 Título
-    - Season 4 Episode 13 Title
     devuelve ('Título', 'Sinopsis...')
     """
     if not desc_text:
@@ -482,8 +485,8 @@ def split_episode_title_from_desc(desc_text):
     if not text:
         return None, text
 
-    first_line, sep, rest = text.partition("\n")
-    first_line_clean = first_line.strip()
+    first_ln, sep, rest = text.partition("\n")
+    first_line_clean = first_ln.strip()
 
     se = normalize_season_ep(first_line_clean)
     if not se:
@@ -500,6 +503,70 @@ def first_line(text):
     if not text:
         return ""
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n", 1)[0].strip()
+
+# =========================
+# NUEVAS UTILS PARA RESOLUCION JSON
+# =========================
+
+def clean_series_query(text):
+    """
+    Limpia texto de claves tipo:
+    tmdb_best:watch what happens live with andy cohen:s23 e43 host ...
+    y devuelve solo el nombre probable de la serie.
+    """
+    if not text:
+        return ""
+
+    text = text.strip()
+
+    # Quitar sufijo final ":default" si vino dentro del payload
+    text = re.sub(r":default\s*$", "", text, flags=re.IGNORECASE)
+
+    # Recortar todo desde patrones de season/episode hacia adelante.
+    se_cut_patterns = [
+        r"^(.*?)(?::\s*)?s\d+\s*e\d+\b.*$",
+        r"^(.*?)(?::\s*)?t\d+\s*e\d+\b.*$",
+        r"^(.*?)(?::\s*)?\d+\s*x\s*\d+\b.*$",
+        r"^(.*?)(?::\s*)?season\s*\d+\s*episode\s*\d+\b.*$",
+        r"^(.*?)(?::\s*)?temporada\s*\d+\s*(?:episodio|cap[ií]tulo)\s*\d+\b.*$",
+        r"^(.*?)(?::\s*)?temp\.?\s*\d+\s*ep\.?\s*\d+\b.*$",
+    ]
+
+    for pattern in se_cut_patterns:
+        m = re.match(pattern, text, flags=re.IGNORECASE)
+        if m and m.group(1).strip():
+            text = m.group(1).strip()
+            break
+
+    text = re.sub(r"\bS\s*\d+\s*E\s*\d+\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bT\s*\d+\s*E\s*\d+\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b\d+\s*x\s*\d+\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bSeason\s*\d+\s*Episode\s*\d+\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bTemporada\s*\d+\s*(?:Episodio|Cap[ií]tulo)\s*\d+\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bTemp\.?\s*\d+\s*Ep\.?\s*\d+\b", " ", text, flags=re.IGNORECASE)
+
+    text = re.sub(r"\s+", " ", text).strip(" :-|")
+    return text.strip()
+
+def extract_season_episode_numbers(text):
+    if not text:
+        return None, None
+
+    patterns = [
+        r"\bS\s*(\d+)\s*E\s*(\d+)\b",
+        r"\bT\s*(\d+)\s*E\s*(\d+)\b",
+        r"\b(\d+)\s*x\s*(\d+)\b",
+        r"\bSeason\s*(\d+)\s*Episode\s*(\d+)\b",
+        r"\bTemporada\s*(\d+)\s*Episodio\s*(\d+)\b",
+        r"\bTemp\.?\s*(\d+)\s*Ep\.?\s*(\d+)\b",
+    ]
+
+    for pattern in patterns:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            return int(m.group(1)), int(m.group(2))
+
+    return None, None
 
 # =========================
 # AJUSTE HORARIO POR CANAL
@@ -578,6 +645,33 @@ def tmdb_search_multi(title, language):
             return data
     except Exception as e:
         print(f"Error TMDB search: {e}", flush=True)
+
+    api_cache[cache_key] = None
+    return None
+
+def tmdb_search_tv(title, language="es-ES"):
+    if not TMDB_API_KEY:
+        return None
+
+    cache_key = f"tmdb_search_tv:{normalize_text(title)}:{language}"
+    if cache_key in api_cache:
+        return api_cache[cache_key]
+
+    url = "https://api.themoviedb.org/3/search/tv"
+    params = {
+        "api_key": TMDB_API_KEY,
+        "query": title,
+        "language": language,
+    }
+
+    try:
+        r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
+        if r.status_code == 200:
+            data = r.json()
+            api_cache[cache_key] = data
+            return data
+    except Exception as e:
+        print(f"Error TMDB search tv: {e}", flush=True)
 
     api_cache[cache_key] = None
     return None
@@ -716,26 +810,136 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
     api_cache[cache_key] = result
     return result
 
+def tmdb_find_best_tv_match(show_name, prefer_latam=False):
+    """
+    Match estricto para TV en TMDB, útil para completar JSON tmdb_best:*.
+    No reemplaza get_tmdb_data(); lo complementa.
+    """
+    if not TMDB_API_KEY or not show_name:
+        return None
+
+    cache_key = f"tmdb_find_best_tv:{normalize_text(show_name)}:{'latam' if prefer_latam else 'default'}"
+    if cache_key in api_cache:
+        return api_cache[cache_key]
+
+    search_lang = "es-MX" if prefer_latam else "es-ES"
+    data = tmdb_search_tv(show_name, language=search_lang)
+    if not data or not data.get("results"):
+        api_cache[cache_key] = None
+        return None
+
+    norm_query = normalize_text(show_name)
+    best_item = None
+    best_score = -1.0
+
+    for item in data.get("results", [])[:10]:
+        candidate = (item.get("name") or "").strip()
+        original = (item.get("original_name") or "").strip()
+
+        s1 = SequenceMatcher(None, norm_query, normalize_text(candidate)).ratio() if candidate else 0.0
+        s2 = SequenceMatcher(None, norm_query, normalize_text(original)).ratio() if original else 0.0
+        score = max(s1, s2)
+
+        if normalize_text(candidate) == norm_query:
+            score += 0.4
+        if normalize_text(original) == norm_query:
+            score += 0.25
+
+        if score > best_score:
+            best_score = score
+            best_item = item
+
+    if not best_item or best_score < 0.55:
+        api_cache[cache_key] = None
+        return None
+
+    year = None
+    first_air = (best_item.get("first_air_date") or "").strip()
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", first_air):
+        year = first_air[:4]
+
+    localized_title = get_tmdb_localized_title(best_item.get("id"), "tv", prefer_latam=prefer_latam)
+    if not localized_title:
+        localized_title = best_item.get("name")
+
+    result = {
+        "type": "tv",
+        "year": year,
+        "id": best_item.get("id"),
+        "localized_title": localized_title,
+    }
+    api_cache[cache_key] = result
+    return result
+
 # =========================
 # TVMAZE
 # =========================
 
+def tvmaze_search_show(show_name):
+    """
+    Busca varios resultados y elige el mejor por similitud.
+    Esto evita depender de singlesearch, que a veces se equivoca.
+    """
+    cache_key = f"tvmaze_search_show:{normalize_text(show_name)}"
+    if cache_key in api_cache:
+        return api_cache[cache_key]
+
+    url = "https://api.tvmaze.com/search/shows"
+
+    try:
+        r = SESSION.get(url, params={"q": show_name}, timeout=API_TIMEOUT)
+        if r.status_code != 200:
+            api_cache[cache_key] = None
+            return None
+
+        results = r.json() or []
+        if not results:
+            api_cache[cache_key] = None
+            return None
+
+        norm_query = normalize_text(show_name)
+        best = None
+        best_score = -1.0
+
+        for item in results[:10]:
+            show = item.get("show") or {}
+            candidate = (show.get("name") or "").strip()
+            if not candidate:
+                continue
+
+            score = SequenceMatcher(None, norm_query, normalize_text(candidate)).ratio()
+
+            if normalize_text(candidate) == norm_query:
+                score += 0.4
+
+            if score > best_score:
+                best_score = score
+                best = show
+
+        api_cache[cache_key] = best
+        return best
+    except Exception as e:
+        print(f"Error TVMaze search show: {e}", flush=True)
+
+    api_cache[cache_key] = None
+    return None
+
 def get_tvmaze_episode(show_name, air_date):
+    """
+    Mantiene la firma original para no romper tu flujo XML.
+    Ahora usa tvmaze_search_show() y no singlesearch.
+    """
     cache_key = f"tvmaze:{normalize_text(show_name)}:{air_date}"
     if cache_key in api_cache:
         return api_cache[cache_key]
 
-    search_url = "https://api.tvmaze.com/singlesearch/shows"
-    params = {"q": show_name}
-
     try:
-        r_show = SESSION.get(search_url, params=params, timeout=API_TIMEOUT)
-        if r_show.status_code != 200:
+        show = tvmaze_search_show(show_name)
+        if not show:
             api_cache[cache_key] = None
             return None
 
-        show_data = r_show.json()
-        show_id = show_data.get("id")
+        show_id = show.get("id")
         if not show_id:
             api_cache[cache_key] = None
             return None
@@ -744,7 +948,7 @@ def get_tvmaze_episode(show_name, air_date):
         r_ep = SESSION.get(ep_url, params={"date": air_date}, timeout=API_TIMEOUT)
 
         if r_ep.status_code == 200:
-            episodes = r_ep.json()
+            episodes = r_ep.json() or []
             if episodes:
                 ep = episodes[0]
                 result = {
@@ -759,6 +963,145 @@ def get_tvmaze_episode(show_name, air_date):
 
     api_cache[cache_key] = None
     return None
+
+def tvmaze_get_show_main_info(show_name):
+    show = tvmaze_search_show(show_name)
+    if not show:
+        return None
+
+    premiered = (show.get("premiered") or "").strip()
+    year = premiered[:4] if re.match(r"^\d{4}-\d{2}-\d{2}$", premiered) else None
+
+    return {
+        "type": "tv",
+        "year": year,
+        "id": show.get("id"),
+        "localized_title": show.get("name"),
+    }
+
+def tvmaze_get_episode_info(show_name, air_date):
+    """
+    Devuelve estructura completa para completar JSON:
+    {
+      type, year, id, localized_title, season, episode
+    }
+    """
+    cache_key = f"tvmaze_full:{normalize_text(show_name)}:{air_date}"
+    if cache_key in api_cache:
+        return api_cache[cache_key]
+
+    show = tvmaze_search_show(show_name)
+    if not show:
+        api_cache[cache_key] = None
+        return None
+
+    show_id = show.get("id")
+    if not show_id:
+        api_cache[cache_key] = None
+        return None
+
+    ep_url = f"https://api.tvmaze.com/shows/{show_id}/episodesbydate"
+
+    try:
+        r_ep = SESSION.get(ep_url, params={"date": air_date}, timeout=API_TIMEOUT)
+        if r_ep.status_code == 200:
+            episodes = r_ep.json() or []
+            if episodes:
+                ep = episodes[0]
+                premiered = (show.get("premiered") or "").strip()
+                year = premiered[:4] if re.match(r"^\d{4}-\d{2}-\d{2}$", premiered) else None
+
+                result = {
+                    "type": "tv",
+                    "year": year,
+                    "id": show_id,
+                    "localized_title": show.get("name"),
+                    "season": ep.get("season"),
+                    "episode": ep.get("number"),
+                }
+                api_cache[cache_key] = result
+                return result
+    except Exception as e:
+        print(f"Error TVMaze episode full: {e}", flush=True)
+
+    api_cache[cache_key] = None
+    return None
+
+# =========================
+# RESOLUCION JSON EXACTA
+# =========================
+
+def resolve_metadata_key(key, prefer_latam=False):
+    """
+    Resuelve exactamente claves como:
+    - tvmaze:the real housewives of beverly hills:2026-03-13
+    - tmdb_best:watch what happens live with andy cohen:s23 e43 host ...
+    """
+
+    if not key or ":" not in key:
+        return None
+
+    if key.startswith("tvmaze:"):
+        parts = key.split(":", 2)
+        if len(parts) != 3:
+            return None
+
+        _, raw_show_name, raw_date = parts
+        show_name = clean_series_query(raw_show_name)
+        air_date = raw_date.strip()
+
+        if not show_name or not re.match(r"^\d{4}-\d{2}-\d{2}$", air_date):
+            return None
+
+        return tvmaze_get_episode_info(show_name, air_date)
+
+    if key.startswith("tmdb_best:"):
+        payload = key[len("tmdb_best:"):].strip()
+
+        season_num, episode_num = extract_season_episode_numbers(payload)
+        show_name = clean_series_query(payload)
+
+        if not show_name:
+            return None
+
+        base = tmdb_find_best_tv_match(show_name, prefer_latam=prefer_latam)
+        if not base:
+            return None
+
+        result = {
+            "type": base.get("type"),
+            "year": base.get("year"),
+            "id": base.get("id"),
+            "localized_title": base.get("localized_title"),
+            "season": season_num,
+            "episode": episode_num,
+        }
+        return result
+
+    return None
+
+def resolve_metadata_map(input_map, prefer_latam=False):
+    output = {}
+    for key, value in input_map.items():
+        if value is not None:
+            output[key] = value
+            continue
+
+        resolved = resolve_metadata_key(key, prefer_latam=prefer_latam)
+        output[key] = resolved
+    return output
+
+def complete_null_metadata_entries(input_json_path, output_json_path, prefer_latam=False):
+    with open(input_json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    completed = resolve_metadata_map(data, prefer_latam=prefer_latam)
+
+    with open(output_json_path, "w", encoding="utf-8") as f:
+        json.dump(completed, f, ensure_ascii=False, indent=2)
+
+    save_cache()
+    print(f"JSON completado: {output_json_path}", flush=True)
 
 # =========================
 # XML HELPERS
@@ -899,15 +1242,29 @@ def process_programme(
     if not final_year and tmdb_data:
         final_year = tmdb_data.get("year")
 
-    if not final_se and tmdb_data and tmdb_data.get("type") == "tv":
+    # CAMBIO IMPORTANTE:
+    # Ahora intentamos TVMaze aunque TMDB falle.
+    if not final_se:
         try:
             air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
 
-            query_title = clean_title or final_title
-            tvmaze_data = get_tvmaze_episode(query_title, air_date)
+            query_candidates = []
 
-            if not tvmaze_data and final_title and final_title != query_title:
-                tvmaze_data = get_tvmaze_episode(final_title, air_date)
+            if clean_title:
+                q1 = clean_series_query(clean_title)
+                if q1:
+                    query_candidates.append(q1)
+
+            if final_title:
+                q2 = clean_series_query(final_title)
+                if q2 and q2 not in query_candidates:
+                    query_candidates.append(q2)
+
+            tvmaze_data = None
+            for candidate in query_candidates:
+                tvmaze_data = get_tvmaze_episode(candidate, air_date)
+                if tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
+                    break
 
             if tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
@@ -1008,6 +1365,7 @@ def main():
 
                             ch_id = elem.get("channel")
                             if ch_id in allowed_channels and is_source_allowed_for_channel(ch_id, url):
+                                # Mantengo el orden original para no alterar tu lógica actual.
                                 start = elem.get("start", "")
                                 stop = elem.get("stop", "")
 
@@ -1071,4 +1429,12 @@ def main():
     )
 
 if __name__ == "__main__":
-    main()
+    # Modo opcional JSON: solo se activa si existe metadata_input.json
+    if os.path.exists(METADATA_INPUT_JSON):
+        complete_null_metadata_entries(
+            input_json_path=METADATA_INPUT_JSON,
+            output_json_path=METADATA_OUTPUT_JSON,
+            prefer_latam=False
+        )
+    else:
+        main()
