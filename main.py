@@ -76,7 +76,7 @@ SPANISH_TITLE_LANGS = {
 # Negativo = mover la guía hacia atrás
 # Positivo = mover la guía hacia adelante
 CHANNEL_TIME_OFFSETS = {
-    "WarnerChannel.pe": -7,
+    "WarnerChannel.pe": -3,
     "HBO.mx": -11,
     "HBOXtreme.co": -1,
 }
