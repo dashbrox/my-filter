@@ -49,13 +49,13 @@ ALLOW_MINOR_TEXT_CORRECTIONS = True
 USE_STRUCTURED_FIELDS_FOR_ENRICHMENT = True
 
 # Conservamos episode-num si existe; si falta, lo agregamos.
-FORCE_SEASON_EPISODE_IN_TITLE_ONLY = False
+FORCE_SEASON_EPISODE_IN_TITLE_ONLY = True
 REMOVE_SUBTITLE_ENTIRELY = False
 
 DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/2.0-conservative"
+USER_AGENT = "xmltv-title-normalizer/2.1-enrichment-only"
 
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
@@ -1386,18 +1386,6 @@ def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False):
     current_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
     current_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
 
-    # Modo conservador: solo completar sub-title si falta y se puede inferir localmente.
-    if PRESERVE_EXISTING_XML_DATA:
-        if not current_subtitle:
-            ep_title_from_desc, _desc_without = split_episode_title_from_desc(current_desc)
-            if ep_title_from_desc:
-                inferred = strip_leading_se_from_text(ep_title_from_desc).strip()
-                if inferred:
-                    if prefer_latam or has_spanish_variant(elem, "desc"):
-                        inferred = spanish_title_case(inferred)
-                    set_or_replace_subtitle(elem, inferred, prefer_latam=prefer_latam, only_if_missing=True)
-        return
-
     extracted_ep_title = None
     cleaned_desc = current_desc.strip() if current_desc else ""
 
@@ -1435,12 +1423,11 @@ def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False):
 
 
 def normalize_episode_num_elements(elem):
-    if PRESERVE_EXISTING_XML_DATA:
-        return
     if not FORCE_SEASON_EPISODE_IN_TITLE_ONLY:
         return
     for ep in list(elem.findall("episode-num")):
         elem.remove(ep)
+
 
 # =========================
 # LOGICA DE ENRIQUECIMIENTO
@@ -1560,6 +1547,7 @@ def process_programme(
     clean_title = ctx["clean_title"]
     existing_year = ctx["existing_year"]
     existing_se = ctx["existing_se"]
+    has_new = ctx["has_new"]
     xml_has_spanish_title = ctx["xml_has_spanish_title"]
     expected_type = ctx["expected_type"]
 
@@ -1567,28 +1555,39 @@ def process_programme(
     desc_for_lookup = (ctx["desc_without_ep_title"] or raw_desc or "").strip()
     season_num, episode_num = parse_season_episode_text(existing_se) if existing_se else (None, None)
 
-    final_title_candidate = clean_title or raw_title
+    final_title = clean_title.strip()
     final_year = existing_year
     final_se = existing_se
-    is_series = expected_type == "tv" or bool(existing_se)
+
+    should_translate = prefer_latam and not xml_has_spanish_title
+    movie_match = None
+    tmdb_show = None
+    tvmaze_ep = None
 
     try:
         air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
     except Exception:
         air_date = None
 
+    # Películas / contenido sin episodio: completar año y/o localizar título sin cambiar formato final.
     if expected_type == "movie" or (expected_type is None and not existing_se):
-        need_year = not existing_year
-        if need_year or (not raw_title):
+        need_year = not final_year
+        if need_year or should_translate or not final_title:
             movie_match = resolve_movie_fill(clean_title or raw_title, raw_desc, existing_year, prefer_latam=prefer_latam)
             if movie_match and movie_match.get("status") in ("strong", "confident"):
-                if not final_year and movie_match.get("year"):
-                    final_year = movie_match.get("year")
-                if not raw_title and (movie_match.get("localized_title") or movie_match.get("title")):
-                    final_title_candidate = movie_match.get("localized_title") or movie_match.get("title")
+                if should_translate and movie_match.get("localized_title"):
+                    final_title = movie_match.get("localized_title").strip()
+                elif not final_title and (movie_match.get("localized_title") or movie_match.get("title")):
+                    final_title = (movie_match.get("localized_title") or movie_match.get("title") or "").strip()
                 elif raw_title:
                     minor_candidate = movie_match.get("localized_title") or movie_match.get("title")
-                    final_title_candidate = choose_conservative_title(raw_title, minor_candidate, prefer_latam=prefer_latam, xml_has_spanish_title=xml_has_spanish_title)
+                    final_title = choose_conservative_title(raw_title, minor_candidate, prefer_latam=prefer_latam, xml_has_spanish_title=xml_has_spanish_title)
+                    clean_minor, _ = extract_new_marker(final_title)
+                    clean_minor, _ = extract_year_regex(clean_minor)
+                    final_title = clean_minor.strip() or clean_title
+
+                if not final_year and movie_match.get("year"):
+                    final_year = movie_match.get("year")
             elif need_year:
                 mark_for_review(
                     channel_id,
@@ -1598,10 +1597,10 @@ def process_programme(
                     details=movie_match or {"query": clean_title or raw_title},
                 )
 
-    if existing_se or expected_type == "tv":
-        is_series = True
-        if air_date and (not final_se or not final_year or not raw_title):
-            show_query = clean_series_query(clean_title or raw_title)
+    # Series / episodios: completar temporada/episodio sin cambiar el modo final de mostrarlo.
+    if existing_se or expected_type == "tv" or (movie_match and movie_match.get("type") == "tv"):
+        if air_date and (not final_se or not final_year or should_translate or not final_title):
+            show_query = clean_series_query(clean_title or final_title or raw_title)
             if show_query:
                 tmdb_show, tvmaze_ep = resolve_tv_fill(
                     show_query,
@@ -1613,14 +1612,19 @@ def process_programme(
                     prefer_latam=prefer_latam,
                 )
 
-                if not final_year and tmdb_show and tmdb_show.get("status") in ("strong", "confident") and tmdb_show.get("year"):
-                    final_year = tmdb_show.get("year")
-
-                if not raw_title and tmdb_show and tmdb_show.get("status") in ("strong", "confident"):
-                    final_title_candidate = tmdb_show.get("localized_title") or tmdb_show.get("title") or final_title_candidate
+                if should_translate and tmdb_show and tmdb_show.get("status") in ("strong", "confident") and tmdb_show.get("localized_title"):
+                    final_title = tmdb_show.get("localized_title").strip()
+                elif not final_title and tmdb_show and tmdb_show.get("status") in ("strong", "confident"):
+                    final_title = (tmdb_show.get("localized_title") or tmdb_show.get("title") or final_title).strip()
                 elif raw_title and tmdb_show:
                     minor_candidate = tmdb_show.get("localized_title") or tmdb_show.get("title")
-                    final_title_candidate = choose_conservative_title(raw_title, minor_candidate, prefer_latam=prefer_latam, xml_has_spanish_title=xml_has_spanish_title)
+                    final_title = choose_conservative_title(raw_title, minor_candidate, prefer_latam=prefer_latam, xml_has_spanish_title=xml_has_spanish_title)
+                    clean_minor, _ = extract_new_marker(final_title)
+                    clean_minor, _ = extract_year_regex(clean_minor)
+                    final_title = clean_minor.strip() or clean_title
+
+                if not final_year and tmdb_show and tmdb_show.get("status") in ("strong", "confident") and tmdb_show.get("year"):
+                    final_year = tmdb_show.get("year")
 
                 if not final_se and tvmaze_ep and tvmaze_ep.get("status") in ("strong", "confident"):
                     s = tvmaze_ep.get("season")
@@ -1636,38 +1640,30 @@ def process_programme(
                     }
                     mark_for_review(channel_id, start_time_str, raw_title, "tv_episode_not_confident", details=details)
 
-    # Preservar titulo existente y solo corregir si es una mejora menor.
-    final_title = raw_title
     if not final_title:
-        final_title = final_title_candidate
-    else:
-        final_title = choose_conservative_title(
-            raw_title,
-            final_title_candidate,
-            prefer_latam=prefer_latam,
-            xml_has_spanish_title=xml_has_spanish_title,
-        )
+        final_title = clean_title.strip() or raw_title
 
-    if final_title and (prefer_latam or xml_has_spanish_title) and not raw_title:
+    if final_title and (prefer_latam or xml_has_spanish_title or should_translate):
         final_title = spanish_title_case(final_title)
 
-    # Aplicar resultados de forma conservadora.
-    if final_title and final_title != raw_title:
-        replace_all_title_elements(elem, final_title, prefer_latam=prefer_latam)
+    if not existing_year and final_year:
+        set_date_if_missing(elem, final_year)
 
-    if USE_STRUCTURED_FIELDS_FOR_ENRICHMENT:
-        if not existing_year and final_year:
-            set_date_if_missing(elem, final_year)
-        if not existing_se and final_se:
-            set_episode_num_if_missing(elem, final_se)
-    else:
-        if final_title and not raw_title:
-            replace_all_title_elements(elem, final_title, prefer_latam=prefer_latam)
+    display_title = final_title
+    is_series = bool(final_se) or bool(existing_se) or bool((tmdb_show and tmdb_show.get("type") == "tv") or (movie_match and movie_match.get("type") == "tv"))
 
-    normalize_subtitle_and_desc(elem, prefer_latam=prefer_latam, is_series=is_series)
-    normalize_episode_num_elements(elem)
+    if final_se:
+        display_se = format_season_episode_display(
+            final_se,
+            use_spanish=spanish_season_episode_format
+        )
+        display_title += f" | {display_se}"
 
-    return final_title or raw_title, is_series
+    if has_new:
+        display_title += " ᴺᵉʷ"
+
+    return display_title, is_series
+
 
 # =========================
 # I/O PRINCIPAL
@@ -1812,11 +1808,4 @@ def main():
 
 
 if __name__ == "__main__":
-    if os.path.exists(METADATA_INPUT_JSON):
-        complete_null_metadata_entries(
-            input_json_path=METADATA_INPUT_JSON,
-            output_json_path=METADATA_OUTPUT_JSON,
-            prefer_latam=False
-        )
-    else:
-        main()
+    main()
