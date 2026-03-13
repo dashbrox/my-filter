@@ -198,11 +198,19 @@ def extract_new_marker(text):
 def extract_year_regex(text):
     if not text:
         return "", None
+
+    stripped = text.strip()
+
+    # Evita romper títulos que son solo un año: 1917, 1984, 2012, etc.
+    if re.fullmatch(r"(19\d{2}|20\d{2})", stripped):
+        return text, None
+
     match = re.search(r"\b(19\d{2}|20\d{2})\b", text)
     if match:
         year = match.group(1)
         clean = re.sub(r"\(?\b" + re.escape(year) + r"\b\)?", " ", text)
         return " ".join(clean.split()), year
+
     return text, None
 
 def normalize_season_ep_from_numbers(season, episode):
@@ -215,38 +223,31 @@ def normalize_season_ep_from_numbers(season, episode):
 
 def extract_labeled_season_episode(text):
     """
-    Detecta formatos variados y devuelve (season, episode) si encuentra ambos.
-    Ejemplos:
-    - Season 1 Episode 2
-    - Temporada 1 Episodio 2
-    - Temp 1 Ep 2
-    - Episode 2 Season 1
-    - Ep. 2 Temp. 1
-    - Capítulo 3 Temporada 2
+    Detecta formatos variados y devuelve Sxx Exx si encuentra ambos.
     """
     if not text:
         return None
 
     patterns = [
-        r"\bseason\s*(\d+)\s*[,:\-]?\s*episode\s*(\d+)\b",
-        r"\btemporada\s*(\d+)\s*[,:\-]?\s*(?:episodio|capitulo|capítulo|ep|cap)\s*(\d+)\b",
-        r"\btemp\.?\s*(\d+)\s*[,:\-]?\s*(?:ep\.?|episodio|cap\.?|capitulo|capítulo)\s*(\d+)\b",
-        r"\b(?:episode|ep)\.?\s*(\d+)\s*[,:\-]?\s*season\s*(\d+)\b",
-        r"\b(?:episodio|capitulo|capítulo|ep\.?|cap\.?)\s*(\d+)\s*[,:\-]?\s*temporada\s*(\d+)\b",
-        r"\b(?:ep\.?|episodio|cap\.?|capitulo|capítulo)\s*(\d+)\s*[,:\-]?\s*temp\.?\s*(\d+)\b",
+        (r"\bseason\s*(\d+)\s*[,:\-]?\s*episode\s*(\d+)\b", False),
+        (r"\btemporada\s*(\d+)\s*[,:\-]?\s*(?:episodio|capitulo|capítulo|ep|cap)\s*(\d+)\b", False),
+        (r"\btemp\.?\s*(\d+)\s*[,:\-]?\s*(?:ep\.?|episodio|cap\.?|capitulo|capítulo)\s*(\d+)\b", False),
+        (r"\b(?:episode|ep)\.?\s*(\d+)\s*[,:\-]?\s*season\s*(\d+)\b", True),
+        (r"\b(?:episodio|capitulo|capítulo|ep\.?|cap\.?)\s*(\d+)\s*[,:\-]?\s*temporada\s*(\d+)\b", True),
+        (r"\b(?:ep\.?|episodio|cap\.?|capitulo|capítulo)\s*(\d+)\s*[,:\-]?\s*temp\.?\s*(\d+)\b", True),
     ]
 
-    for pattern in patterns:
+    for pattern, reverse_groups in patterns:
         m = re.search(pattern, text, re.IGNORECASE)
-        if m:
-            g1 = m.group(1)
-            g2 = m.group(2)
+        if not m:
+            continue
 
-            if "episode" in pattern or "ep" in pattern and "season" in pattern and pattern.startswith(r"\b(?:episode"):
-                return normalize_season_ep_from_numbers(g2, g1)
-            if ("episodio" in pattern or "capitulo" in pattern or "capítulo" in pattern or "cap" in pattern) and ("temporada" in pattern or "temp" in pattern) and pattern.startswith(r"\b(?:episodio"):
-                return normalize_season_ep_from_numbers(g2, g1)
-            return normalize_season_ep_from_numbers(g1, g2)
+        g1 = m.group(1)
+        g2 = m.group(2)
+
+        if reverse_groups:
+            return normalize_season_ep_from_numbers(g2, g1)
+        return normalize_season_ep_from_numbers(g1, g2)
 
     return None
 
@@ -413,7 +414,7 @@ def spanish_title_case(text):
         return ""
 
     parts = re.split(r"(\s+)", text.strip())
-    capitalize_next = True  # primera palabra y primera después de ":"
+    capitalize_next = True
 
     def transform_word(word, force_capitalize=False):
         if not word:
@@ -500,6 +501,39 @@ def first_line(text):
     if not text:
         return ""
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n", 1)[0].strip()
+
+def strip_html_tags(text):
+    if not text:
+        return ""
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = text.replace("&nbsp;", " ")
+    return " ".join(text.split()).strip()
+
+def text_similarity(a, b):
+    na = normalize_text(a)
+    nb = normalize_text(b)
+
+    if not na or not nb:
+        return 0.0
+    if na == nb:
+        return 1.0
+
+    ratio = SequenceMatcher(None, na, nb).ratio()
+
+    if na in nb or nb in na:
+        ratio = max(ratio, min(len(na), len(nb)) / max(len(na), len(nb)))
+
+    return ratio
+
+def is_ambiguous_title(title):
+    tokens = [t for t in normalize_text(title).split() if len(t) > 2]
+    return len(tokens) <= 2
+
+def extract_candidate_year(item):
+    date_str = item.get("release_date") or item.get("first_air_date") or ""
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+        return date_str[:4]
+    return None
 
 # =========================
 # AJUSTE HORARIO POR CANAL
@@ -614,13 +648,15 @@ def get_tmdb_localized_title(tmdb_id, media_type, prefer_latam=False):
 
     return None
 
-def get_tmdb_data(title, desc="", prefer_latam=False):
+def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False):
     if not TMDB_API_KEY or not title:
         return None
 
     cache_key = (
-        f"tmdb_best:{normalize_text(title)}:"
-        f"{normalize_text(desc)[:120]}:"
+        f"tmdb_best_v2:{normalize_text(title)}:"
+        f"{normalize_text(subtitle)}:"
+        f"{normalize_text(desc)[:160]}:"
+        f"{year or ''}:"
         f"{'latam' if prefer_latam else 'default'}"
     )
     if cache_key in api_cache:
@@ -635,6 +671,7 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
     expected_type = infer_media_type_from_desc(desc)
     norm_title = normalize_text(title)
     source_sequel = detect_sequel_marker(title)
+    ambiguous_title = is_ambiguous_title(title)
 
     best_item = None
     best_score = -999.0
@@ -647,46 +684,68 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
         candidate_title = (item.get("title") or item.get("name") or "").strip()
         candidate_original = (item.get("original_title") or item.get("original_name") or "").strip()
         overview = item.get("overview") or ""
+        candidate_year = extract_candidate_year(item)
 
-        norm_candidate_title = normalize_text(candidate_title)
-        norm_candidate_original = normalize_text(candidate_original)
+        title_ratio = max(
+            text_similarity(title, candidate_title),
+            text_similarity(title, candidate_original),
+        )
+        desc_ratio = overlap_score(desc, overview) if desc and overview else 0.0
+
+        min_title_ratio = 0.78 if ambiguous_title else 0.58
+        if title_ratio < min_title_ratio:
+            continue
+
+        # Si el título no es casi exacto, la sinopsis debe acompañar.
+        if desc and overview:
+            if title_ratio < 0.93 and desc_ratio < 0.18:
+                continue
+            if ambiguous_title and desc_ratio < 0.12:
+                continue
+        elif ambiguous_title and desc:
+            continue
+
+        if year and candidate_year:
+            try:
+                if abs(int(year) - int(candidate_year)) > 1:
+                    continue
+            except Exception:
+                pass
+
         candidate_sequel = detect_sequel_marker(candidate_title) or detect_sequel_marker(candidate_original)
 
         score = 0.0
+        score += title_ratio * 8.0
+        score += desc_ratio * 9.0
 
-        title_ratio = SequenceMatcher(None, norm_title, norm_candidate_title).ratio()
-        score += title_ratio * 5
+        if norm_title and normalize_text(candidate_title) == norm_title:
+            score += 4.0
 
-        if norm_title and norm_title == norm_candidate_title:
-            score += 7
-
-        if norm_title and norm_candidate_original and norm_title == norm_candidate_original:
-            score += 4
-
-        if desc and overview:
-            score += overlap_score(desc, overview) * 6
+        if norm_title and candidate_original and normalize_text(candidate_original) == norm_title:
+            score += 3.0
 
         if expected_type and media_type == expected_type:
-            score += 2
+            score += 2.0
+        elif expected_type and media_type != expected_type:
+            score -= 2.5
 
-        if desc and not overview.strip():
-            score -= 1.5
+        if year and candidate_year:
+            if str(year) == str(candidate_year):
+                score += 1.5
+            else:
+                score -= 1.0
 
         if source_sequel is None and candidate_sequel is not None:
-            score -= 6
-
-        if source_sequel is not None and candidate_sequel is not None:
+            score -= 5.0
+        elif source_sequel is not None and candidate_sequel is not None:
             if source_sequel == candidate_sequel:
                 score += 1.5
             else:
-                score -= 7
-
-        if source_sequel is None and candidate_sequel is not None and norm_candidate_title.startswith(norm_title + " "):
-            score -= 2
+                score -= 7.0
 
         popularity = item.get("popularity") or 0
         try:
-            score += min(float(popularity) / 1000.0, 0.3)
+            score += min(float(popularity) / 2000.0, 0.15)
         except Exception:
             pass
 
@@ -694,20 +753,17 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
             best_score = score
             best_item = item
 
-    if not best_item or best_score < 3.5:
+    if not best_item or best_score < 5.5:
         api_cache[cache_key] = None
         return None
 
     result = {
         "type": best_item.get("media_type"),
-        "year": None,
+        "year": extract_candidate_year(best_item),
         "id": best_item.get("id"),
         "localized_title": None,
+        "match_score": round(best_score, 3),
     }
-
-    date_str = best_item.get("release_date") or best_item.get("first_air_date")
-    if date_str:
-        result["year"] = date_str.split("-")[0]
 
     result["localized_title"] = get_tmdb_localized_title(
         result["id"], result["type"], prefer_latam=prefer_latam
@@ -720,40 +776,122 @@ def get_tmdb_data(title, desc="", prefer_latam=False):
 # TVMAZE
 # =========================
 
-def get_tvmaze_episode(show_name, air_date):
-    cache_key = f"tvmaze:{normalize_text(show_name)}:{air_date}"
+def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
+    cache_key = (
+        f"tvmaze_v2:{normalize_text(show_name)}:{air_date}:"
+        f"{normalize_text(subtitle)}:{normalize_text(desc)[:160]}:{year or ''}"
+    )
     if cache_key in api_cache:
         return api_cache[cache_key]
 
-    search_url = "https://api.tvmaze.com/singlesearch/shows"
-    params = {"q": show_name}
-
     try:
-        r_show = SESSION.get(search_url, params=params, timeout=API_TIMEOUT)
+        r_show = SESSION.get(
+            "https://api.tvmaze.com/search/shows",
+            params={"q": show_name},
+            timeout=API_TIMEOUT,
+        )
         if r_show.status_code != 200:
             api_cache[cache_key] = None
             return None
 
-        show_data = r_show.json()
-        show_id = show_data.get("id")
-        if not show_id:
+        results = r_show.json() or []
+        if not results:
             api_cache[cache_key] = None
             return None
 
-        ep_url = f"https://api.tvmaze.com/shows/{show_id}/episodesbydate"
-        r_ep = SESSION.get(ep_url, params={"date": air_date}, timeout=API_TIMEOUT)
+        ambiguous_title = is_ambiguous_title(show_name)
+        ranked_shows = []
 
-        if r_ep.status_code == 200:
-            episodes = r_ep.json()
-            if episodes:
-                ep = episodes[0]
-                result = {
-                    "season": ep.get("season"),
-                    "episode": ep.get("number"),
-                    "name": ep.get("name"),
-                }
-                api_cache[cache_key] = result
-                return result
+        for entry in results[:10]:
+            show = entry.get("show") or {}
+            show_title = (show.get("name") or "").strip()
+            show_summary = strip_html_tags(show.get("summary") or "")
+            premiered = (show.get("premiered") or "")[:4]
+
+            title_ratio = text_similarity(show_name, show_title)
+            desc_ratio = overlap_score(desc, show_summary) if desc and show_summary else 0.0
+
+            min_title_ratio = 0.78 if ambiguous_title else 0.55
+            if title_ratio < min_title_ratio:
+                continue
+
+            # Si el título no es casi exacto, la sinopsis debe validar la serie.
+            if desc and show_summary:
+                if title_ratio < 0.92 and desc_ratio < 0.14:
+                    continue
+                if ambiguous_title and desc_ratio < 0.10:
+                    continue
+            elif ambiguous_title and desc:
+                continue
+
+            score = title_ratio * 8.0 + desc_ratio * 7.0
+
+            if year and premiered:
+                try:
+                    if abs(int(year) - int(premiered)) <= 1:
+                        score += 0.8
+                except Exception:
+                    pass
+
+            ranked_shows.append((score, show))
+
+        if not ranked_shows:
+            api_cache[cache_key] = None
+            return None
+
+        ranked_shows.sort(key=lambda x: x[0], reverse=True)
+
+        best_episode = None
+        best_score = -999.0
+        subtitle_hint = strip_leading_se_from_text(subtitle or "").strip()
+
+        for base_score, show in ranked_shows[:5]:
+            show_id = show.get("id")
+            if not show_id:
+                continue
+
+            r_ep = SESSION.get(
+                f"https://api.tvmaze.com/shows/{show_id}/episodesbydate",
+                params={"date": air_date},
+                timeout=API_TIMEOUT,
+            )
+            if r_ep.status_code != 200:
+                continue
+
+            episodes = r_ep.json() or []
+            if not episodes:
+                continue
+
+            for ep in episodes:
+                ep_name = (ep.get("name") or "").strip()
+                ep_score = base_score
+
+                if subtitle_hint and ep_name:
+                    ep_title_ratio = text_similarity(subtitle_hint, ep_name)
+
+                    if ep_title_ratio < 0.45 and len(episodes) > 1:
+                        continue
+
+                    ep_score += ep_title_ratio * 5.0
+
+                if ep_score > best_score:
+                    best_score = ep_score
+                    best_episode = {
+                        "season": ep.get("season"),
+                        "episode": ep.get("number"),
+                        "name": ep_name,
+                        "show_id": show_id,
+                        "show_name": show.get("name"),
+                        "match_score": round(ep_score, 3),
+                    }
+
+        if not best_episode or best_score < 5.4:
+            api_cache[cache_key] = None
+            return None
+
+        api_cache[cache_key] = best_episode
+        return best_episode
+
     except Exception as e:
         print(f"Error TVMaze: {e}", flush=True)
 
@@ -871,6 +1009,7 @@ def process_programme(
     spanish_season_episode_format=False
 ):
     raw_title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam)
+    raw_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
     raw_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
     xml_has_spanish_title = has_spanish_variant(elem, "title")
 
@@ -885,13 +1024,22 @@ def process_programme(
     final_se = se_title or se_desc or se_xml
     final_title = clean_title.strip()
 
+    desc_episode_title, _ = split_episode_title_from_desc(raw_desc)
+    subtitle_hint = strip_leading_se_from_text(raw_subtitle or "").strip() or (desc_episode_title or "")
+
     should_translate = prefer_latam and not xml_has_spanish_title
     need_tmdb = (not final_year) or should_translate
     need_tv = not final_se
 
     tmdb_data = None
     if need_tmdb or need_tv:
-        tmdb_data = get_tmdb_data(final_title, raw_desc, prefer_latam=prefer_latam)
+        tmdb_data = get_tmdb_data(
+            final_title,
+            desc=raw_desc,
+            subtitle=subtitle_hint,
+            year=final_year,
+            prefer_latam=prefer_latam,
+        )
 
     if should_translate and tmdb_data and tmdb_data.get("localized_title"):
         final_title = tmdb_data["localized_title"].strip()
@@ -904,10 +1052,22 @@ def process_programme(
             air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
 
             query_title = clean_title or final_title
-            tvmaze_data = get_tvmaze_episode(query_title, air_date)
+            tvmaze_data = get_tvmaze_episode(
+                query_title,
+                air_date,
+                desc=raw_desc,
+                subtitle=subtitle_hint,
+                year=final_year,
+            )
 
             if not tvmaze_data and final_title and final_title != query_title:
-                tvmaze_data = get_tvmaze_episode(final_title, air_date)
+                tvmaze_data = get_tvmaze_episode(
+                    final_title,
+                    air_date,
+                    desc=raw_desc,
+                    subtitle=subtitle_hint,
+                    year=final_year,
+                )
 
             if tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
