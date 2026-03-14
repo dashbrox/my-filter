@@ -107,3 +107,6 @@ UniversalTV.hn
 DiscoveryChannel.hn
 AnimalPlanet.hn
 DiscoveryChannel.pe
+SkySportsMainEventUHD.uk
+SkySportsF1.uk
+SkySportsTennis.uk
