@@ -106,3 +106,4 @@ StudioUniversal.hn
 UniversalTV.hn
 DiscoveryChannel.hn
 AnimalPlanet.hn
+DiscoveryChannel.pe
