@@ -3,20 +3,29 @@ name: Generar guía EPG
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 */3 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generar-guia-epg
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     env:
       PYTHONUNBUFFERED: "1"
       TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-      ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configurar Python
         uses: actions/setup-python@v5
