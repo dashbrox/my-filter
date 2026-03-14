@@ -393,6 +393,52 @@ def strip_leading_se_from_text(text):
 
     return " ".join(text.split()).strip()
 
+def strip_se_from_title(text):
+    """
+    Remueve season/episode del título cuando ya viene embebido,
+    para evitar duplicarlo al volver a agregarlo al final.
+    """
+    if not text:
+        return ""
+
+    out = " ".join(text.strip().split())
+
+    patterns = [
+        # Al inicio
+        r"^\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*\d+\s*x\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*Season\s*\d+\s*[,:\-]?\s*Episode\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Cap[ií]tulo)\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*Temp\.?\s*\d+\s*[,:\-]?\s*(?:Ep\.?|Cap\.?)\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+
+        # Al final con separador
+        r"\s*\|\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*$",
+        r"\s*[-–—]\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*$",
+        r"\s*\|\s*\(?\s*\d+\s*x\s*\d+\s*\)?\s*$",
+        r"\s*[-–—]\s*\(?\s*\d+\s*x\s*\d+\s*\)?\s*$",
+        r"\s*\|\s*\(?\s*Season\s*\d+\s*[,:\-]?\s*Episode\s*\d+\s*\)?\s*$",
+        r"\s*\|\s*\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Cap[ií]tulo)\s*\d+\s*\)?\s*$",
+        r"\s*\|\s*\(?\s*Temp\.?\s*\d+\s*[,:\-]?\s*(?:Ep\.?|Cap\.?)\s*\d+\s*\)?\s*$",
+
+        # Al final sin separador
+        r"\s+\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*$",
+        r"\s+\(?\s*\d+\s*x\s*\d+\s*\)?\s*$",
+        r"\s+\(?\s*Season\s*\d+\s*[,:\-]?\s*Episode\s*\d+\s*\)?\s*$",
+        r"\s+\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Cap[ií]tulo)\s*\d+\s*\)?\s*$",
+        r"\s+\(?\s*Temp\.?\s*\d+\s*[,:\-]?\s*(?:Ep\.?|Cap\.?)\s*\d+\s*\)?\s*$",
+    ]
+
+    changed = True
+    while changed:
+        changed = False
+        for pattern in patterns:
+            new_out = re.sub(pattern, "", out, flags=re.IGNORECASE).strip()
+            if new_out != out:
+                out = new_out
+                changed = True
+
+    return " ".join(out.split()).strip()
+
 def format_season_episode_display(se_text, use_spanish=False):
     if not se_text:
         return None
@@ -470,11 +516,17 @@ def spanish_title_case(text):
 
 def split_episode_title_from_desc(desc_text):
     """
-    Si la descripción empieza con temporada/episodio + título:
+    Si la descripción empieza con temporada/episodio + título real:
     - S4 E13 Título
     - Temp. 4 Ep. 13 Título
     - Season 4 Episode 13 Title
-    devuelve ('Título', 'Sinopsis...')
+
+    devuelve ('Título', 'Sinopsis...').
+
+    CORRECCIÓN:
+    - Si es una sola línea larga que arranca con Sxx Exx, NO la trata
+      como subtítulo de episodio porque suele ser sinopsis completa.
+    - Si el supuesto subtítulo es demasiado largo, tampoco lo extrae.
     """
     if not desc_text:
         return None, desc_text
@@ -492,6 +544,14 @@ def split_episode_title_from_desc(desc_text):
 
     ep_title = strip_leading_se_from_text(first_line_clean).strip()
     if not ep_title or len(ep_title) < 3:
+        return None, text
+
+    # Si no hay salto de línea, normalmente es sinopsis corrida.
+    if not sep:
+        return None, text
+
+    # Si el "subtítulo" es demasiado largo, probablemente es sinopsis.
+    if len(ep_title) > 100 or len(ep_title.split()) > 12:
         return None, text
 
     remaining = rest.strip()
@@ -1022,7 +1082,12 @@ def process_programme(
 
     final_year = year_regex
     final_se = se_title or se_desc or se_xml
-    final_title = clean_title.strip()
+
+    # CORRECCIÓN:
+    # quitamos season/episode del título base si ya viene embebido,
+    # para no duplicarlo al reconstruir el title final.
+    base_title = strip_se_from_title(clean_title) or clean_title.strip()
+    final_title = base_title
 
     desc_episode_title, _ = split_episode_title_from_desc(raw_desc)
     subtitle_hint = strip_leading_se_from_text(raw_subtitle or "").strip() or (desc_episode_title or "")
@@ -1051,7 +1116,7 @@ def process_programme(
         try:
             air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
 
-            query_title = clean_title or final_title
+            query_title = final_title or base_title or clean_title
             tvmaze_data = get_tvmaze_episode(
                 query_title,
                 air_date,
@@ -1060,14 +1125,16 @@ def process_programme(
                 year=final_year,
             )
 
-            if not tvmaze_data and final_title and final_title != query_title:
-                tvmaze_data = get_tvmaze_episode(
-                    final_title,
-                    air_date,
-                    desc=raw_desc,
-                    subtitle=subtitle_hint,
-                    year=final_year,
-                )
+            if not tvmaze_data and clean_title and clean_title != query_title:
+                fallback_title = strip_se_from_title(clean_title) or clean_title
+                if fallback_title != query_title:
+                    tvmaze_data = get_tvmaze_episode(
+                        fallback_title,
+                        air_date,
+                        desc=raw_desc,
+                        subtitle=subtitle_hint,
+                        year=final_year,
+                    )
 
             if tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
