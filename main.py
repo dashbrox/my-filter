@@ -77,9 +77,7 @@ SPANISH_TITLE_LANGS = {
 # Negativo = mover la guía hacia atrás
 # Positivo = mover la guía hacia adelante
 CHANNEL_TIME_OFFSETS = {
-    "WarnerChannel.pe": -3,
-    "HBO.mx": -11,
-    "HBOXtreme.co": -1,
+
 }
 
 EPG_CO1 = "https://epgshare01.online/epgshare01/epg_ripper_CO1.xml.gz"
