@@ -33,6 +33,7 @@ EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz",
 ]
 
 CHANNELS_FILE = "channels.txt"
@@ -90,6 +91,7 @@ EPG_RAKUTEN = "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz"
 EPG_IT = "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz"
 EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
 EPG_MX = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
+EPG_SV1 = "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz"
 CHANNEL_SOURCE_RULES = {
     "Space.co": [EPG_CO1],
     "M+.Estrenos.es": [EPG_ES1],
@@ -99,6 +101,11 @@ CHANNEL_SOURCE_RULES = {
     "SuperTennis.HD.it": [EPG_IT],
     "UK:.Tennis.Channel.be": [EPG_RAKUTEN2],
     "Canal.DW.(Latinoamérica).mx": [EPG_MX],
+    "Canal.Universal.Cinema.sv": [EPG_SV1]
+    "Canal.Universal.Comedy.sv:" [EPG_SV1]
+    "Canal.Universal.Comedy.sv:" [EPG_SV1]
+    "Canal.Universal.Crime.sv": [EPG_SV1]
+    "Canal.Universal.Premiere.sv": [EPG_SV1]
 }
 
 # =========================
