@@ -79,9 +79,9 @@ SPANISH_TITLE_LANGS = {
 # Ajustes manuales por canal (en minutos)
 # Negativo = mover la guía hacia atrás
 # Positivo = mover la guía hacia adelante
-CHANNEL_TIME_OFFSETS = 
-
-{
+CHANNEL_TIME_OFFSETS = {
+    
+}
 
 EPG_CO1 = "https://epgshare01.online/epgshare01/epg_ripper_CO1.xml.gz"
 EPG_ES1 = "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz"
