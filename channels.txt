@@ -114,3 +114,4 @@ fashion-tv
 SuperTennis.HD.it
 UK:.Tennis.Channel.be
 WarnerChannel.sv
+WarnerChannel.mx
