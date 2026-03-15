@@ -116,3 +116,7 @@ UK:.Tennis.Channel.be
 WarnerChannel.sv
 WarnerChannel.mx
 Canal.DW.(Latinoamérica).mx
+Canal.Universal.Cinema.sv
+Canal.Universal.Comedy.sv
+Canal.Universal.Crime.sv
+Canal.Universal.Premiere.sv
