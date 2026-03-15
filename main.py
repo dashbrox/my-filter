@@ -102,8 +102,7 @@ CHANNEL_SOURCE_RULES = {
     "UK:.Tennis.Channel.be": [EPG_RAKUTEN2],
     "Canal.DW.(Latinoamérica).mx": [EPG_MX],
     "Canal.Universal.Cinema.sv": [EPG_SV1],
-    "Canal.Universal.Comedy.sv:" [EPG_SV1],
-    "Canal.Universal.Comedy.sv:" [EPG_SV1],
+    "Canal.Universal.Comedy.sv": [EPG_SV1],
     "Canal.Universal.Crime.sv": [EPG_SV1],
     "Canal.Universal.Premiere.sv": [EPG_SV1],
 }
