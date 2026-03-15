@@ -110,3 +110,6 @@ DiscoveryChannel.pe
 SkySportsMainEventUHD.uk
 SkySportsF1.uk
 SkySportsTennis.uk
+fashion-tv
+SuperTennis.HD.it
+UK:.Tennis.Channel.be
