@@ -1,3 +1,4 @@
+
 import requests
 import gzip
 import xml.etree.ElementTree as ET
@@ -76,6 +77,16 @@ SPANISH_MINOR_WORDS = {
 
 SPANISH_TITLE_LANGS = {
     "es", "es-419", "es-mx", "es-ar", "es-co", "es-cl", "es-pe", "es-us", "es-es"
+}
+
+# Siglas conocidas que sí deben permanecer en mayúsculas.
+# Ojo: aquí NO metemos palabras comunes como MI, TU, EX, VI, etc.
+KNOWN_ACRONYMS = {
+    "TV", "HD", "SD", "UHD", "FHD", "4K", "8K", "3D",
+    "HBO", "CNN", "BBC", "FBI", "CIA", "CSI", "NCIS",
+    "SWAT", "UFC", "USA", "UK", "FX", "AXN", "AMC",
+    "TNT", "TCM", "MTV", "VH1", "DW", "DAZN",
+    "EPG", "TMDB", "TVMAZE"
 }
 
 # Ajustes manuales por canal (en minutos)
@@ -469,6 +480,41 @@ def format_season_episode_display(se_text, use_spanish=False):
 
     return f"Season {season} Episode {episode}"
 
+def is_dotted_acronym(word):
+    if not word:
+        return False
+    return bool(re.fullmatch(r"(?:[A-Za-zÁÉÍÓÚÜÑ]\.){2,}[A-Za-zÁÉÍÓÚÜÑ]?\.?", word))
+
+def normalize_dotted_acronym(word):
+    letters = re.findall(r"[A-Za-zÁÉÍÓÚÜÑ]", word or "")
+    if len(letters) >= 2:
+        return ".".join(letter.upper() for letter in letters) + "."
+    return word
+
+def normalize_plain_acronym(word):
+    compact = re.sub(r"[^0-9A-Za-zÁÉÍÓÚÜÑ]", "", word or "")
+    return compact.upper()
+
+def should_preserve_allcaps_token(word):
+    if not word:
+        return False
+
+    if is_dotted_acronym(word):
+        return True
+
+    compact = normalize_plain_acronym(word)
+    if not compact:
+        return False
+
+    if compact in KNOWN_ACRONYMS:
+        return True
+
+    # Preserva tokens técnicos tipo 4K, 8K, 3D, etc.
+    if re.fullmatch(r"(?:\d+[A-ZÁÉÍÓÚÜÑ]+|[A-ZÁÉÍÓÚÜÑ]+\d+)", compact):
+        return True
+
+    return False
+
 def spanish_title_case(text):
     if not text:
         return ""
@@ -480,11 +526,19 @@ def spanish_title_case(text):
         if not word:
             return word
 
-        if re.fullmatch(r"[A-ZÁÉÍÓÚÜÑ0-9]{2,6}", word):
-            return word
+        # Siglas con puntos: S.W.A.T. / C.S.I.
+        # También corrige casos como S.w.a.t -> S.W.A.T.
+        if is_dotted_acronym(word):
+            return normalize_dotted_acronym(word)
 
-        if re.fullmatch(r"[ivxlcdmIVXLCDM]+", word):
-            return word.upper()
+        # Siglas reales conocidas o tokens técnicos válidos.
+        if should_preserve_allcaps_token(word):
+            return normalize_plain_acronym(word)
+
+        # Números romanos: preservar SOLO si ya vienen en mayúsculas.
+        # Así "VI" se mantiene, pero "Vi" no se convierte a "VI".
+        if re.fullmatch(r"[IVXLCDM]+", word):
+            return word
 
         if "-" in word:
             subparts = word.split("-")
@@ -514,6 +568,14 @@ def spanish_title_case(text):
             return token, ":" in suffix
 
         new_core = transform_word(core, force_capitalize=force_capitalize)
+
+        # Si el core es sigla con puntos y el token termina en ":", aseguramos:
+        # S.W.A.T:
+        # ->
+        # S.W.A.T.:
+        if suffix == ":" and is_dotted_acronym(new_core) and not new_core.endswith("."):
+            new_core += "."
+
         return f"{prefix}{new_core}{suffix}", ":" in suffix
 
     for i, part in enumerate(parts):
