@@ -129,3 +129,4 @@ EEntertainmentTelevision.us
 SONYMOVIES.uy
 AXN.uy
 TNTSERIES.uy
+ANIMALPLANET.uy
