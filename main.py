@@ -93,7 +93,7 @@ KNOWN_ACRONYMS = {
 # Negativo = mover la guía hacia atrás
 # Positivo = mover la guía hacia adelante
 CHANNEL_TIME_OFFSETS = {
-    "Lifetime": +10,
+    "Lifetime.ar": +10,
 }
 
 EPG_CO1 = "https://epgshare01.online/epgshare01/epg_ripper_CO1.xml.gz"
