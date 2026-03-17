@@ -127,3 +127,5 @@ StarComedy.co
 USA.uy
 EEntertainmentTelevision.us
 SONYMOVIES.uy
+AXN.uy
+TNTSERIES.uy
