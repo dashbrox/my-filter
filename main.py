@@ -91,7 +91,6 @@ KNOWN_ACRONYMS = {
 # Positivo = mover la guía hacia adelante
 CHANNEL_TIME_OFFSETS = {
     "Lifetime.ar": +11,
-    "WarnerChannel.pe": -11,
 }
 
 EPG_CO1 = "https://epgshare01.online/epgshare01/epg_ripper_CO1.xml.gz"
@@ -102,6 +101,7 @@ EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
 EPG_MX = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_SV1 = "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz"
 EPG_UY1 = "https://iptv-epg.org/files/epg-uy.xml"
+EPG_PE = "https://iptv-epg.org/files/epg-pe.xml"
 CHANNEL_SOURCE_RULES = {
     "Space.co": [EPG_CO1],
     "M+.Estrenos.es": [EPG_ES1],
@@ -116,6 +116,7 @@ CHANNEL_SOURCE_RULES = {
     "Canal.Universal.Crime.sv": [EPG_SV1],
     "Canal.Universal.Premiere.sv": [EPG_SV1],
     "ENTERTAINMENTTELEVISION.uy": [EPG_UY1],
+    "WarnerChannel.pe": [EPG_PE],
 }
 
 # =========================
