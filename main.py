@@ -1,4 +1,3 @@
-
 import requests
 import gzip
 import xml.etree.ElementTree as ET
@@ -95,7 +94,6 @@ KNOWN_ACRONYMS = {
 # Positivo = mover la guía hacia adelante
 CHANNEL_TIME_OFFSETS = {
     "Lifetime": 10,
-    
 }
 
 EPG_CO1 = "https://epgshare01.online/epgshare01/epg_ripper_CO1.xml.gz"
@@ -287,8 +285,10 @@ def normalize_season_ep(text):
     patterns = [
         r"\bS\s*(\d+)\s*E\s*(\d+)\b",
         r"\bS\s*(\d+)\s*[:.\-]?\s*E\s*(\d+)\b",
+        r"\bS(\d{1,2})E(\d{1,2})\b",
         r"\bT\s*(\d+)\s*E\s*(\d+)\b",
         r"\bT\s*(\d+)\s*[:.\-]?\s*E\s*(\d+)\b",
+        r"\bT(\d{1,2})E(\d{1,2})\b",
         r"\b(\d+)\s*x\s*(\d+)\b",
         r"\b(\d+)\s*-\s*(\d+)\b",
     ]
@@ -403,6 +403,8 @@ def strip_leading_se_from_text(text):
 
     patterns = [
         r"^\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*S\d{1,2}E\d{1,2}\s*\)?\s*[:.\-–—]?\s*",
+        r"^\s*\(?\s*T\d{1,2}E\d{1,2}\s*\)?\s*[:.\-–—]?\s*",
         r"^\s*\(?\s*\d+\s*x\s*\d+\s*\)?\s*[:.\-–—]?\s*",
         r"^\s*\(?\s*Season\s*\d+\s*[,:\-]?\s*Episode\s*\d+\s*\)?\s*[:.\-–—]?\s*",
         r"^\s*\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Cap[ií]tulo)\s*\d+\s*\)?\s*[:.\-–—]?\s*",
@@ -422,6 +424,48 @@ def strip_leading_se_from_text(text):
 
     return " ".join(text.split()).strip()
 
+def strip_leading_se_from_desc(desc_text):
+    """
+    Quita prefijos tipo:
+    - S2 E1
+    - S02E01
+    - T2 E1
+    - T02E01
+    - 2x01
+    - Temp. 2 Ep. 1
+    - Temporada 2 Episodio 1
+    - Season 2 Episode 1
+
+    Solo al inicio de la descripcion y conservando saltos de linea.
+    """
+    if not desc_text:
+        return ""
+
+    text = desc_text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    first_line, sep, rest = text.partition("\n")
+
+    patterns = [
+        r"^\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*S\d{1,2}E\d{1,2}\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*T\d{1,2}E\d{1,2}\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*\d+\s*x\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*Season\s*\d+\s*[,:\-]?\s*Episode\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Capitulo|Capítulo)\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*Temp\.?\s*\d+\s*[,:\-]?\s*(?:Ep\.?|Cap\.?|Episodio|Capitulo|Capítulo)\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+    ]
+
+    cleaned_first = first_line
+    for pattern in patterns:
+        new_first = re.sub(pattern, "", cleaned_first, flags=re.IGNORECASE).strip()
+        if new_first != cleaned_first:
+            cleaned_first = new_first
+            break
+
+    if sep:
+        return f"{cleaned_first}\n{rest.strip()}".strip()
+
+    return cleaned_first
+
 def strip_se_from_title(text):
     """
     Remueve season/episode del título cuando ya viene embebido,
@@ -435,6 +479,8 @@ def strip_se_from_title(text):
     patterns = [
         # Al inicio
         r"^\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*S\d{1,2}E\d{1,2}\s*\)?\s*[:.\-–—|]?\s*",
+        r"^\s*\(?\s*T\d{1,2}E\d{1,2}\s*\)?\s*[:.\-–—|]?\s*",
         r"^\s*\(?\s*\d+\s*x\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
         r"^\s*\(?\s*Season\s*\d+\s*[,:\-]?\s*Episode\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
         r"^\s*\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Cap[ií]tulo)\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
@@ -442,6 +488,8 @@ def strip_se_from_title(text):
 
         # Al final con separador
         r"\s*\|\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*$",
+        r"\s*\|\s*\(?\s*S\d{1,2}E\d{1,2}\s*\)?\s*$",
+        r"\s*\|\s*\(?\s*T\d{1,2}E\d{1,2}\s*\)?\s*$",
         r"\s*[-–—]\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*$",
         r"\s*\|\s*\(?\s*\d+\s*x\s*\d+\s*\)?\s*$",
         r"\s*[-–—]\s*\(?\s*\d+\s*x\s*\d+\s*\)?\s*$",
@@ -451,6 +499,8 @@ def strip_se_from_title(text):
 
         # Al final sin separador
         r"\s+\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*$",
+        r"\s+\(?\s*S\d{1,2}E\d{1,2}\s*\)?\s*$",
+        r"\s+\(?\s*T\d{1,2}E\d{1,2}\s*\)?\s*$",
         r"\s+\(?\s*\d+\s*x\s*\d+\s*\)?\s*$",
         r"\s+\(?\s*Season\s*\d+\s*[,:\-]?\s*Episode\s*\d+\s*\)?\s*$",
         r"\s+\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Cap[ií]tulo)\s*\d+\s*\)?\s*$",
@@ -1104,6 +1154,10 @@ def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False):
     if ep_title_from_desc:
         extracted_ep_title = ep_title_from_desc
         cleaned_desc = (desc_without_ep_title or "").strip()
+    else:
+        cleaned_desc = (current_desc or "").strip()
+
+    cleaned_desc = strip_leading_se_from_desc(cleaned_desc)
 
     chosen_subtitle = current_subtitle.strip() if current_subtitle else ""
     if not chosen_subtitle and extracted_ep_title:
