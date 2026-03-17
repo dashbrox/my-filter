@@ -93,6 +93,7 @@ KNOWN_ACRONYMS = {
 # Negativo = mover la guía hacia atrás
 # Positivo = mover la guía hacia adelante
 CHANNEL_TIME_OFFSETS = {
+    "Lifetime": 10,
     
 }
 
