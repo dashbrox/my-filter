@@ -42,7 +42,6 @@ UNIVERSALPREMIERE.uy
 UniversalPremiereOeste.ec
 UNIVERSALCRIME.uy
 UniversalCrimeOeste.ec
-UNIVERSALCRIME.uy
 StudioUniversal.sv
 HBOPop.co
 HBOMundi.co
