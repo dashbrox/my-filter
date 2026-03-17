@@ -220,6 +220,38 @@ def normalize_text(text):
     text = re.sub(r"[^a-z0-9\s]", " ", text)
     return " ".join(text.split())
 
+def strip_accents(text):
+    if not text:
+        return ""
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+
+def should_replace_with_localized_title(source_title, localized_title):
+    """
+    Reemplaza el título si el localizado es esencialmente el mismo,
+    pero corrige acentos/capitalización/ortografía superficial.
+    Ejemplo:
+    'Como entrenar a tu dragon' -> 'Cómo entrenar a tu dragón'
+    """
+    if not source_title or not localized_title:
+        return False
+
+    src_norm = normalize_text(source_title)
+    loc_norm = normalize_text(localized_title)
+
+    if src_norm != loc_norm:
+        return False
+
+    src_clean = " ".join(source_title.split()).strip().lower()
+    loc_clean = " ".join(localized_title.split()).strip().lower()
+
+    if src_clean == loc_clean:
+        return False
+
+    if strip_accents(src_clean) == strip_accents(loc_clean):
+        return True
+
+    return False
+
 def token_set(text):
     return {
         t for t in normalize_text(text).split()
@@ -246,6 +278,36 @@ def get_feed_code(url):
     m = re.search(r"epg_ripper_([a-z]{2})\d*\.xml\.gz", u)
     if m:
         return m.group(1)
+
+    country_aliases = {
+        "peru": "pe",
+        "argentina": "ar",
+        "mexico": "mx",
+        "colombia": "co",
+        "chile": "cl",
+        "uruguay": "uy",
+        "venezuela": "ve",
+        "ecuador": "ec",
+        "bolivia": "bo",
+        "paraguay": "py",
+        "panama": "pa",
+        "costa-rica": "cr",
+        "costarica": "cr",
+        "guatemala": "gt",
+        "honduras": "hn",
+        "nicaragua": "ni",
+        "elsalvador": "sv",
+        "salvador": "sv",
+        "dominican": "do",
+        "dominicana": "do",
+        "spain": "es",
+        "espana": "es",
+        "españa": "es",
+    }
+
+    for alias, code in country_aliases.items():
+        if alias in u:
+            return code
 
     return None
 
@@ -1245,7 +1307,7 @@ def process_programme(
     final_title = base_title
 
     should_translate = prefer_latam and not xml_has_spanish_title
-    need_tmdb = (not final_year) or should_translate
+    need_tmdb = (not final_year) or should_translate or prefer_latam
     need_tv = not final_se
 
     tmdb_data = None
@@ -1258,8 +1320,11 @@ def process_programme(
             prefer_latam=prefer_latam,
         )
 
-    if should_translate and tmdb_data and tmdb_data.get("localized_title"):
-        final_title = tmdb_data["localized_title"].strip()
+    if tmdb_data and tmdb_data.get("localized_title"):
+        localized_title = tmdb_data["localized_title"].strip()
+
+        if should_translate or should_replace_with_localized_title(final_title, localized_title):
+            final_title = localized_title
 
     if not final_year and tmdb_data:
         final_year = tmdb_data.get("year")
