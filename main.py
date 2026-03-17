@@ -33,6 +33,7 @@ EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz",
     "https://iptv-epg.org/files/epg-uy.xml",
 ]
+EPG_URLS = list(dict.fromkeys(EPG_URLS))
 
 CHANNELS_FILE = "channels.txt"
 OUTPUT_FILE = "guia.xml.gz"
@@ -102,6 +103,7 @@ EPG_MX = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_SV1 = "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz"
 EPG_UY1 = "https://iptv-epg.org/files/epg-uy.xml"
 EPG_PE = "https://iptv-epg.org/files/epg-pe.xml"
+
 CHANNEL_SOURCE_RULES = {
     "Space.co": [EPG_CO1],
     "M+.Estrenos.es": [EPG_ES1],
@@ -118,6 +120,8 @@ CHANNEL_SOURCE_RULES = {
     "ENTERTAINMENTTELEVISION.uy": [EPG_UY1],
     "WarnerChannel.pe": [EPG_PE],
 }
+
+WARNER_DEBUG = []
 
 # =========================
 # SESION HTTP
@@ -1368,6 +1372,14 @@ def main():
 
                             ch_id = elem.get("channel")
                             if ch_id in allowed_channels and is_source_allowed_for_channel(ch_id, url):
+                                if ch_id == "WarnerChannel.pe":
+                                    WARNER_DEBUG.append({
+                                        "source": url,
+                                        "start": elem.get("start", ""),
+                                        "stop": elem.get("stop", ""),
+                                        "title": pick_best_localized_text(elem, "title", prefer_latam=prefer_latam),
+                                    })
+
                                 start = elem.get("start", "")
                                 stop = elem.get("stop", "")
 
@@ -1421,6 +1433,14 @@ def main():
 
     if os.path.exists(TEMP_OUTPUT):
         os.remove(TEMP_OUTPUT)
+
+    if WARNER_DEBUG:
+        print("\nDEBUG WARNER", flush=True)
+        for item in WARNER_DEBUG[:100]:
+            print(
+                f"{item['source']} | {item['start']} -> {item['stop']} | {item['title']}",
+                flush=True,
+            )
 
     print(
         f"Proceso completado: {OUTPUT_FILE} | "
