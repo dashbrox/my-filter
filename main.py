@@ -32,6 +32,7 @@ EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz",
     "https://iptv-epg.org/files/epg-uy.xml",
+    "https://www.open-epg.com/files/peru2.xml.gz"
 ]
 EPG_URLS = list(dict.fromkeys(EPG_URLS))
 
@@ -102,7 +103,7 @@ EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
 EPG_MX = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_SV1 = "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz"
 EPG_UY1 = "https://iptv-epg.org/files/epg-uy.xml"
-EPG_PE = "https://iptv-epg.org/files/epg-pe.xml"
+EPG_PE = "https://www.open-epg.com/files/peru2.xml.gz"
 
 CHANNEL_SOURCE_RULES = {
     "Space.co": [EPG_CO1],
@@ -118,7 +119,7 @@ CHANNEL_SOURCE_RULES = {
     "Canal.Universal.Crime.sv": [EPG_SV1],
     "Canal.Universal.Premiere.sv": [EPG_SV1],
     "ENTERTAINMENTTELEVISION.uy": [EPG_UY1],
-    "WarnerChannel.pe": [EPG_PE],
+    "WARNER CHANNEL.pe": [EPG_PE],
 }
 
 WARNER_DEBUG = []
