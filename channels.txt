@@ -41,6 +41,8 @@ UniversalTV.cl
 UNIVERSALPREMIERE.uy
 UniversalPremiereOeste.ec
 UNIVERSALCRIME.uy
+UNIVERSALCOMEDY.uy
+UNIVERSALCINEMA.uy
 UniversalCrimeOeste.ec
 StudioUniversal.sv
 HBOPop.co
