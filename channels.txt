@@ -121,3 +121,5 @@ Canal.Universal.Comedy.sv
 Canal.Universal.Crime.sv
 Canal.Universal.Premiere.sv
 WarnerChannel.gt
+StarCinema.co
+StarComedy.co
