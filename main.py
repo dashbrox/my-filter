@@ -35,6 +35,7 @@ EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz",
+    "https://iptv-epg.org/files/epg-uy.xml",
 ]
 
 CHANNELS_FILE = "channels.txt"
@@ -104,6 +105,7 @@ EPG_IT = "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz"
 EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
 EPG_MX = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_SV1 = "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz"
+EPG_UY1 = "https://iptv-epg.org/files/epg-uy.xml"
 CHANNEL_SOURCE_RULES = {
     "Space.co": [EPG_CO1],
     "M+.Estrenos.es": [EPG_ES1],
@@ -117,6 +119,7 @@ CHANNEL_SOURCE_RULES = {
     "Canal.Universal.Comedy.sv": [EPG_SV1],
     "Canal.Universal.Crime.sv": [EPG_SV1],
     "Canal.Universal.Premiere.sv": [EPG_SV1],
+    "ENTERTAINMENTTELEVISION.uy": [EPG_UY1],
 }
 
 # =========================
