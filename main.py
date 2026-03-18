@@ -129,7 +129,18 @@ WARNER_SCHEDULE_CHANNELS = {
     "WARNER CHANNEL HD.pe",
 }
 
-WARNER_METADATA_SOURCE = "https://epgshare01.online/epgshare01/epg_ripper_PE1.xml.gz"
+WARNER_ALL_CHANNEL_ALIASES = {
+    "WARNER CHANNEL.pe",
+    "WARNER CHANNEL HD.pe",
+    "WARNER.CHANNEL.(Warner).pe",
+    "WarnerChannel.pe",
+}
+
+WARNER_METADATA_SOURCES = [
+    "https://epgshare01.online/epgshare01/epg_ripper_PE1.xml.gz",
+    "https://iptv-epg.org/files/epg-pe.xml",
+]
+
 WARNER_SUSPICIOUS_REPEAT_THRESHOLD = 3
 WARNER_MAX_MATCH_MINUTES = 90
 WARNER_GOOD_MATCH_SCORE = 8.5
@@ -967,7 +978,21 @@ def is_source_allowed_for_channel(channel_id, source_url):
     return source_url in allowed_sources
 
 def is_warner_channel(channel_id):
-    return channel_id in WARNER_SCHEDULE_CHANNELS
+    return channel_id in WARNER_ALL_CHANNEL_ALIASES
+
+def normalize_warner_channel(channel_id):
+    ch = (channel_id or "").strip().lower()
+    ch = ch.replace(".", "")
+    ch = ch.replace("(", "")
+    ch = ch.replace(")", "")
+    ch = ch.replace("-", "")
+    ch = re.sub(r"\s+", "", ch)
+    ch = ch.replace("hd", "")
+
+    if "pe" in ch and "warner" in ch:
+        return "warner_pe"
+
+    return ch
 
 def parse_xmltv_dt_to_utc(xmltv_dt):
     if not xmltv_dt:
@@ -1065,14 +1090,14 @@ def copy_editorial_metadata(target_elem, source_elem):
             target_elem.remove(child)
 
     source_children = list(source_elem)
-
     insert_index = 0
+
     for child in source_children:
         if child.tag in ("title", "sub-title", "desc", "episode-num"):
             target_elem.insert(insert_index, clone_element(child))
             insert_index += 1
 
-def apply_warner_metadata_fix(schedule_entries, metadata_entries):
+def apply_warner_metadata_fix(schedule_entries, metadata_entries, prefer_latam=False, spanish_season_episode_format=False):
     if not schedule_entries or not metadata_entries:
         return
 
@@ -1081,6 +1106,7 @@ def apply_warner_metadata_fix(schedule_entries, metadata_entries):
 
     for i in range(1, len(schedule_entries) + 1):
         same_run = False
+
         if i < len(schedule_entries):
             prev_elem = schedule_entries[i - 1]["elem"]
             curr_elem = schedule_entries[i]["elem"]
@@ -1092,7 +1118,7 @@ def apply_warner_metadata_fix(schedule_entries, metadata_entries):
             curr_start = curr_elem.get("start", "")
 
             same_run = (
-                schedule_entries[i - 1]["channel"] == schedule_entries[i]["channel"]
+                normalize_warner_channel(schedule_entries[i - 1]["channel"]) == normalize_warner_channel(schedule_entries[i]["channel"])
                 and prev_sig == curr_sig
                 and prev_stop == curr_start
             )
@@ -1115,7 +1141,8 @@ def apply_warner_metadata_fix(schedule_entries, metadata_entries):
         for j, metadata_entry in enumerate(metadata_entries):
             if j in used_metadata:
                 continue
-            if metadata_entry["channel"] != schedule_entry["channel"]:
+
+            if normalize_warner_channel(metadata_entry["channel"]) != normalize_warner_channel(schedule_entry["channel"]):
                 continue
 
             score = score_warner_metadata_match(
@@ -1129,6 +1156,19 @@ def apply_warner_metadata_fix(schedule_entries, metadata_entries):
 
         if best_j is not None and best_score >= WARNER_GOOD_MATCH_SCORE:
             copy_editorial_metadata(schedule_elem, metadata_entries[best_j]["elem"])
+
+            start_time_str = schedule_elem.get("start", "")
+            new_title, is_series = process_programme(
+                schedule_elem,
+                start_time_str,
+                prefer_latam=prefer_latam,
+                spanish_season_episode_format=spanish_season_episode_format
+            )
+
+            replace_all_title_elements(schedule_elem, new_title, prefer_latam=prefer_latam)
+            normalize_subtitle_and_desc(schedule_elem, prefer_latam=prefer_latam, is_series=is_series)
+            normalize_episode_num_elements(schedule_elem)
+
             used_metadata.add(best_j)
 
 # =========================
@@ -1749,7 +1789,9 @@ def main():
     written_programmes = set()
     written_channels = set()
 
-    warner_metadata_entries = collect_warner_metadata_entries(WARNER_METADATA_SOURCE)
+    warner_metadata_entries = []
+    for metadata_url in WARNER_METADATA_SOURCES:
+        warner_metadata_entries.extend(collect_warner_metadata_entries(metadata_url))
 
     t_global = time.time()
 
@@ -1834,10 +1876,15 @@ def main():
                         if url == EPG_PE2:
                             warner_schedule_entries = [
                                 item for item in source_programmes_to_write
-                                if is_warner_channel(item["channel"])
+                                if normalize_warner_channel(item["channel"]) == "warner_pe"
                             ]
                             if warner_schedule_entries and warner_metadata_entries:
-                                apply_warner_metadata_fix(warner_schedule_entries, warner_metadata_entries)
+                                apply_warner_metadata_fix(
+                                    warner_schedule_entries,
+                                    warner_metadata_entries,
+                                    prefer_latam=prefer_latam,
+                                    spanish_season_episode_format=spanish_season_episode_format
+                                )
 
                         for item in source_programmes_to_write:
                             prog_elem = item["elem"]
