@@ -802,6 +802,74 @@ def text_similarity(a, b):
 
     return ratio
 
+def has_special_uppercase_pattern(token):
+    """
+    Detecta tokens cuyo casing oficial debe preservarse:
+    - siglas: DTF, FBI, CSI
+    - mezclas letra/número con mayúsculas internas: M3GAN
+    - acrónimos con puntos: S.W.A.T.
+    """
+    if not token:
+        return False
+
+    stripped = re.sub(r'^[\"“”¿¡(\[]+|[\"”?!:;.,)\]]+$', "", token)
+    if not stripped:
+        return False
+
+    if is_dotted_acronym(stripped):
+        return True
+
+    letters = re.sub(r"[^A-Za-zÁÉÍÓÚÜÑ]", "", stripped)
+    if len(letters) < 2:
+        return False
+
+    upper_count = sum(1 for c in letters if c.isupper())
+
+    if stripped.isupper() and upper_count >= 2:
+        return True
+
+    if re.search(r"[A-ZÁÉÍÓÚÜÑ].*\d|\d.*[A-ZÁÉÍÓÚÜÑ]", stripped) and upper_count >= 2:
+        return True
+
+    if upper_count >= 2 and stripped != stripped[:1].upper() + stripped[1:].lower():
+        return True
+
+    return False
+
+def preserve_special_casing(base_title, canonical_title):
+    """
+    Mantiene la capitalización normal del script, pero reinyecta tokens con
+    mayúsculas especiales desde una fuente canónica si el título coincide.
+    """
+    if not base_title or not canonical_title:
+        return base_title
+
+    if normalize_text(base_title) != normalize_text(canonical_title):
+        return base_title
+
+    base_tokens = base_title.split()
+    canon_tokens = canonical_title.split()
+
+    if len(base_tokens) != len(canon_tokens):
+        return base_title
+
+    merged = []
+
+    for bt, ct in zip(base_tokens, canon_tokens):
+        bt_norm = normalize_text(bt)
+        ct_norm = normalize_text(ct)
+
+        if bt_norm != ct_norm:
+            merged.append(bt)
+            continue
+
+        if has_special_uppercase_pattern(ct):
+            merged.append(ct)
+        else:
+            merged.append(bt)
+
+    return " ".join(merged)
+
 def is_ambiguous_title(title):
     tokens = [t for t in normalize_text(title).split() if len(t) > 2]
     return len(tokens) <= 2
@@ -1311,6 +1379,9 @@ def process_programme(
     need_tv = not final_se
 
     tmdb_data = None
+    canonical_title = None
+    tvmaze_data = None
+
     if need_tmdb or need_tv:
         tmdb_data = get_tmdb_data(
             final_title,
@@ -1322,6 +1393,7 @@ def process_programme(
 
     if tmdb_data and tmdb_data.get("localized_title"):
         localized_title = tmdb_data["localized_title"].strip()
+        canonical_title = localized_title
 
         if should_translate or should_replace_with_localized_title(final_title, localized_title):
             final_title = localized_title
@@ -1356,11 +1428,20 @@ def process_programme(
 
             if tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
+
+            if tvmaze_data and tvmaze_data.get("show_name"):
+                tvmaze_show_name = tvmaze_data["show_name"].strip()
+                if normalize_text(final_title) == normalize_text(tvmaze_show_name):
+                    canonical_title = tvmaze_show_name
+
         except ValueError:
             pass
 
     if final_title and (prefer_latam or xml_has_spanish_title):
         final_title = spanish_title_case(final_title)
+
+    if canonical_title:
+        final_title = preserve_special_casing(final_title, canonical_title)
 
     display_title = final_title
     is_series = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
