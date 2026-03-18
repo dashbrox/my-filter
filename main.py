@@ -1102,6 +1102,7 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False):
         "year": extract_candidate_year(best_item),
         "id": best_item.get("id"),
         "localized_title": None,
+        "canonical_title": (best_item.get("title") or best_item.get("name") or "").strip() or None,
         "match_score": round(best_score, 3),
     }
 
@@ -1391,17 +1392,28 @@ def process_programme(
             prefer_latam=prefer_latam,
         )
 
-    if tmdb_data and tmdb_data.get("localized_title"):
-        localized_title = tmdb_data["localized_title"].strip()
-        canonical_title = localized_title
+    if tmdb_data:
+        localized_title = (tmdb_data.get("localized_title") or "").strip()
+        canonical_from_tmdb = (tmdb_data.get("canonical_title") or "").strip()
 
-        if should_translate or should_replace_with_localized_title(final_title, localized_title):
-            final_title = localized_title
+        if localized_title:
+            canonical_title = localized_title
+            if should_translate or should_replace_with_localized_title(final_title, localized_title):
+                final_title = localized_title
+        elif canonical_from_tmdb:
+            canonical_title = canonical_from_tmdb
 
     if not final_year and tmdb_data:
         final_year = tmdb_data.get("year")
 
-    if not final_se and tmdb_data and tmdb_data.get("type") == "tv":
+    should_try_tvmaze = False
+
+    if tmdb_data and tmdb_data.get("type") == "tv":
+        should_try_tvmaze = True
+    elif final_se:
+        should_try_tvmaze = True
+
+    if should_try_tvmaze:
         try:
             air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
 
@@ -1426,7 +1438,7 @@ def process_programme(
                         year=final_year,
                     )
 
-            if tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
+            if not final_se and tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
 
             if tvmaze_data and tvmaze_data.get("show_name"):
