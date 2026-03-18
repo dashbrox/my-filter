@@ -1061,6 +1061,60 @@ def anchor_match(schedule_elem, metadata_elem, prefer_latam=False):
         return True
     return False
 
+def get_anchor_title(elem, prefer_latam=False):
+    if elem is None:
+        return ""
+    title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam).strip()
+    return strip_se_from_title(title) or title
+
+def titles_anchor_similar(a, b):
+    if not a or not b:
+        return False
+    na = normalize_text(a)
+    nb = normalize_text(b)
+    if not na or not nb:
+        return False
+    if na == nb:
+        return True
+    if text_similarity(a, b) >= 0.72:
+        return True
+    if overlap_score(a, b) >= 0.50:
+        return True
+    return False
+
+def extract_episode_from_desc_or_xml(elem):
+    ep = extract_xmltv_episode_num(elem)
+    if ep:
+        return ep
+    desc = pick_best_localized_text(elem, "desc", prefer_latam=True) or pick_best_localized_text(elem, "desc", prefer_latam=False)
+    return extract_se_regex(desc)
+
+def get_runs_by_series(entries, prefer_latam=False):
+    runs = []
+    if not entries:
+        return runs
+
+    run_start = 0
+    for i in range(1, len(entries) + 1):
+        same_run = False
+        if i < len(entries):
+            prev_elem = entries[i - 1]["elem"]
+            curr_elem = entries[i]["elem"]
+
+            prev_series = get_series_key(prev_elem, prefer_latam=prefer_latam)
+            curr_series = get_series_key(curr_elem, prefer_latam=prefer_latam)
+
+            prev_stop = prev_elem.get("stop", "")
+            curr_start = curr_elem.get("start", "")
+
+            same_run = (prev_series == curr_series and prev_stop == curr_start)
+
+        if not same_run:
+            runs.append((run_start, i))
+            run_start = i
+
+    return runs
+
 def score_metadata_match(schedule_elem, metadata_elem, prefer_latam=False):
     schedule_start = parse_xmltv_dt_to_utc(schedule_elem.get("start", ""))
     metadata_start = parse_xmltv_dt_to_utc(metadata_elem.get("start", ""))
@@ -1319,6 +1373,134 @@ def apply_metadata_fix(schedule_entries, metadata_entries, prefer_latam=False, s
         replace_all_title_elements(schedule_elem, new_title, prefer_latam=prefer_latam)
         normalize_subtitle_and_desc(schedule_elem, prefer_latam=prefer_latam, is_series=is_series)
         normalize_episode_num_elements(schedule_elem)
+
+def apply_metadata_fix_warner_anchored(schedule_entries, metadata_entries, prefer_latam=False, spanish_season_episode_format=False):
+    if not schedule_entries or not metadata_entries:
+        return
+
+    canonical = "WARNER CHANNEL.pe"
+
+    schedule_entries = [
+        item for item in schedule_entries
+        if canonical_channel_id(item["channel"]) == canonical
+    ]
+    metadata_entries = [
+        item for item in metadata_entries
+        if canonical_channel_id(item["channel"]) == canonical
+    ]
+
+    if not schedule_entries or not metadata_entries:
+        return
+
+    schedule_runs = get_runs_by_series(schedule_entries, prefer_latam=prefer_latam)
+
+    metadata_runs = []
+    for source_url in sorted({m["source_url"] for m in metadata_entries}):
+        source_items = [m for m in metadata_entries if m["source_url"] == source_url]
+        for start_idx, end_idx in get_runs_by_series(source_items, prefer_latam=prefer_latam):
+            metadata_runs.append({
+                "source_url": source_url,
+                "start_idx": start_idx,
+                "end_idx": end_idx,
+                "items": source_items[start_idx:end_idx],
+            })
+
+    for s_start, s_end in schedule_runs:
+        sched_run = schedule_entries[s_start:s_end]
+        if not sched_run:
+            continue
+
+        if len(sched_run) < 2:
+            continue
+
+        sched_series_key = get_series_key(sched_run[0]["elem"], prefer_latam=prefer_latam)
+        if not sched_series_key:
+            continue
+
+        sched_prev = schedule_entries[s_start - 1]["elem"] if s_start > 0 else None
+        sched_next = schedule_entries[s_end]["elem"] if s_end < len(schedule_entries) else None
+
+        sched_prev_title = get_anchor_title(sched_prev, prefer_latam=prefer_latam)
+        sched_next_title = get_anchor_title(sched_next, prefer_latam=prefer_latam)
+
+        best_candidate = None
+        best_score = -999.0
+
+        for meta_run in metadata_runs:
+            donor_items = meta_run["items"]
+            if len(donor_items) != len(sched_run):
+                continue
+
+            donor_series_key = get_series_key(donor_items[0]["elem"], prefer_latam=prefer_latam)
+            if donor_series_key != sched_series_key:
+                continue
+
+            donor_source_items = [m for m in metadata_entries if m["source_url"] == meta_run["source_url"]]
+            donor_prev = donor_source_items[meta_run["start_idx"] - 1]["elem"] if meta_run["start_idx"] > 0 else None
+            donor_next = donor_source_items[meta_run["end_idx"]]["elem"] if meta_run["end_idx"] < len(donor_source_items) else None
+
+            donor_prev_title = get_anchor_title(donor_prev, prefer_latam=prefer_latam)
+            donor_next_title = get_anchor_title(donor_next, prefer_latam=prefer_latam)
+
+            prev_ok = titles_anchor_similar(sched_prev_title, donor_prev_title)
+            next_ok = titles_anchor_similar(sched_next_title, donor_next_title)
+
+            if not prev_ok or not next_ok:
+                continue
+
+            total_score = 0.0
+            ok = True
+            last_ep = None
+
+            for sched_item, donor_item in zip(sched_run, donor_items):
+                sched_elem = sched_item["elem"]
+                donor_elem = donor_item["elem"]
+
+                score = score_metadata_match_loose(sched_elem, donor_elem, prefer_latam=prefer_latam)
+                if score < 2.0:
+                    ok = False
+                    break
+
+                donor_ep = extract_episode_from_desc_or_xml(donor_elem)
+                if donor_ep:
+                    m = re.match(r"^\s*S(\d{2})\s*E(\d{2})\s*$", donor_ep, flags=re.IGNORECASE)
+                    if m:
+                        curr_ep = (int(m.group(1)), int(m.group(2)))
+                        if last_ep is not None and curr_ep <= last_ep:
+                            ok = False
+                            break
+                        last_ep = curr_ep
+
+                total_score += score
+
+            if not ok:
+                continue
+
+            total_score += 10.0
+
+            if total_score > best_score:
+                best_score = total_score
+                best_candidate = donor_items
+
+        if not best_candidate:
+            continue
+
+        for sched_item, donor_item in zip(sched_run, best_candidate):
+            schedule_elem = sched_item["elem"]
+            donor_elem = donor_item["elem"]
+
+            copy_editorial_metadata(schedule_elem, donor_elem)
+
+            start_time_str = schedule_elem.get("start", "")
+            new_title, is_series = process_programme(
+                schedule_elem,
+                start_time_str,
+                prefer_latam,
+                spanish_season_episode_format
+            )
+            replace_all_title_elements(schedule_elem, new_title, prefer_latam=prefer_latam)
+            normalize_subtitle_and_desc(schedule_elem, prefer_latam=prefer_latam, is_series=is_series)
+            normalize_episode_num_elements(schedule_elem)
 
 # =========================
 # TMDB
@@ -1913,7 +2095,26 @@ def main():
                             ]
                             if schedule_to_fix and metadata_entries:
                                 print("Aplicando corrección de metadatos universal...", flush=True)
-                                apply_metadata_fix(schedule_to_fix, metadata_entries, prefer_latam, spanish_season_episode_format)
+
+                                warner_schedule = [
+                                    item for item in schedule_to_fix
+                                    if canonical_channel_id(item["channel"]) == "WARNER CHANNEL.pe"
+                                ]
+                                other_schedule = [
+                                    item for item in schedule_to_fix
+                                    if canonical_channel_id(item["channel"]) != "WARNER CHANNEL.pe"
+                                ]
+
+                                if other_schedule:
+                                    apply_metadata_fix(other_schedule, metadata_entries, prefer_latam, spanish_season_episode_format)
+
+                                if warner_schedule:
+                                    apply_metadata_fix_warner_anchored(
+                                        warner_schedule,
+                                        metadata_entries,
+                                        prefer_latam=prefer_latam,
+                                        spanish_season_episode_format=spanish_season_episode_format
+                                    )
 
                         for item in source_programmes_to_write:
                             prog_elem = item["elem"]
