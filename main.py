@@ -53,7 +53,7 @@ REMOVE_SUBTITLE_ENTIRELY = False
 DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/1.5"
+USER_AGENT = "xmltv-title-normalizer/1.6-Universal"
 
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
@@ -118,34 +118,24 @@ CHANNEL_SOURCE_RULES = {
     "Canal.Universal.Crime.sv": [EPG_SV1],
     "Canal.Universal.Premiere.sv": [EPG_SV1],
     "ENTERTAINMENTTELEVISION.uy": [EPG_UY1],
+    # Ejemplo: El usuario quiere Warner.pe, el script buscará en EPG_PE2
     "WARNER CHANNEL.pe": [EPG_PE2],
     "WARNER CHANNEL HD.pe": [EPG_PE2],
+    # Puedes agregar cualquier otro canal aquí y el script aprenderá a buscarlo
 }
 
-WARNER_DEBUG = []
-
-WARNER_SCHEDULE_CHANNELS = {
-    "WARNER CHANNEL.pe",
-    "WARNER CHANNEL HD.pe",
-}
-
-WARNER_ALL_CHANNEL_ALIASES = {
-    "WARNER CHANNEL.pe",
-    "WARNER CHANNEL HD.pe",
-    "WARNER.CHANNEL.(Warner).pe",
-    "WarnerChannel.pe",
-}
-
-WARNER_METADATA_SOURCES = [
+# Fuentes de metadatos (riqueza de información, aunque horarios estén mal)
+METADATA_SOURCES = [
     "https://epgshare01.online/epgshare01/epg_ripper_PE1.xml.gz",
     "https://iptv-epg.org/files/epg-pe.xml",
 ]
 
-WARNER_SUSPICIOUS_REPEAT_THRESHOLD = 3
-WARNER_MAX_MATCH_MINUTES = 720
-WARNER_GOOD_MATCH_SCORE = 8.5
-WARNER_INDIVIDUAL_MAX_MATCH_MINUTES = 180
-WARNER_INDIVIDUAL_GOOD_MATCH_SCORE = 10.5
+# Constantes para el matching universal
+MATCH_MAX_MINUTES = 720
+MATCH_INDIVIDUAL_MAX_MINUTES = 180
+MATCH_GOOD_SCORE = 8.5
+MATCH_INDIVIDUAL_GOOD_SCORE = 10.5
+SUSPICIOUS_REPEAT_THRESHOLD = 3
 
 # =========================
 # SESION HTTP
@@ -234,7 +224,7 @@ def save_cache():
         json.dump(api_cache, f, ensure_ascii=False, indent=2)
 
 # =========================
-# UTILS TEXTO
+# UTILS TEXTO Y SIMILITUD
 # =========================
 
 def normalize_text(text):
@@ -244,6 +234,85 @@ def normalize_text(text):
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
     text = re.sub(r"[^a-z0-9\s]", " ", text)
     return " ".join(text.split())
+
+def get_channel_country_code(ch_id):
+    """Extrae el código de país de un ID de canal (ej: .pe, .ar, .mx)."""
+    if not ch_id:
+        return None
+    # Busca patrones como ".pe", ".ar" al final o antes de un número/calidad
+    match = re.search(r'\.([a-z]{2})(?:\.|$|hd|sd|\d)', ch_id.lower())
+    if match:
+        return match.group(1)
+    parts = ch_id.lower().split('.')
+    if len(parts) > 1 and len(parts[-1]) == 2:
+        return parts[-1]
+    return None
+
+def normalize_channel_id_for_matching(ch_id):
+    """
+    Normaliza un ID de canal para comparación.
+    Ej: "WARNER.CHANNEL.(Warner).pe" -> "warner channel"
+    """
+    if not ch_id:
+        return ""
+    
+    # 1. Extraer y quitar país
+    country = get_channel_country_code(ch_id)
+    clean = ch_id.lower()
+    if country:
+        clean = re.sub(rf'\.{country}\b', '', clean)
+        
+    # 2. Quitar indicadores de calidad
+    clean = re.sub(r'\b(hd|sd|fhd|4k)\b', '', clean)
+    
+    # 3. Quitar puntuación y paréntesis
+    clean = clean.replace(".", " ").replace("_", " ").replace("-", " ")
+    clean = re.sub(r'\([^)]*\)', '', clean) # Quitar texto entre parentesis
+    
+    # 4. Normalizar espacios
+    return " ".join(clean.split())
+
+def calculate_channel_similarity(id1, id2):
+    """Calcula similitud entre dos IDs de canal (0.0 a 1.0)."""
+    norm1 = normalize_channel_id_for_matching(id1)
+    norm2 = normalize_channel_id_for_matching(id2)
+    
+    if not norm1 or not norm2:
+        return 0.0
+    
+    if norm1 == norm2:
+        return 1.0
+        
+    # Usar SequenceMatcher para una comparación fuzzy robusta
+    ratio = SequenceMatcher(None, norm1, norm2).ratio()
+    
+    # Bonus si comparten palabras clave fuertes
+    tokens1 = set(norm1.split())
+    tokens2 = set(norm2.split())
+    common = tokens1 & tokens2
+    if common:
+        ratio = min(1.0, ratio + (len(common) * 0.1))
+        
+    return ratio
+
+def text_similarity(a, b):
+    na = normalize_text(a)
+    nb = normalize_text(b)
+
+    if not na or not nb:
+        return 0.0
+    if na == nb:
+        return 1.0
+
+    ratio = SequenceMatcher(None, na, nb).ratio()
+
+    if na in nb or nb in na:
+        ratio = max(ratio, min(len(na), len(nb)) / max(len(na), len(nb)))
+
+    return ratio
+
+# (Resto de funciones de utilidades de texto: strip_accents, token_set, overlap_score, etc. se mantienen iguales...)
+# Por brevedad, no repito todas las funciones auxiliares que no cambian, asumo que se mantienen.
 
 TITLE_CASE_OVERRIDES = {
     normalize_text("DTF St. Louis"): "DTF St. Louis",
@@ -258,22 +327,16 @@ def strip_accents(text):
 def should_replace_with_localized_title(source_title, localized_title):
     if not source_title or not localized_title:
         return False
-
     src_norm = normalize_text(source_title)
     loc_norm = normalize_text(localized_title)
-
     if src_norm != loc_norm:
         return False
-
     src_clean = " ".join(source_title.split()).strip().lower()
     loc_clean = " ".join(localized_title.split()).strip().lower()
-
     if src_clean == loc_clean:
         return False
-
     if strip_accents(src_clean) == strip_accents(loc_clean):
         return True
-
     return False
 
 def token_set(text):
@@ -294,45 +357,23 @@ def norm_lang(lang):
 
 def get_feed_code(url):
     u = url.lower()
-
     m = re.search(r"epg-([a-z]{2})\.xml", u)
     if m:
         return m.group(1)
-
     m = re.search(r"epg_ripper_([a-z]{2})\d*\.xml\.gz", u)
     if m:
         return m.group(1)
-
     country_aliases = {
-        "peru": "pe",
-        "argentina": "ar",
-        "mexico": "mx",
-        "colombia": "co",
-        "chile": "cl",
-        "uruguay": "uy",
-        "venezuela": "ve",
-        "ecuador": "ec",
-        "bolivia": "bo",
-        "paraguay": "py",
-        "panama": "pa",
-        "costa-rica": "cr",
-        "costarica": "cr",
-        "guatemala": "gt",
-        "honduras": "hn",
-        "nicaragua": "ni",
-        "elsalvador": "sv",
-        "salvador": "sv",
-        "dominican": "do",
-        "dominicana": "do",
-        "spain": "es",
-        "espana": "es",
-        "españa": "es",
+        "peru": "pe", "argentina": "ar", "mexico": "mx", "colombia": "co",
+        "chile": "cl", "uruguay": "uy", "venezuela": "ve", "ecuador": "ec",
+        "bolivia": "bo", "paraguay": "py", "panama": "pa", "costa-rica": "cr",
+        "costarica": "cr", "guatemala": "gt", "honduras": "hn", "nicaragua": "ni",
+        "elsalvador": "sv", "salvador": "sv", "dominican": "do", "dominicana": "do",
+        "spain": "es", "espana": "es", "españa": "es",
     }
-
     for alias, code in country_aliases.items():
         if alias in u:
             return code
-
     return None
 
 def is_latam_feed(url):
@@ -359,18 +400,14 @@ def extract_new_marker(text):
 def extract_year_regex(text):
     if not text:
         return "", None
-
     stripped = text.strip()
-
     if re.fullmatch(r"(19\d{2}|20\d{2})", stripped):
         return text, None
-
     match = re.search(r"\b(19\d{2}|20\d{2})\b", text)
     if match:
         year = match.group(1)
         clean = re.sub(r"\(?\b" + re.escape(year) + r"\b\)?", " ", text)
         return " ".join(clean.split()), year
-
     return text, None
 
 def normalize_season_ep_from_numbers(season, episode):
@@ -384,7 +421,6 @@ def normalize_season_ep_from_numbers(season, episode):
 def extract_labeled_season_episode(text):
     if not text:
         return None
-
     patterns = [
         (r"\bseason\s*(\d+)\s*[,:\-]?\s*episode\s*(\d+)\b", False),
         (r"\btemporada\s*(\d+)\s*[,:\-]?\s*(?:episodio|capitulo|capítulo|ep|cap)\s*(\d+)\b", False),
@@ -393,24 +429,20 @@ def extract_labeled_season_episode(text):
         (r"\b(?:episodio|capitulo|capítulo|ep\.?|cap\.?)\s*(\d+)\s*[,:\-]?\s*temporada\s*(\d+)\b", True),
         (r"\b(?:ep\.?|episodio|cap\.?|capitulo|capítulo)\s*(\d+)\s*[,:\-]?\s*temp\.?\s*(\d+)\b", True),
     ]
-
     for pattern, reverse_groups in patterns:
         m = re.search(pattern, text, re.IGNORECASE)
         if not m:
             continue
         g1 = m.group(1)
         g2 = m.group(2)
-
         if reverse_groups:
             return normalize_season_ep_from_numbers(g2, g1)
         return normalize_season_ep_from_numbers(g1, g2)
-
     return None
 
 def normalize_season_ep(text):
     if not text:
         return None
-
     patterns = [
         r"\bS\s*(\d+)\s*E\s*(\d+)\b",
         r"\bS\s*(\d+)\s*[:.\-]?\s*E\s*(\d+)\b",
@@ -421,16 +453,13 @@ def normalize_season_ep(text):
         r"\b(\d+)\s*x\s*(\d+)\b",
         r"\b(\d+)\s*-\s*(\d+)\b",
     ]
-
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             return normalize_season_ep_from_numbers(match.group(1), match.group(2))
-
     labeled = extract_labeled_season_episode(text)
     if labeled:
         return labeled
-
     return None
 
 def extract_se_regex(text):
@@ -442,18 +471,15 @@ def extract_xmltv_episode_num(elem):
         value = (ep.text or "").strip()
         if not value:
             continue
-
         if system == "xmltv_ns":
             nums = re.findall(r"\d+", value)
             if len(nums) >= 2:
                 season = int(nums[0]) + 1
                 episode = int(nums[1]) + 1
                 return normalize_season_ep_from_numbers(season, episode)
-
         se = normalize_season_ep(value)
         if se:
             return se
-
     return None
 
 def infer_media_type_from_desc(desc):
@@ -472,7 +498,6 @@ def pick_best_localized_text(parent, tag, prefer_latam=False):
     elems = parent.findall(tag)
     if not elems:
         return ""
-
     candidates = []
     for e in elems:
         text = (e.text or "").strip()
@@ -480,23 +505,16 @@ def pick_best_localized_text(parent, tag, prefer_latam=False):
             continue
         lang = norm_lang(e.get("lang"))
         candidates.append((lang, text))
-
     if not candidates:
         return ""
-
     if prefer_latam:
-        priority = [
-            "es-419", "es-mx", "es-ar", "es-co", "es-cl", "es-pe",
-            "es-us", "es", ""
-        ]
+        priority = ["es-419", "es-mx", "es-ar", "es-co", "es-cl", "es-pe", "es-us", "es", ""]
     else:
         priority = ["es", "es-es", "en", "en-us", ""]
-
     for wanted in priority:
         for lang, text in candidates:
             if lang == wanted:
                 return text
-
     return candidates[0][1]
 
 def has_spanish_variant(parent, tag):
@@ -511,13 +529,11 @@ def has_spanish_variant(parent, tag):
 def detect_sequel_marker(text):
     if not text:
         return None
-
     norm = normalize_text(text)
     patterns = [
         r"\b(?:parte|part)\s+(2|3|4|5|6|7|8|9|ii|iii|iv|v|vi|vii|viii|ix|x)\b",
         r"\b(2|3|4|5|6|7|8|9|ii|iii|iv|v|vi|vii|viii|ix|x)\b$",
     ]
-
     for pattern in patterns:
         m = re.search(pattern, norm, re.IGNORECASE)
         if m:
@@ -527,9 +543,7 @@ def detect_sequel_marker(text):
 def strip_leading_se_from_text(text):
     if not text:
         return ""
-
     text = text.strip()
-
     patterns = [
         r"^\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*[:.\-–—]?\s*",
         r"^\s*\(?\s*S\d{1,2}E\d{1,2}\s*\)?\s*[:.\-–—]?\s*",
@@ -541,7 +555,6 @@ def strip_leading_se_from_text(text):
         r"^\s*\(?\s*(?:Episode|Ep\.?)\s*\d+\s*[,:\-]?\s*Season\s*\d+\s*\)?\s*[:.\-–—]?\s*",
         r"^\s*\(?\s*(?:Episodio|Cap[ií]tulo|Ep\.?|Cap\.?)\s*\d+\s*[,:\-]?\s*(?:Temporada|Temp\.?)\s*\d+\s*\)?\s*[:.\-–—]?\s*",
     ]
-
     changed = True
     while changed:
         changed = False
@@ -550,16 +563,13 @@ def strip_leading_se_from_text(text):
             if new_text != text:
                 text = new_text
                 changed = True
-
     return " ".join(text.split()).strip()
 
 def strip_leading_se_from_desc(desc_text):
     if not desc_text:
         return ""
-
     text = desc_text.replace("\r\n", "\n").replace("\r", "\n").strip()
     first_line, sep, rest = text.partition("\n")
-
     patterns = [
         r"^\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
         r"^\s*\(?\s*S\d{1,2}E\d{1,2}\s*\)?\s*[:.\-–—|]?\s*",
@@ -569,25 +579,20 @@ def strip_leading_se_from_desc(desc_text):
         r"^\s*\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Capitulo|Capítulo)\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
         r"^\s*\(?\s*Temp\.?\s*\d+\s*[,:\-]?\s*(?:Ep\.?|Cap\.?|Episodio|Capitulo|Capítulo)\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
     ]
-
     cleaned_first = first_line
     for pattern in patterns:
         new_first = re.sub(pattern, "", cleaned_first, flags=re.IGNORECASE).strip()
         if new_first != cleaned_first:
             cleaned_first = new_first
             break
-
     if sep:
         return f"{cleaned_first}\n{rest.strip()}".strip()
-
     return cleaned_first
 
 def strip_se_from_title(text):
     if not text:
         return ""
-
     out = " ".join(text.strip().split())
-
     patterns = [
         r"^\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
         r"^\s*\(?\s*S\d{1,2}E\d{1,2}\s*\)?\s*[:.\-–—|]?\s*",
@@ -596,7 +601,6 @@ def strip_se_from_title(text):
         r"^\s*\(?\s*Season\s*\d+\s*[,:\-]?\s*Episode\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
         r"^\s*\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Cap[ií]tulo)\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
         r"^\s*\(?\s*Temp\.?\s*\d+\s*[,:\-]?\s*(?:Ep\.?|Cap\.?)\s*\d+\s*\)?\s*[:.\-–—|]?\s*",
-
         r"\s*\|\s*\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*$",
         r"\s*\|\s*\(?\s*S\d{1,2}E\d{1,2}\s*\)?\s*$",
         r"\s*\|\s*\(?\s*T\d{1,2}E\d{1,2}\s*\)?\s*$",
@@ -606,7 +610,6 @@ def strip_se_from_title(text):
         r"\s*\|\s*\(?\s*Season\s*\d+\s*[,:\-]?\s*Episode\s*\d+\s*\)?\s*$",
         r"\s*\|\s*\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Cap[ií]tulo)\s*\d+\s*\)?\s*$",
         r"\s*\|\s*\(?\s*Temp\.?\s*\d+\s*[,:\-]?\s*(?:Ep\.?|Cap\.?)\s*\d+\s*\)?\s*$",
-
         r"\s+\(?\s*[ST]\s*\d+\s*[:.\-]?\s*E\s*\d+\s*\)?\s*$",
         r"\s+\(?\s*S\d{1,2}E\d{1,2}\s*\)?\s*$",
         r"\s+\(?\s*T\d{1,2}E\d{1,2}\s*\)?\s*$",
@@ -615,7 +618,6 @@ def strip_se_from_title(text):
         r"\s+\(?\s*Temporada\s*\d+\s*[,:\-]?\s*(?:Episodio|Cap[ií]tulo)\s*\d+\s*\)?\s*$",
         r"\s+\(?\s*Temp\.?\s*\d+\s*[,:\-]?\s*(?:Ep\.?|Cap\.?)\s*\d+\s*\)?\s*$",
     ]
-
     changed = True
     while changed:
         changed = False
@@ -624,50 +626,38 @@ def strip_se_from_title(text):
             if new_out != out:
                 out = new_out
                 changed = True
-
     return " ".join(out.split()).strip()
 
 def remove_episode_title_from_series_title(title_text, subtitle_text=""):
     if not title_text:
         return ""
-
     base = " ".join(title_text.strip().split())
     subtitle = " ".join((subtitle_text or "").strip().split())
-
     if not subtitle:
         return base
-
     norm_sub = normalize_text(subtitle)
     if not norm_sub:
         return base
-
     separators = [":", "|", "-", "–", "—"]
-
     for sep in separators:
         if sep in base:
             left, right = base.rsplit(sep, 1)
             left = left.strip()
             right = right.strip()
-
             if normalize_text(right) == norm_sub and left:
                 return left
-
     return base
 
 def format_season_episode_display(se_text, use_spanish=False):
     if not se_text:
         return None
-
     m = re.match(r"^\s*S(\d{2})\s*E(\d{2})\s*$", se_text, flags=re.IGNORECASE)
     if not m:
         return se_text
-
     season = int(m.group(1))
     episode = int(m.group(2))
-
     if use_spanish:
         return f"Temp. {season} Ep. {episode}"
-
     return f"Season {season} Episode {episode}"
 
 def is_dotted_acronym(word):
@@ -684,13 +674,10 @@ def normalize_dotted_acronym(word):
 def normalize_time_abbreviation(word):
     if not word:
         return word
-
     cleaned = word.strip()
-
     m = re.fullmatch(r"(?i)(a|p)\.?\s*m\.?", cleaned)
     if m:
         return f"{m.group(1).upper()}.M."
-
     return word
 
 def normalize_plain_acronym(word):
@@ -700,117 +687,84 @@ def normalize_plain_acronym(word):
 def should_preserve_allcaps_token(word):
     if not word:
         return False
-
     if is_dotted_acronym(word):
         return True
-
     compact = normalize_plain_acronym(word)
     if not compact:
         return False
-
     if compact in KNOWN_ACRONYMS:
         return True
-
     if re.fullmatch(r"(?:\d+[A-ZÁÉÍÓÚÜÑ]+|[A-ZÁÉÍÓÚÜÑ]+\d+)", compact):
         return True
-
     return False
 
 def spanish_title_case(text):
     if not text:
         return ""
-
     parts = re.split(r"(\s+)", text.strip())
     capitalize_next = True
-
     def transform_word(word, force_capitalize=False):
         if not word:
             return word
-
         time_fixed = normalize_time_abbreviation(word)
         if time_fixed != word:
             return time_fixed
-
         if is_dotted_acronym(word):
             return normalize_dotted_acronym(word)
-
         if should_preserve_allcaps_token(word):
             return normalize_plain_acronym(word)
-
         if re.fullmatch(r"[IVXLCDM]+", word):
             return word
-
         if "-" in word:
             subparts = word.split("-")
             rebuilt = []
             for idx, sub in enumerate(subparts):
                 rebuilt.append(transform_word(sub, force_capitalize=(force_capitalize or idx > 0)))
             return "-".join(rebuilt)
-
         low = word.lower()
-
         if low in {"vs", "v"}:
             return low
-
         if not force_capitalize and low in SPANISH_MINOR_WORDS:
             return low
-
         return low[:1].upper() + low[1:]
 
     def transform_token(token, force_capitalize=False):
         m = re.match(r'^([\"“”¿¡(\[]*)(.*?)([\"”?!:;.,)\]]*)$', token)
         if not m:
             return token, False
-
         prefix, core, suffix = m.groups()
-
         if not core:
             return token, ":" in suffix
-
         new_core = transform_word(core, force_capitalize=force_capitalize)
-
         if suffix == ":" and is_dotted_acronym(new_core) and not new_core.endswith("."):
             new_core += "."
-
         return f"{prefix}{new_core}{suffix}", ":" in suffix
 
     for i, part in enumerate(parts):
         if not part or part.isspace():
             continue
-
-        parts[i], should_capitalize_next = transform_token(
-            part,
-            force_capitalize=capitalize_next
-        )
+        parts[i], should_capitalize_next = transform_token(part, force_capitalize=capitalize_next)
         capitalize_next = should_capitalize_next
-
     return "".join(parts)
 
 def split_episode_title_from_desc(desc_text):
     if not desc_text:
         return None, desc_text
-
     text = desc_text.replace("\r\n", "\n").replace("\r", "\n").strip()
     if not text:
         return None, text
-
     first_line, sep, rest = text.partition("\n")
     first_line_clean = first_line.strip()
-
     se = normalize_season_ep(first_line_clean)
     if not se:
         return None, text
-
     ep_title = strip_leading_se_from_text(first_line_clean).strip()
     if not ep_title or len(ep_title) < 3:
         return None, text
-
     if not sep:
         return None, text
-
     if len(ep_title) > 100 or len(ep_title.split()) > 12:
         return None, text
-
     remaining = rest.strip()
     return ep_title, remaining
 
@@ -826,78 +780,46 @@ def strip_html_tags(text):
     text = text.replace("&nbsp;", " ")
     return " ".join(text.split()).strip()
 
-def text_similarity(a, b):
-    na = normalize_text(a)
-    nb = normalize_text(b)
-
-    if not na or not nb:
-        return 0.0
-    if na == nb:
-        return 1.0
-
-    ratio = SequenceMatcher(None, na, nb).ratio()
-
-    if na in nb or nb in na:
-        ratio = max(ratio, min(len(na), len(nb)) / max(len(na), len(nb)))
-
-    return ratio
-
 def has_special_uppercase_pattern(token):
     if not token:
         return False
-
     stripped = re.sub(r'^[\"“”¿¡(\[]+|[\"”?!:;.,)\]]+$', "", token)
     if not stripped:
         return False
-
     if is_dotted_acronym(stripped):
         return True
-
     letters = re.sub(r"[^A-Za-zÁÉÍÓÚÜÑ]", "", stripped)
     if len(letters) < 2:
         return False
-
     upper_count = sum(1 for c in letters if c.isupper())
-
     if stripped.isupper() and upper_count >= 2:
         return True
-
     if re.search(r"[A-ZÁÉÍÓÚÜÑ].*\d|\d.*[A-ZÁÉÍÓÚÜÑ]", stripped) and upper_count >= 2:
         return True
-
     if upper_count >= 2 and stripped != stripped[:1].upper() + stripped[1:].lower():
         return True
-
     return False
 
 def preserve_special_casing(base_title, canonical_title):
     if not base_title or not canonical_title:
         return base_title
-
     if normalize_text(base_title) != normalize_text(canonical_title):
         return base_title
-
     base_tokens = base_title.split()
     canon_tokens = canonical_title.split()
-
     if len(base_tokens) != len(canon_tokens):
         return base_title
-
     merged = []
-
     for bt, ct in zip(base_tokens, canon_tokens):
         bt_norm = normalize_text(bt)
         ct_norm = normalize_text(ct)
-
         if bt_norm != ct_norm:
             merged.append(bt)
             continue
-
         if has_special_uppercase_pattern(ct):
             merged.append(ct)
         else:
             merged.append(bt)
-
     return " ".join(merged)
 
 def apply_title_case_overrides(title):
@@ -926,18 +848,14 @@ def extract_candidate_year(item):
 def shift_xmltv_datetime(xmltv_dt, minutes):
     if not xmltv_dt or not minutes:
         return xmltv_dt
-
     xmltv_dt = xmltv_dt.strip()
     m = re.match(r"^(\d{14})(?:\s*([+-]\d{4}))?$", xmltv_dt)
     if not m:
         return xmltv_dt
-
     base = m.group(1)
     tz = m.group(2)
-
     dt = datetime.strptime(base, "%Y%m%d%H%M%S")
     dt = dt + timedelta(minutes=minutes)
-
     if tz:
         return f"{dt.strftime('%Y%m%d%H%M%S')} {tz}"
     return dt.strftime("%Y%m%d%H%M%S")
@@ -945,13 +863,10 @@ def shift_xmltv_datetime(xmltv_dt, minutes):
 def apply_channel_offset(elem):
     ch_id = elem.get("channel")
     offset = CHANNEL_TIME_OFFSETS.get(ch_id, 0)
-
     if not offset:
         return
-
     start = elem.get("start")
     stop = elem.get("stop")
-
     if start:
         elem.set("start", shift_xmltv_datetime(start, offset))
     if stop:
@@ -963,22 +878,9 @@ def is_source_allowed_for_channel(channel_id, source_url):
         return True
     return source_url in allowed_sources
 
-def is_warner_channel(channel_id):
-    return channel_id in WARNER_ALL_CHANNEL_ALIASES
-
-def normalize_warner_channel(channel_id):
-    ch = (channel_id or "").strip().lower()
-    ch = ch.replace(".", "")
-    ch = ch.replace("(", "")
-    ch = ch.replace(")", "")
-    ch = ch.replace("-", "")
-    ch = re.sub(r"\s+", "", ch)
-    ch = ch.replace("hd", "")
-
-    if "pe" in ch and "warner" in ch:
-        return "warner_pe"
-
-    return ch
+# =========================
+# METADATA FIX LOGIC (UNIVERSAL)
+# =========================
 
 def parse_xmltv_dt_to_utc(xmltv_dt):
     if not xmltv_dt:
@@ -987,18 +889,14 @@ def parse_xmltv_dt_to_utc(xmltv_dt):
     m = re.match(r"^(\d{14})(?:\s*([+-]\d{4}))?$", xmltv_dt)
     if not m:
         return None
-
     base = datetime.strptime(m.group(1), "%Y%m%d%H%M%S")
     tz = m.group(2)
-
     if not tz:
         return base
-
     sign = 1 if tz[0] == "+" else -1
     hours = int(tz[1:3])
     minutes = int(tz[3:5])
     offset = timedelta(hours=hours, minutes=minutes) * sign
-
     return base - offset
 
 def programme_duration_minutes(elem):
@@ -1013,13 +911,7 @@ def build_programme_signature(elem, prefer_latam=False):
     subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam).strip()
     desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam).strip()
     ep = extract_xmltv_episode_num(elem) or ""
-
-    return (
-        normalize_text(title),
-        normalize_text(subtitle),
-        normalize_text(desc),
-        normalize_text(ep),
-    )
+    return (normalize_text(title), normalize_text(subtitle), normalize_text(desc), normalize_text(ep))
 
 def clone_element(elem):
     return ET.fromstring(ET.tostring(elem, encoding="utf-8"))
@@ -1028,10 +920,8 @@ def copy_editorial_metadata(target_elem, source_elem):
     for tag in ("title", "sub-title", "desc", "episode-num"):
         for child in list(target_elem.findall(tag)):
             target_elem.remove(child)
-
     source_children = list(source_elem)
     insert_index = 0
-
     for child in source_children:
         if child.tag in ("title", "sub-title", "desc", "episode-num"):
             target_elem.insert(insert_index, clone_element(child))
@@ -1041,7 +931,7 @@ def get_programme_title_base(elem, prefer_latam=False):
     title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam).strip()
     return strip_se_from_title(title) or title
 
-def get_series_key_for_warner(elem, prefer_latam=False):
+def get_series_key(elem, prefer_latam=False):
     return normalize_text(get_programme_title_base(elem, prefer_latam=prefer_latam))
 
 def metadata_quality_score(elem, prefer_latam=False):
@@ -1049,203 +939,154 @@ def metadata_quality_score(elem, prefer_latam=False):
     subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam).strip()
     desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam).strip()
     ep = extract_xmltv_episode_num(elem)
-
     score = 0
-    if title:
-        score += 2
-    if subtitle:
-        score += 2
-    if desc:
-        score += 2
-    if ep:
-        score += 2
-
-    if subtitle and normalize_text(subtitle) != normalize_text(title):
-        score += 1
-    if desc and len(desc) > 50:
-        score += 1
-
+    if title: score += 2
+    if subtitle: score += 2
+    if desc: score += 2
+    if ep: score += 2
+    if subtitle and normalize_text(subtitle) != normalize_text(title): score += 1
+    if desc and len(desc) > 50: score += 1
     return score
 
-def is_warner_metadata_suspicious(elem, prev_elem=None, next_elem=None, prefer_latam=False):
+def is_metadata_suspicious(elem, prev_elem=None, next_elem=None, prefer_latam=False):
     title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam).strip()
     subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam).strip()
     desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam).strip()
     ep = extract_xmltv_episode_num(elem)
-
     if not subtitle or not desc or not ep:
         return True
-
     if subtitle and normalize_text(subtitle) == normalize_text(title):
         return True
-
     if prev_elem is not None:
         if build_programme_signature(prev_elem, prefer_latam=prefer_latam) == build_programme_signature(elem, prefer_latam=prefer_latam):
             return True
-
     if next_elem is not None:
         if build_programme_signature(next_elem, prefer_latam=prefer_latam) == build_programme_signature(elem, prefer_latam=prefer_latam):
             return True
-
     return False
 
 def anchor_match(schedule_elem, metadata_elem, prefer_latam=False):
     if schedule_elem is None or metadata_elem is None:
         return False
-
-    schedule_key = get_series_key_for_warner(schedule_elem, prefer_latam=prefer_latam)
-    metadata_key = get_series_key_for_warner(metadata_elem, prefer_latam=prefer_latam)
-
+    schedule_key = get_series_key(schedule_elem, prefer_latam=prefer_latam)
+    metadata_key = get_series_key(metadata_elem, prefer_latam=prefer_latam)
     if not schedule_key or not metadata_key:
         return False
-
     if schedule_key == metadata_key:
         return True
-
     title_ratio = text_similarity(schedule_key, metadata_key)
     if title_ratio >= 0.93:
         return True
-
     schedule_desc = pick_best_localized_text(schedule_elem, "desc", prefer_latam=prefer_latam)
     metadata_desc = pick_best_localized_text(metadata_elem, "desc", prefer_latam=prefer_latam)
     if schedule_desc and metadata_desc and overlap_score(schedule_desc, metadata_desc) >= 0.45:
         return True
-
     return False
 
-def score_warner_metadata_match(schedule_elem, metadata_elem, prefer_latam=False):
+def score_metadata_match(schedule_elem, metadata_elem, prefer_latam=False):
     schedule_start = parse_xmltv_dt_to_utc(schedule_elem.get("start", ""))
     metadata_start = parse_xmltv_dt_to_utc(metadata_elem.get("start", ""))
-
     if not schedule_start or not metadata_start:
         return -999.0
-
     delta_minutes = abs((schedule_start - metadata_start).total_seconds()) / 60.0
-    if delta_minutes > WARNER_MAX_MATCH_MINUTES:
+    if delta_minutes > MATCH_MAX_MINUTES:
         return -999.0
-
     schedule_title = pick_best_localized_text(schedule_elem, "title", prefer_latam=prefer_latam)
     metadata_title = pick_best_localized_text(metadata_elem, "title", prefer_latam=prefer_latam)
     schedule_desc = pick_best_localized_text(schedule_elem, "desc", prefer_latam=prefer_latam)
     metadata_desc = pick_best_localized_text(metadata_elem, "desc", prefer_latam=prefer_latam)
-
     schedule_base = strip_se_from_title(schedule_title) or schedule_title
     metadata_base = strip_se_from_title(metadata_title) or metadata_title
-
     title_ratio = text_similarity(schedule_base, metadata_base)
     desc_ratio = overlap_score(schedule_desc, metadata_desc) if schedule_desc and metadata_desc else 0.0
-
     dur_a = programme_duration_minutes(schedule_elem)
     dur_b = programme_duration_minutes(metadata_elem)
     duration_score = 0.0
     if dur_a is not None and dur_b is not None:
         diff = abs(dur_a - dur_b)
-        if diff <= 5:
-            duration_score = 2.0
-        elif diff <= 10:
-            duration_score = 1.0
-        elif diff > 20:
-            return -999.0
-
+        if diff <= 5: duration_score = 2.0
+        elif diff <= 10: duration_score = 1.0
+        elif diff > 20: return -999.0
     score = 0.0
     score += max(0.0, 4.0 - (delta_minutes / 10.0))
     score += title_ratio * 5.0
     score += desc_ratio * 4.0
     score += duration_score
-
     metadata_ep = extract_xmltv_episode_num(metadata_elem)
-    if metadata_ep:
-        score += 0.5
-
+    if metadata_ep: score += 0.5
     return round(score, 3)
 
-def score_warner_metadata_match_loose(schedule_elem, metadata_elem, prefer_latam=False):
+def score_metadata_match_loose(schedule_elem, metadata_elem, prefer_latam=False):
     schedule_title = pick_best_localized_text(schedule_elem, "title", prefer_latam=prefer_latam)
     metadata_title = pick_best_localized_text(metadata_elem, "title", prefer_latam=prefer_latam)
     schedule_desc = pick_best_localized_text(schedule_elem, "desc", prefer_latam=prefer_latam)
     metadata_desc = pick_best_localized_text(metadata_elem, "desc", prefer_latam=prefer_latam)
-
     schedule_base = strip_se_from_title(schedule_title) or schedule_title
     metadata_base = strip_se_from_title(metadata_title) or metadata_title
-
     title_ratio = text_similarity(schedule_base, metadata_base)
     desc_ratio = overlap_score(schedule_desc, metadata_desc) if schedule_desc and metadata_desc else 0.0
-
     dur_a = programme_duration_minutes(schedule_elem)
     dur_b = programme_duration_minutes(metadata_elem)
-
     duration_score = 0.0
     if dur_a is not None and dur_b is not None:
         diff = abs(dur_a - dur_b)
-        if diff <= 5:
-            duration_score = 2.0
-        elif diff <= 10:
-            duration_score = 1.0
-        elif diff > 20:
-            duration_score = -3.0
-
+        if diff <= 5: duration_score = 2.0
+        elif diff <= 10: duration_score = 1.0
+        elif diff > 20: duration_score = -3.0
     score = 0.0
     score += title_ratio * 6.0
     score += desc_ratio * 5.0
     score += duration_score
-
     metadata_ep = extract_xmltv_episode_num(metadata_elem)
-    if metadata_ep:
-        score += 0.5
-
+    if metadata_ep: score += 0.5
     return round(score, 3)
 
 def get_run_boundaries(schedule_entries):
     runs = []
     run_start = 0
-
     for i in range(1, len(schedule_entries) + 1):
         same_run = False
-
         if i < len(schedule_entries):
             prev_elem = schedule_entries[i - 1]["elem"]
             curr_elem = schedule_entries[i]["elem"]
-
             prev_sig = build_programme_signature(prev_elem, prefer_latam=False)
             curr_sig = build_programme_signature(curr_elem, prefer_latam=False)
-
             prev_stop = prev_elem.get("stop", "")
             curr_start = curr_elem.get("start", "")
-
+            # Usamos normalización universal para comparar canales
             same_run = (
-                normalize_warner_channel(schedule_entries[i - 1]["channel"]) == normalize_warner_channel(schedule_entries[i]["channel"])
+                normalize_channel_id_for_matching(schedule_entries[i - 1]["channel"]) == normalize_channel_id_for_matching(schedule_entries[i]["channel"])
                 and prev_sig == curr_sig
                 and prev_stop == curr_start
             )
-
         if not same_run:
             runs.append((run_start, i))
             run_start = i
-
     return runs
 
 def get_suspicious_run_ranges(schedule_entries):
     suspicious_runs = []
     for start_idx, end_idx in get_run_boundaries(schedule_entries):
         run_len = end_idx - start_idx
-        if run_len >= WARNER_SUSPICIOUS_REPEAT_THRESHOLD:
+        if run_len >= SUSPICIOUS_REPEAT_THRESHOLD:
             suspicious_runs.append((start_idx, end_idx))
     return suspicious_runs
 
-def find_warner_metadata_sequence(schedule_entries, start_idx, end_idx, metadata_entries, prefer_latam=False):
+def find_metadata_sequence(schedule_entries, start_idx, end_idx, metadata_entries, prefer_latam=False):
     schedule_run = schedule_entries[start_idx:end_idx]
     if not schedule_run:
         return []
-
-    normalized_channel = normalize_warner_channel(schedule_run[0]["channel"])
-    schedule_series_key = get_series_key_for_warner(schedule_run[0]["elem"], prefer_latam=prefer_latam)
+    # Normalización universal
+    normalized_channel = normalize_channel_id_for_matching(schedule_run[0]["channel"])
+    schedule_series_key = get_series_key(schedule_run[0]["elem"], prefer_latam=prefer_latam)
     run_len = len(schedule_run)
 
     metadata_by_source = {}
     for idx, item in enumerate(metadata_entries):
-        if normalize_warner_channel(item["channel"]) != normalized_channel:
+        # Comparación universal
+        if normalize_channel_id_for_matching(item["channel"]) != normalized_channel:
             continue
-        if get_series_key_for_warner(item["elem"], prefer_latam=prefer_latam) != schedule_series_key:
+        if get_series_key(item["elem"], prefer_latam=prefer_latam) != schedule_series_key:
             continue
         metadata_by_source.setdefault(item["source_url"], []).append((idx, item))
 
@@ -1260,28 +1101,19 @@ def find_warner_metadata_sequence(schedule_entries, start_idx, end_idx, metadata
 
     for source_url, source_items in metadata_by_source.items():
         only_items = [x[1] for x in source_items]
-
         for local_start in range(len(only_items)):
             seq = only_items[local_start:local_start + run_len]
             if len(seq) < run_len:
                 continue
-
             total = 0.0
             ok = True
             last_ep_num = None
-
             for sched_item, meta_item in zip(schedule_run, seq):
                 meta_elem = meta_item["elem"]
-                score = score_warner_metadata_match_loose(
-                    sched_item["elem"],
-                    meta_elem,
-                    prefer_latam=prefer_latam
-                )
-
+                score = score_metadata_match_loose(sched_item["elem"], meta_elem, prefer_latam=prefer_latam)
                 if score < 3.5:
                     ok = False
                     break
-
                 ep_num = extract_xmltv_episode_num(meta_elem)
                 if ep_num:
                     m = re.match(r"^\s*S(\d{2})\s*E(\d{2})\s*$", ep_num, flags=re.IGNORECASE)
@@ -1291,90 +1123,61 @@ def find_warner_metadata_sequence(schedule_entries, start_idx, end_idx, metadata
                             ok = False
                             break
                         last_ep_num = ep_index
-
                 total += score
-
             if not ok:
                 continue
-
             meta_prev = only_items[local_start - 1]["elem"] if local_start > 0 else None
             meta_next = only_items[local_start + run_len]["elem"] if local_start + run_len < len(only_items) else None
-
             anchors_available = 0
             anchors_matched = 0
-
             if schedule_prev is not None:
                 anchors_available += 1
                 if anchor_match(schedule_prev, meta_prev, prefer_latam=prefer_latam):
                     anchors_matched += 1
-
             if schedule_next is not None:
                 anchors_available += 1
                 if anchor_match(schedule_next, meta_next, prefer_latam=prefer_latam):
                     anchors_matched += 1
-
             if anchors_available == 0:
                 continue
             if anchors_matched != anchors_available:
                 continue
-
             if total > best_score:
                 best_score = total
                 best_sequence = seq
-
     return best_sequence
 
-def score_warner_individual_match(schedule_elem, metadata_elem, prefer_latam=False):
+def score_individual_match(schedule_elem, metadata_elem, prefer_latam=False):
     schedule_start = parse_xmltv_dt_to_utc(schedule_elem.get("start", ""))
     metadata_start = parse_xmltv_dt_to_utc(metadata_elem.get("start", ""))
     if not schedule_start or not metadata_start:
         return -999.0
-
     delta_minutes = abs((schedule_start - metadata_start).total_seconds()) / 60.0
-    if delta_minutes > WARNER_INDIVIDUAL_MAX_MATCH_MINUTES:
+    if delta_minutes > MATCH_INDIVIDUAL_MAX_MINUTES:
         return -999.0
-
-    score = score_warner_metadata_match(schedule_elem, metadata_elem, prefer_latam=prefer_latam)
+    score = score_metadata_match(schedule_elem, metadata_elem, prefer_latam=prefer_latam)
     if score <= -999:
         return score
-
     score += max(0.0, 2.0 - (delta_minutes / 90.0))
     return round(score, 3)
 
-def apply_warner_metadata_fix(schedule_entries, metadata_entries, prefer_latam=False, spanish_season_episode_format=False):
+def apply_metadata_fix(schedule_entries, metadata_entries, prefer_latam=False, spanish_season_episode_format=False):
     if not schedule_entries or not metadata_entries:
         return
-
     suspicious_runs = get_suspicious_run_ranges(schedule_entries)
     touched_indexes = set()
 
     # 1) REPARACION POR BLOQUE
     for start_idx, end_idx in suspicious_runs:
-        metadata_seq = find_warner_metadata_sequence(
-            schedule_entries,
-            start_idx,
-            end_idx,
-            metadata_entries,
-            prefer_latam=prefer_latam
-        )
-
+        metadata_seq = find_metadata_sequence(schedule_entries, start_idx, end_idx, metadata_entries, prefer_latam=prefer_latam)
         if len(metadata_seq) != (end_idx - start_idx):
             continue
-
         for offset, meta_item in enumerate(metadata_seq):
             idx = start_idx + offset
             schedule_elem = schedule_entries[idx]["elem"]
-
             copy_editorial_metadata(schedule_elem, meta_item["elem"])
-
             start_time_str = schedule_elem.get("start", "")
-            new_title, is_series = process_programme(
-                schedule_elem,
-                start_time_str,
-                prefer_latam=prefer_latam,
-                spanish_season_episode_format=spanish_season_episode_format
-            )
-
+            new_title, is_series = process_programme(schedule_elem, start_time_str, prefer_latam, spanish_season_episode_format)
             replace_all_title_elements(schedule_elem, new_title, prefer_latam=prefer_latam)
             normalize_subtitle_and_desc(schedule_elem, prefer_latam=prefer_latam, is_series=is_series)
             normalize_episode_num_elements(schedule_elem)
@@ -1384,61 +1187,45 @@ def apply_warner_metadata_fix(schedule_entries, metadata_entries, prefer_latam=F
     for idx, sched_item in enumerate(schedule_entries):
         if idx in touched_indexes:
             continue
-
         schedule_elem = sched_item["elem"]
         prev_elem = schedule_entries[idx - 1]["elem"] if idx > 0 else None
         next_elem = schedule_entries[idx + 1]["elem"] if idx + 1 < len(schedule_entries) else None
-
-        if not is_warner_metadata_suspicious(schedule_elem, prev_elem=prev_elem, next_elem=next_elem, prefer_latam=prefer_latam):
+        if not is_metadata_suspicious(schedule_elem, prev_elem=prev_elem, next_elem=next_elem, prefer_latam=prefer_latam):
             continue
-
-        normalized_channel = normalize_warner_channel(sched_item["channel"])
-        schedule_series_key = get_series_key_for_warner(schedule_elem, prefer_latam=prefer_latam)
-
+        
+        # Normalización universal
+        normalized_channel = normalize_channel_id_for_matching(sched_item["channel"])
+        schedule_series_key = get_series_key(schedule_elem, prefer_latam=prefer_latam)
+        
         best_meta = None
         best_score = -999.0
-
         for meta_item in metadata_entries:
-            if normalize_warner_channel(meta_item["channel"]) != normalized_channel:
+            if normalize_channel_id_for_matching(meta_item["channel"]) != normalized_channel:
                 continue
-            if get_series_key_for_warner(meta_item["elem"], prefer_latam=prefer_latam) != schedule_series_key:
+            if get_series_key(meta_item["elem"], prefer_latam=prefer_latam) != schedule_series_key:
                 continue
-
             meta_elem = meta_item["elem"]
-            score = score_warner_individual_match(schedule_elem, meta_elem, prefer_latam=prefer_latam)
+            score = score_individual_match(schedule_elem, meta_elem, prefer_latam=prefer_latam)
             if score <= -999:
                 continue
-
-            # Bonos por anclas
             meta_prev = meta_item.get("prev_elem")
             meta_next = meta_item.get("next_elem")
-
             if prev_elem is not None and anchor_match(prev_elem, meta_prev, prefer_latam=prefer_latam):
                 score += 2.0
             if next_elem is not None and anchor_match(next_elem, meta_next, prefer_latam=prefer_latam):
                 score += 2.0
-
-            # La metadata candidata debe ser mejor que la actual
             if metadata_quality_score(meta_elem, prefer_latam=prefer_latam) <= metadata_quality_score(schedule_elem, prefer_latam=prefer_latam):
                 score -= 2.5
-
             if score > best_score:
                 best_score = score
                 best_meta = meta_item
-
-        if best_meta is None or best_score < WARNER_INDIVIDUAL_GOOD_MATCH_SCORE:
+        
+        if best_meta is None or best_score < MATCH_INDIVIDUAL_GOOD_MATCH_SCORE:
             continue
-
+        
         copy_editorial_metadata(schedule_elem, best_meta["elem"])
-
         start_time_str = schedule_elem.get("start", "")
-        new_title, is_series = process_programme(
-            schedule_elem,
-            start_time_str,
-            prefer_latam=prefer_latam,
-            spanish_season_episode_format=spanish_season_episode_format
-        )
-
+        new_title, is_series = process_programme(schedule_elem, start_time_str, prefer_latam, spanish_season_episode_format)
         replace_all_title_elements(schedule_elem, new_title, prefer_latam=prefer_latam)
         normalize_subtitle_and_desc(schedule_elem, prefer_latam=prefer_latam, is_series=is_series)
         normalize_episode_num_elements(schedule_elem)
@@ -1450,19 +1237,12 @@ def apply_warner_metadata_fix(schedule_entries, metadata_entries, prefer_latam=F
 def tmdb_search_multi(title, language):
     if not TMDB_API_KEY:
         return None
-
     cache_key = f"tmdb_search:{normalize_text(title)}:{language}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-
     url = "https://api.themoviedb.org/3/search/multi"
-    params = {
-        "api_key": TMDB_API_KEY,
-        "query": title,
-        "language": language,
-    }
-
+    params = {"api_key": TMDB_API_KEY, "query": title, "language": language}
     try:
         r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
         if r.status_code == 200:
@@ -1471,27 +1251,21 @@ def tmdb_search_multi(title, language):
             return data
     except Exception as e:
         print(f"Error TMDB search: {e}", flush=True)
-
     cache_set(cache_key, None)
     return None
 
 def get_tmdb_localized_title(tmdb_id, media_type, prefer_latam=False):
     if not TMDB_API_KEY or not tmdb_id or media_type not in ("movie", "tv"):
         return None
-
     lang_chain = ["es-MX", "es-419", "es-AR", "es-CO", "es"] if prefer_latam else ["es-ES", "es"]
-
     for lang in lang_chain:
         cache_key = f"tmdb_title:{media_type}:{tmdb_id}:{lang}"
         cached = cache_get(cache_key)
         if cached is not None:
-            if cached:
-                return cached
+            if cached: return cached
             continue
-
         url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}"
         params = {"api_key": TMDB_API_KEY, "language": lang}
-
         try:
             r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
             if r.status_code == 200:
@@ -1502,120 +1276,70 @@ def get_tmdb_localized_title(tmdb_id, media_type, prefer_latam=False):
                     return title
         except Exception as e:
             print(f"Error TMDB localized title: {e}", flush=True)
-
         cache_set(cache_key, None)
-
     return None
 
 def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False):
     if not TMDB_API_KEY or not title:
         return None
-
-    cache_key = (
-        f"tmdb_best_v2:{normalize_text(title)}:"
-        f"{normalize_text(subtitle)}:"
-        f"{normalize_text(desc)[:160]}:"
-        f"{year or ''}:"
-        f"{'latam' if prefer_latam else 'default'}"
-    )
+    cache_key = f"tmdb_best_v2:{normalize_text(title)}:{normalize_text(subtitle)}:{normalize_text(desc)[:160]}:{year or ''}:{'latam' if prefer_latam else 'default'}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-
     search_lang = "es-MX" if prefer_latam else "es-ES"
     data = tmdb_search_multi(title, search_lang)
     if not data or not data.get("results"):
         cache_set(cache_key, None)
         return None
-
     expected_type = infer_media_type_from_desc(desc)
     norm_title = normalize_text(title)
     source_sequel = detect_sequel_marker(title)
     ambiguous_title = is_ambiguous_title(title)
-
     best_item = None
     best_score = -999.0
-
     for item in data.get("results", [])[:10]:
         media_type = item.get("media_type")
-        if media_type not in ("movie", "tv"):
-            continue
-
+        if media_type not in ("movie", "tv"): continue
         candidate_title = (item.get("title") or item.get("name") or "").strip()
         candidate_original = (item.get("original_title") or item.get("original_name") or "").strip()
         overview = item.get("overview") or ""
         candidate_year = extract_candidate_year(item)
-
-        title_ratio = max(
-            text_similarity(title, candidate_title),
-            text_similarity(title, candidate_original),
-        )
+        title_ratio = max(text_similarity(title, candidate_title), text_similarity(title, candidate_original))
         desc_ratio = overlap_score(desc, overview) if desc and overview else 0.0
-
         min_title_ratio = 0.78 if ambiguous_title else 0.58
-        if title_ratio < min_title_ratio:
-            continue
-
+        if title_ratio < min_title_ratio: continue
         if desc and overview:
-            if title_ratio < 0.93 and desc_ratio < 0.18:
-                continue
-            if ambiguous_title and desc_ratio < 0.12:
-                continue
-        elif ambiguous_title and desc:
-            continue
-
+            if title_ratio < 0.93 and desc_ratio < 0.18: continue
+            if ambiguous_title and desc_ratio < 0.12: continue
+        elif ambiguous_title and desc: continue
         if year and candidate_year:
             try:
-                if abs(int(year) - int(candidate_year)) > 1:
-                    continue
-            except Exception:
-                pass
-
+                if abs(int(year) - int(candidate_year)) > 1: continue
+            except Exception: pass
         candidate_sequel = detect_sequel_marker(candidate_title) or detect_sequel_marker(candidate_original)
-
         score = 0.0
         score += title_ratio * 8.0
         score += desc_ratio * 9.0
-
-        if norm_title and normalize_text(candidate_title) == norm_title:
-            score += 4.0
-
-        if norm_title and candidate_original and normalize_text(candidate_original) == norm_title:
-            score += 3.0
-
-        if expected_type and media_type == expected_type:
-            score += 2.0
-        elif expected_type and media_type != expected_type:
-            score -= 2.5
-
+        if norm_title and normalize_text(candidate_title) == norm_title: score += 4.0
+        if norm_title and candidate_original and normalize_text(candidate_original) == norm_title: score += 3.0
+        if expected_type and media_type == expected_type: score += 2.0
+        elif expected_type and media_type != expected_type: score -= 2.5
         if year and candidate_year:
-            if str(year) == str(candidate_year):
-                score += 1.5
-            else:
-                score -= 1.0
-
-        if source_sequel is None and candidate_sequel is not None:
-            score -= 5.0
+            if str(year) == str(candidate_year): score += 1.5
+            else: score -= 1.0
+        if source_sequel is None and candidate_sequel is not None: score -= 5.0
         elif source_sequel is not None and candidate_sequel is not None:
-            if source_sequel == candidate_sequel:
-                score += 1.5
-            else:
-                score -= 7.0
-
+            if source_sequel == candidate_sequel: score += 1.5
+            else: score -= 7.0
         popularity = item.get("popularity") or 0
-        try:
-            score += min(float(popularity) / 2000.0, 0.15)
-        except Exception:
-            pass
-
+        try: score += min(float(popularity) / 2000.0, 0.15)
+        except Exception: pass
         if score > best_score:
             best_score = score
             best_item = item
-
     if not best_item or best_score < 5.5:
         cache_set(cache_key, None)
         return None
-
     result = {
         "type": best_item.get("media_type"),
         "year": extract_candidate_year(best_item),
@@ -1624,11 +1348,7 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False):
         "canonical_title": (best_item.get("title") or best_item.get("name") or "").strip() or None,
         "match_score": round(best_score, 3),
     }
-
-    result["localized_title"] = get_tmdb_localized_title(
-        result["id"], result["type"], prefer_latam=prefer_latam
-    )
-
+    result["localized_title"] = get_tmdb_localized_title(result["id"], result["type"], prefer_latam=prefer_latam)
     cache_set(cache_key, result)
     return result
 
@@ -1637,124 +1357,75 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False):
 # =========================
 
 def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
-    cache_key = (
-        f"tvmaze_v2:{normalize_text(show_name)}:{air_date}:"
-        f"{normalize_text(subtitle)}:{normalize_text(desc)[:160]}:{year or ''}"
-    )
+    cache_key = f"tvmaze_v2:{normalize_text(show_name)}:{air_date}:{normalize_text(subtitle)}:{normalize_text(desc)[:160]}:{year or ''}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-
     try:
-        r_show = SESSION.get(
-            "https://api.tvmaze.com/search/shows",
-            params={"q": show_name},
-            timeout=API_TIMEOUT,
-        )
+        r_show = SESSION.get("https://api.tvmaze.com/search/shows", params={"q": show_name}, timeout=API_TIMEOUT)
         if r_show.status_code != 200:
             cache_set(cache_key, None)
             return None
-
         results = r_show.json() or []
         if not results:
             cache_set(cache_key, None)
             return None
-
         ambiguous_title = is_ambiguous_title(show_name)
         ranked_shows = []
-
         for entry in results[:10]:
             show = entry.get("show") or {}
             show_title = (show.get("name") or "").strip()
             show_summary = strip_html_tags(show.get("summary") or "")
             premiered = (show.get("premiered") or "")[:4]
-
             title_ratio = text_similarity(show_name, show_title)
             desc_ratio = overlap_score(desc, show_summary) if desc and show_summary else 0.0
-
             min_title_ratio = 0.78 if ambiguous_title else 0.55
-            if title_ratio < min_title_ratio:
-                continue
-
+            if title_ratio < min_title_ratio: continue
             if desc and show_summary:
-                if title_ratio < 0.92 and desc_ratio < 0.14:
-                    continue
-                if ambiguous_title and desc_ratio < 0.10:
-                    continue
-            elif ambiguous_title and desc:
-                continue
-
+                if title_ratio < 0.92 and desc_ratio < 0.14: continue
+                if ambiguous_title and desc_ratio < 0.10: continue
+            elif ambiguous_title and desc: continue
             score = title_ratio * 8.0 + desc_ratio * 7.0
-
             if year and premiered:
                 try:
-                    if abs(int(year) - int(premiered)) <= 1:
-                        score += 0.8
-                except Exception:
-                    pass
-
+                    if abs(int(year) - int(premiered)) <= 1: score += 0.8
+                except Exception: pass
             ranked_shows.append((score, show))
-
         if not ranked_shows:
             cache_set(cache_key, None)
             return None
-
         ranked_shows.sort(key=lambda x: x[0], reverse=True)
-
         best_episode = None
         best_score = -999.0
         subtitle_hint = strip_leading_se_from_text(subtitle or "").strip()
-
         for base_score, show in ranked_shows[:5]:
             show_id = show.get("id")
-            if not show_id:
-                continue
-
-            r_ep = SESSION.get(
-                f"https://api.tvmaze.com/shows/{show_id}/episodesbydate",
-                params={"date": air_date},
-                timeout=API_TIMEOUT,
-            )
-            if r_ep.status_code != 200:
-                continue
-
+            if not show_id: continue
+            r_ep = SESSION.get(f"https://api.tvmaze.com/shows/{show_id}/episodesbydate", params={"date": air_date}, timeout=API_TIMEOUT)
+            if r_ep.status_code != 200: continue
             episodes = r_ep.json() or []
-            if not episodes:
-                continue
-
+            if not episodes: continue
             for ep in episodes:
                 ep_name = (ep.get("name") or "").strip()
                 ep_score = base_score
-
                 if subtitle_hint and ep_name:
                     ep_title_ratio = text_similarity(subtitle_hint, ep_name)
-
-                    if ep_title_ratio < 0.45 and len(episodes) > 1:
-                        continue
-
+                    if ep_title_ratio < 0.45 and len(episodes) > 1: continue
                     ep_score += ep_title_ratio * 5.0
-
                 if ep_score > best_score:
                     best_score = ep_score
                     best_episode = {
-                        "season": ep.get("season"),
-                        "episode": ep.get("number"),
-                        "name": ep_name,
-                        "show_id": show_id,
-                        "show_name": show.get("name"),
+                        "season": ep.get("season"), "episode": ep.get("number"),
+                        "name": ep_name, "show_id": show_id, "show_name": show.get("name"),
                         "match_score": round(ep_score, 3),
                     }
-
         if not best_episode or best_score < 5.4:
             cache_set(cache_key, None)
             return None
-
         cache_set(cache_key, best_episode)
         return best_episode
-
     except Exception as e:
         print(f"Error TVMaze: {e}", flush=True)
-
     cache_set(cache_key, None)
     return None
 
@@ -1766,25 +1437,18 @@ def replace_all_title_elements(elem, new_title, prefer_latam=False):
     title_elems = elem.findall("title")
     for t in title_elems:
         elem.remove(t)
-
     new_title_elem = ET.Element("title")
     new_title_elem.text = new_title
-    if prefer_latam:
-        new_title_elem.set("lang", "es")
+    if prefer_latam: new_title_elem.set("lang", "es")
     elem.insert(0, new_title_elem)
 
 def set_or_replace_subtitle(elem, subtitle_text, prefer_latam=False):
     for s in list(elem.findall("sub-title")):
         elem.remove(s)
-
-    if REMOVE_SUBTITLE_ENTIRELY or not subtitle_text:
-        return
-
+    if REMOVE_SUBTITLE_ENTIRELY or not subtitle_text: return
     new_sub = ET.Element("sub-title")
     new_sub.text = subtitle_text
-    if prefer_latam:
-        new_sub.set("lang", "es")
-
+    if prefer_latam: new_sub.set("lang", "es")
     title_index = 0
     for i, child in enumerate(list(elem)):
         if child.tag == "title":
@@ -1795,70 +1459,44 @@ def set_or_replace_subtitle(elem, subtitle_text, prefer_latam=False):
 def set_or_replace_desc(elem, desc_text, prefer_latam=False):
     for d in list(elem.findall("desc")):
         elem.remove(d)
-
-    if not desc_text:
-        return
-
+    if not desc_text: return
     new_desc = ET.Element("desc")
     new_desc.text = desc_text
-    if prefer_latam:
-        new_desc.set("lang", "es")
-
+    if prefer_latam: new_desc.set("lang", "es")
     children = list(elem)
     insert_index = len(children)
-
     for i, child in enumerate(children):
-        if child.tag in ("sub-title", "title"):
-            insert_index = i + 1
-
+        if child.tag in ("sub-title", "title"): insert_index = i + 1
     elem.insert(insert_index, new_desc)
 
 def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False):
     current_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
     current_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
-
     extracted_ep_title = None
     cleaned_desc = current_desc.strip() if current_desc else ""
-
     ep_title_from_desc, desc_without_ep_title = split_episode_title_from_desc(current_desc)
     if ep_title_from_desc:
         extracted_ep_title = ep_title_from_desc
         cleaned_desc = (desc_without_ep_title or "").strip()
     else:
         cleaned_desc = (current_desc or "").strip()
-
     cleaned_desc = strip_leading_se_from_desc(cleaned_desc)
-
     chosen_subtitle = current_subtitle.strip() if current_subtitle else ""
-    if not chosen_subtitle and extracted_ep_title:
-        chosen_subtitle = extracted_ep_title
-
+    if not chosen_subtitle and extracted_ep_title: chosen_subtitle = extracted_ep_title
     chosen_subtitle = strip_leading_se_from_text(chosen_subtitle).strip()
-
-    should_spanish_case_subtitle = bool(chosen_subtitle) and (
-        prefer_latam or has_spanish_variant(elem, "sub-title") or extracted_ep_title is not None
-    )
-    if chosen_subtitle and should_spanish_case_subtitle:
-        chosen_subtitle = spanish_title_case(chosen_subtitle)
-
+    should_spanish_case_subtitle = bool(chosen_subtitle) and (prefer_latam or has_spanish_variant(elem, "sub-title") or extracted_ep_title is not None)
+    if chosen_subtitle and should_spanish_case_subtitle: chosen_subtitle = spanish_title_case(chosen_subtitle)
     set_or_replace_subtitle(elem, chosen_subtitle, prefer_latam=prefer_latam)
-
     final_desc = cleaned_desc
-
     if is_series and chosen_subtitle:
         first = first_line(cleaned_desc)
-        if normalize_text(first) == normalize_text(chosen_subtitle):
-            final_desc = cleaned_desc
-        elif cleaned_desc:
-            final_desc = f"{chosen_subtitle}\n{cleaned_desc}"
-        else:
-            final_desc = chosen_subtitle
-
+        if normalize_text(first) == normalize_text(chosen_subtitle): final_desc = cleaned_desc
+        elif cleaned_desc: final_desc = f"{chosen_subtitle}\n{cleaned_desc}"
+        else: final_desc = chosen_subtitle
     set_or_replace_desc(elem, final_desc, prefer_latam=prefer_latam)
 
 def normalize_episode_num_elements(elem):
-    if not FORCE_SEASON_EPISODE_IN_TITLE_ONLY:
-        return
+    if not FORCE_SEASON_EPISODE_IN_TITLE_ONLY: return
     for ep in list(elem.findall("episode-num")):
         elem.remove(ep)
 
@@ -1866,133 +1504,75 @@ def normalize_episode_num_elements(elem):
 # PROCESAMIENTO PRINCIPAL
 # =========================
 
-def process_programme(
-    elem,
-    start_time_str,
-    prefer_latam=False,
-    spanish_season_episode_format=False
-):
+def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_episode_format=False):
     raw_title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam)
     raw_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
     raw_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
     xml_has_spanish_title = has_spanish_variant(elem, "title")
-
     clean_title, has_new = extract_new_marker(raw_title)
     clean_title, year_regex = extract_year_regex(clean_title)
-
     se_title = extract_se_regex(clean_title)
     se_desc = extract_se_regex(raw_desc)
     se_xml = extract_xmltv_episode_num(elem)
-
     final_year = year_regex
     final_se = se_title or se_desc or se_xml
-
     desc_episode_title, _ = split_episode_title_from_desc(raw_desc)
     subtitle_hint = strip_leading_se_from_text(raw_subtitle or "").strip() or (desc_episode_title or "")
-
     base_title = strip_se_from_title(clean_title) or clean_title.strip()
     base_title = remove_episode_title_from_series_title(base_title, subtitle_hint)
     final_title = base_title
-
     should_translate = prefer_latam and not xml_has_spanish_title
     need_tmdb = (not final_year) or should_translate or prefer_latam
     need_tv = not final_se
-
     tmdb_data = None
     canonical_title = None
     tvmaze_data = None
     source_canonical_title = base_title or clean_title or raw_title
 
     if need_tmdb or need_tv:
-        tmdb_data = get_tmdb_data(
-            final_title,
-            desc=raw_desc,
-            subtitle=subtitle_hint,
-            year=final_year,
-            prefer_latam=prefer_latam,
-        )
+        tmdb_data = get_tmdb_data(final_title, desc=raw_desc, subtitle=subtitle_hint, year=final_year, prefer_latam=prefer_latam)
 
     if tmdb_data:
         localized_title = (tmdb_data.get("localized_title") or "").strip()
         canonical_from_tmdb = (tmdb_data.get("canonical_title") or "").strip()
-
         if localized_title:
             canonical_title = localized_title
-            if should_translate or should_replace_with_localized_title(final_title, localized_title):
-                final_title = localized_title
-        elif canonical_from_tmdb:
-            canonical_title = canonical_from_tmdb
+            if should_translate or should_replace_with_localized_title(final_title, localized_title): final_title = localized_title
+        elif canonical_from_tmdb: canonical_title = canonical_from_tmdb
 
-    if not final_year and tmdb_data:
-        final_year = tmdb_data.get("year")
-
+    if not final_year and tmdb_data: final_year = tmdb_data.get("year")
+    
     should_try_tvmaze = False
-
-    if tmdb_data and tmdb_data.get("type") == "tv":
-        should_try_tvmaze = True
-    elif final_se:
-        should_try_tvmaze = True
+    if tmdb_data and tmdb_data.get("type") == "tv": should_try_tvmaze = True
+    elif final_se: should_try_tvmaze = True
 
     if should_try_tvmaze:
         try:
             air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
-
             query_title = final_title or base_title or clean_title
-            tvmaze_data = get_tvmaze_episode(
-                query_title,
-                air_date,
-                desc=raw_desc,
-                subtitle=subtitle_hint,
-                year=final_year,
-            )
-
+            tvmaze_data = get_tvmaze_episode(query_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
             if not tvmaze_data and clean_title and clean_title != query_title:
                 fallback_title = strip_se_from_title(clean_title) or clean_title
                 fallback_title = remove_episode_title_from_series_title(fallback_title, subtitle_hint)
                 if fallback_title != query_title:
-                    tvmaze_data = get_tvmaze_episode(
-                        fallback_title,
-                        air_date,
-                        desc=raw_desc,
-                        subtitle=subtitle_hint,
-                        year=final_year,
-                    )
-
+                    tvmaze_data = get_tvmaze_episode(fallback_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
             if not final_se and tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
-
             if tvmaze_data and tvmaze_data.get("show_name"):
                 tvmaze_show_name = tvmaze_data["show_name"].strip()
-                if normalize_text(final_title) == normalize_text(tvmaze_show_name):
-                    canonical_title = tvmaze_show_name
+                if normalize_text(final_title) == normalize_text(tvmaze_show_name): canonical_title = tvmaze_show_name
+        except ValueError: pass
 
-        except ValueError:
-            pass
-
-    if final_title and (prefer_latam or xml_has_spanish_title):
-        final_title = spanish_title_case(final_title)
-
-    if canonical_title:
-        final_title = preserve_special_casing(final_title, canonical_title)
-
-    if source_canonical_title:
-        final_title = preserve_special_casing(final_title, source_canonical_title)
-
+    if final_title and (prefer_latam or xml_has_spanish_title): final_title = spanish_title_case(final_title)
+    if canonical_title: final_title = preserve_special_casing(final_title, canonical_title)
+    if source_canonical_title: final_title = preserve_special_casing(final_title, source_canonical_title)
     final_title = apply_title_case_overrides(final_title)
-
     display_title = final_title
     is_series = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
-
     if final_se:
-        display_se = format_season_episode_display(
-            final_se,
-            use_spanish=spanish_season_episode_format
-        )
+        display_se = format_season_episode_display(final_se, use_spanish=spanish_season_episode_format)
         display_title += f" | {display_se}"
-
-    if has_new:
-        display_title += " ᴺᵉʷ"
-
+    if has_new: display_title += " ᴺᵉʷ"
     return display_title, is_series
 
 def download_xml(url, output_path):
@@ -2002,57 +1582,56 @@ def download_xml(url, output_path):
         if url.lower().endswith(".gz"):
             with gzip.GzipFile(fileobj=r.raw) as gz:
                 with open(output_path, "wb") as f:
-                    for chunk in iter(lambda: gz.read(1024 * 1024), b""):
-                        f.write(chunk)
+                    for chunk in iter(lambda: gz.read(1024 * 1024), b""): f.write(chunk)
         else:
             with open(output_path, "wb") as f:
                 for chunk in r.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        f.write(chunk)
+                    if chunk: f.write(chunk)
 
-def collect_warner_metadata_entries(url):
+def collect_metadata_entries(url, allowed_channels_set):
     entries = []
     try:
-        print(f"Cargando metadata Warner desde: {url}", flush=True)
+        print(f"Cargando metadata universal desde: {url}", flush=True)
         download_xml(url, TEMP_INPUT)
-
         context = ET.iterparse(TEMP_INPUT, events=("end",))
         previous_kept = None
-
         for event, elem in context:
             if elem.tag != "programme":
                 elem.clear()
                 continue
-
             ch_id = elem.get("channel")
-            if not is_warner_channel(ch_id):
-                elem.clear()
-                continue
-
-            cloned = clone_element(elem)
-            entry = {
-                "channel": ch_id,
-                "elem": cloned,
-                "source_url": url,
-                "prev_elem": clone_element(previous_kept["elem"]) if previous_kept else None,
-                "next_elem": None,
-            }
-
-            if previous_kept is not None:
-                previous_kept["next_elem"] = clone_element(cloned)
-
-            entries.append(entry)
-            previous_kept = entry
+            # Recopilamos si está permitido O si es un alias potencial (optimización: recopilar todo lo del país?)
+            # Para ser seguros, recopilamos todo lo que podría ser relevante.
+            # Por rendimiento, solo guardamos si está en la lista normalizada permitida.
+            
+            # Verificamos si el canal es relevante (usando normalización)
+            is_relevant = False
+            if ch_id in allowed_channels_set:
+                is_relevant = True
+            else:
+                # Check if it matches any allowed channel via similarity
+                for allowed_ch in allowed_channels_set:
+                    if calculate_channel_similarity(ch_id, allowed_ch) > 0.75:
+                        is_relevant = True
+                        break
+            
+            if is_relevant:
+                cloned = clone_element(elem)
+                entry = {
+                    "channel": ch_id, "elem": cloned, "source_url": url,
+                    "prev_elem": clone_element(previous_kept["elem"]) if previous_kept else None,
+                    "next_elem": None,
+                }
+                if previous_kept is not None: previous_kept["next_elem"] = clone_element(cloned)
+                entries.append(entry)
+                previous_kept = entry
             elem.clear()
-
         del context
     except Exception as e:
-        print(f"Error cargando metadata Warner: {e}", flush=True)
+        print(f"Error cargando metadata: {e}", flush=True)
     finally:
-        if os.path.exists(TEMP_INPUT):
-            os.remove(TEMP_INPUT)
-
-    print(f"Metadata Warner cargada: {len(entries)} programas", flush=True)
+        if os.path.exists(TEMP_INPUT): os.remove(TEMP_INPUT)
+    print(f"Metadata cargada: {len(entries)} programas", flush=True)
     return entries
 
 def main():
@@ -2069,13 +1648,56 @@ def main():
         print("Error: channels.txt está vacío", flush=True)
         return
 
+    # =============================
+    # FASE 1: DESCUBRIMIENTO DE CANALES
+    # =============================
+    # Identificar fuentes que tienen horarios "buenos" según las reglas
+    good_sources = set()
+    for sources in CHANNEL_SOURCE_RULES.values():
+        for s in sources:
+            good_sources.add(s)
+    
+    # Mapa de aliases: ID_Fuente -> [IDs_Usuario]
+    # Ejemplo: {"WARNER CHANNEL HD.pe": ["WARNER CHANNEL.pe", "WarnerChannel.pe"]}
+    CHANNEL_ID_ALIASES = {}
+    
+    print(f"Analizando {len(good_sources)} fuentes priorizadas para detectar IDs de canales...", flush=True)
+    
+    # Escaneamos rápidamente las fuentes buenas para obtener los IDs reales
+    for url in good_sources:
+        if url not in EPG_URLS: continue
+        try:
+            download_xml(url, TEMP_INPUT)
+            context = ET.iterparse(TEMP_INPUT, events=("end",))
+            for event, elem in context:
+                if elem.tag == "channel":
+                    real_id = elem.get("id")
+                    if not real_id: continue
+                    
+                    # Buscar coincidencias en la lista del usuario
+                    for user_id in allowed_channels:
+                        score = calculate_channel_similarity(real_id, user_id)
+                        if score >= 0.75: # Umbral de similitud
+                            if real_id not in CHANNEL_ID_ALIASES: CHANNEL_ID_ALIASES[real_id] = []
+                            if user_id not in CHANNEL_ID_ALIASES[real_id]:
+                                CHANNEL_ID_ALIASES[real_id].append(user_id)
+                                print(f"  -> Match detectado: Fuente '{real_id}' sera mapeado a '{user_id}' ({score:.0%})", flush=True)
+                elem.clear()
+            del context
+            if os.path.exists(TEMP_INPUT): os.remove(TEMP_INPUT)
+        except Exception as e:
+            print(f"Error escaneando fuente {url}: {e}", flush=True)
+
+    # =============================
+    # FASE 2: RECOLECCION DE METADATOS
+    # =============================
+    metadata_entries = []
+    # Usamos las fuentes de METADATA_SOURCES para enriquecer
+    for metadata_url in METADATA_SOURCES:
+        metadata_entries.extend(collect_metadata_entries(metadata_url, allowed_channels))
+
     written_programmes = set()
     written_channels = set()
-
-    warner_metadata_entries = []
-    for metadata_url in WARNER_METADATA_SOURCES:
-        warner_metadata_entries.extend(collect_warner_metadata_entries(metadata_url))
-
     t_global = time.time()
 
     try:
@@ -2092,107 +1714,94 @@ def main():
                 try:
                     print(f"[{idx}/{len(EPG_URLS)}] Fuente: {url}", flush=True)
                     download_xml(url, TEMP_INPUT)
-                    print(f"Descarga lista en {time.time() - t0:.1f}s", flush=True)
-
+                    
                     context = ET.iterparse(TEMP_INPUT, events=("end",))
 
                     for event, elem in context:
                         if elem.tag == "channel":
                             ch_id = elem.get("id")
-                            if (
-                                ch_id in allowed_channels
-                                and is_source_allowed_for_channel(ch_id, url)
-                                and ch_id not in written_channels
-                            ):
+                            
+                            # 1. Escribir canal original si está permitido
+                            should_write = ch_id in allowed_channels and is_source_allowed_for_channel(ch_id, url) and ch_id not in written_channels
+                            if should_write:
                                 out_f.write(ET.tostring(elem, encoding="utf-8"))
                                 out_f.write(b"\n")
                                 written_channels.add(ch_id)
+                            
+                            # 2. Escribir aliases detectados en Fase 1
+                            if ch_id in CHANNEL_ID_ALIASES:
+                                for alias_id in CHANNEL_ID_ALIASES[ch_id]:
+                                    if alias_id not in written_channels:
+                                        # Clonar elemento canal con nuevo ID
+                                        alias_elem = clone_element(elem)
+                                        alias_elem.set("id", alias_id)
+                                        out_f.write(ET.tostring(alias_elem, encoding="utf-8"))
+                                        out_f.write(b"\n")
+                                        written_channels.add(alias_id)
                             elem.clear()
 
                         elif elem.tag == "programme":
                             processed_programmes += 1
                             if processed_programmes % 5000 == 0:
-                                print(
-                                    f"{url} -> programmes procesados: {processed_programmes} | "
-                                    f"canales escritos: {len(written_channels)} | "
-                                    f"programas escritos: {len(written_programmes)}",
-                                    flush=True,
-                                )
+                                print(f"Procesando... {processed_programmes} programas", flush=True)
 
                             ch_id = elem.get("channel")
-                            if ch_id in allowed_channels and is_source_allowed_for_channel(ch_id, url):
-                                if ch_id in {"WARNER CHANNEL.pe", "WARNER CHANNEL HD.pe"}:
-                                    WARNER_DEBUG.append({
-                                        "source": url,
-                                        "start": elem.get("start", ""),
-                                        "stop": elem.get("stop", ""),
-                                        "title": pick_best_localized_text(elem, "title", prefer_latam=prefer_latam),
-                                    })
-
+                            is_ch_allowed = ch_id in allowed_channels and is_source_allowed_for_channel(ch_id, url)
+                            
+                            if is_ch_allowed:
                                 start = elem.get("start", "")
-                                new_title, is_series = process_programme(
-                                    elem,
-                                    start,
-                                    prefer_latam=prefer_latam,
-                                    spanish_season_episode_format=spanish_season_episode_format
-                                )
-
+                                new_title, is_series = process_programme(elem, start, prefer_latam, spanish_season_episode_format)
                                 replace_all_title_elements(elem, new_title, prefer_latam=prefer_latam)
                                 normalize_subtitle_and_desc(elem, prefer_latam=prefer_latam, is_series=is_series)
                                 normalize_episode_num_elements(elem)
-
                                 apply_channel_offset(elem)
-
                                 cloned_programme = clone_element(elem)
-
-                                source_programmes_to_write.append({
-                                    "channel": ch_id,
-                                    "elem": cloned_programme,
-                                    "source_url": url,
-                                })
-
+                                source_programmes_to_write.append({"channel": ch_id, "elem": cloned_programme, "source_url": url})
                             elem.clear()
 
                     if source_programmes_to_write:
-                        if url == EPG_PE2:
-                            warner_schedule_entries = [
-                                item for item in source_programmes_to_write
-                                if normalize_warner_channel(item["channel"]) == "warner_pe"
-                            ]
-                            if warner_schedule_entries and warner_metadata_entries:
-                                apply_warner_metadata_fix(
-                                    warner_schedule_entries,
-                                    warner_metadata_entries,
-                                    prefer_latam=prefer_latam,
-                                    spanish_season_episode_format=spanish_season_episode_format
-                                )
+                        # Intentar corrección de metadatos si esta fuente es una "good source"
+                        if url in good_sources:
+                            # Filtrar programas que necesitan corrección
+                            schedule_to_fix = [item for item in source_programmes_to_write if normalize_channel_id_for_matching(item["channel"]) in [normalize_channel_id_for_matching(k) for k in CHANNEL_ID_ALIASES.keys()]]
+                            if schedule_to_fix and metadata_entries:
+                                print(f"Aplicando corrección de metadatos universal...", flush=True)
+                                apply_metadata_fix(schedule_to_fix, metadata_entries, prefer_latam, spanish_season_episode_format)
 
                         for item in source_programmes_to_write:
                             prog_elem = item["elem"]
-                            ch_id = item["channel"]
-                            start = prog_elem.get("start", "")
-                            stop = prog_elem.get("stop", "")
-                            prog_key = (ch_id, start, stop)
+                            original_ch_id = item["channel"]
+                            
+                            # IDs a escribir: original + aliases
+                            target_ids = [original_ch_id]
+                            if original_ch_id in CHANNEL_ID_ALIASES:
+                                target_ids.extend(CHANNEL_ID_ALIASES[original_ch_id])
+                            
+                            for target_ch_id in target_ids:
+                                if target_ch_id not in allowed_channels: continue
+                                
+                                if target_ch_id != original_ch_id:
+                                    write_elem = clone_element(prog_elem)
+                                    write_elem.set("channel", target_ch_id)
+                                else:
+                                    write_elem = prog_elem
 
-                            if prog_key not in written_programmes:
-                                out_f.write(ET.tostring(prog_elem, encoding="utf-8"))
-                                out_f.write(b"\n")
-                                written_programmes.add(prog_key)
+                                start = write_elem.get("start")
+                                stop = write_elem.get("stop")
+                                prog_key = (target_ch_id, start, stop)
 
+                                if prog_key not in written_programmes:
+                                    out_f.write(ET.tostring(write_elem, encoding="utf-8"))
+                                    out_f.write(b"\n")
+                                    written_programmes.add(prog_key)
+                    
                     del context
-
-                    print(
-                        f"Fuente terminada en {time.time() - t0:.1f}s | "
-                        f"programmes leidos: {processed_programmes}",
-                        flush=True,
-                    )
+                    print(f"Fuente terminada: {url.split('/')[-1]}", flush=True)
 
                 except Exception as e:
                     print(f"Error en fuente {url}: {e}", flush=True)
-
                 finally:
-                    if os.path.exists(TEMP_INPUT):
-                        os.remove(TEMP_INPUT)
+                    if os.path.exists(TEMP_INPUT): os.remove(TEMP_INPUT)
 
             out_f.write(b"</tv>\n")
     finally:
@@ -2202,25 +1811,8 @@ def main():
     with open(TEMP_OUTPUT, "rb") as f_in:
         with gzip.open(OUTPUT_FILE, "wb") as f_out:
             f_out.writelines(f_in)
-
-    if os.path.exists(TEMP_OUTPUT):
-        os.remove(TEMP_OUTPUT)
-
-    if WARNER_DEBUG:
-        print("\nDEBUG WARNER", flush=True)
-        for item in WARNER_DEBUG[:100]:
-            print(
-                f"{item['source']} | {item['start']} -> {item['stop']} | {item['title']}",
-                flush=True,
-            )
-
-    print(
-        f"Proceso completado: {OUTPUT_FILE} | "
-        f"canales: {len(written_channels)} | "
-        f"programas: {len(written_programmes)} | "
-        f"tiempo total: {time.time() - t_global:.1f}s",
-        flush=True,
-    )
+    if os.path.exists(TEMP_OUTPUT): os.remove(TEMP_OUTPUT)
+    print(f"Proceso completado: {OUTPUT_FILE} | canales: {len(written_channels)} | programas: {len(written_programmes)}", flush=True)
 
 if __name__ == "__main__":
     main()
