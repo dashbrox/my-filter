@@ -122,6 +122,17 @@ CHANNEL_SOURCE_RULES = {
     "WARNER CHANNEL HD.pe": [EPG_PE2],
 }
 
+# Alias manuales aprobados por el usuario.
+# El primer valor es el ID canónico que usará el script internamente.
+CHANNEL_EQUIVALENCE = {
+    "WARNER CHANNEL.pe": [
+        "WARNER CHANNEL.pe",
+        "WARNER CHANNEL HD.pe",
+        "WARNER.CHANNEL.(Warner).pe",
+        "WarnerChannel.pe",
+    ],
+}
+
 METADATA_SOURCES = [
     "https://epgshare01.online/epgshare01/epg_ripper_PE1.xml.gz",
     "https://iptv-epg.org/files/epg-pe.xml",
@@ -220,6 +231,25 @@ def save_cache():
         json.dump(api_cache, f, ensure_ascii=False, indent=2)
 
 # =========================
+# ALIAS MANUALES DE CANALES
+# =========================
+
+def build_channel_alias_map():
+    alias_to_canonical = {}
+    for canonical_id, aliases in CHANNEL_EQUIVALENCE.items():
+        alias_to_canonical[canonical_id] = canonical_id
+        for alias in aliases:
+            alias_to_canonical[alias] = canonical_id
+    return alias_to_canonical
+
+CHANNEL_ALIAS_MAP = build_channel_alias_map()
+
+def canonical_channel_id(ch_id):
+    if not ch_id:
+        return ch_id
+    return CHANNEL_ALIAS_MAP.get(ch_id, ch_id)
+
+# =========================
 # UTILS TEXTO Y SIMILITUD
 # =========================
 
@@ -270,11 +300,16 @@ def tokenize_channel_id(ch_id):
 
 def normalize_channel_id_for_matching(ch_id):
     """
-    Normaliza un ID de canal para comparación/grouping interno.
-    Mantiene una salida estable basada en tokens útiles.
+    Prioriza equivalencias manuales aprobadas por el usuario.
+    Si no existe equivalencia manual, usa la normalización previa.
     """
     if not ch_id:
         return ""
+
+    canonical = canonical_channel_id(ch_id)
+    if canonical != ch_id:
+        return canonical.lower().strip()
+
     country = get_channel_country_code(ch_id) or ""
     generic_words = {'channel', 'tv', 'television', 'network', 'cable', 'satelital'}
     tokens = tokenize_channel_id(ch_id)
@@ -289,9 +324,14 @@ def normalize_channel_id_for_matching(ch_id):
 
 def is_same_channel(id1, id2):
     """
-    Lógica de coincidencia estricta basada en tokens y país.
-    Retorna (es_match, score)
+    Primero respeta equivalencias manuales.
+    Luego usa la lógica estricta previa.
     """
+    c1 = canonical_channel_id(id1)
+    c2 = canonical_channel_id(id2)
+    if c1 and c2 and c1 == c2:
+        return True, 1.0
+
     tokens1 = tokenize_channel_id(id1)
     tokens2 = tokenize_channel_id(id2)
 
@@ -334,7 +374,6 @@ def is_same_channel(id1, id2):
     return False, 0.0
 
 def calculate_channel_similarity(id1, id2):
-    """Compatibilidad con el resto del script."""
     match, score = is_same_channel(id1, id2)
     if match:
         return score
@@ -921,7 +960,8 @@ def apply_channel_offset(elem):
         elem.set("stop", shift_xmltv_datetime(stop, offset))
 
 def is_source_allowed_for_channel(channel_id, source_url):
-    allowed_sources = CHANNEL_SOURCE_RULES.get(channel_id)
+    canonical_id = canonical_channel_id(channel_id)
+    allowed_sources = CHANNEL_SOURCE_RULES.get(canonical_id)
     if not allowed_sources:
         return True
     return source_url in allowed_sources
@@ -1713,32 +1753,26 @@ def download_xml(url, output_path):
 
 def collect_metadata_entries(url, allowed_channels_set):
     entries = []
+    allowed_canonical = {canonical_channel_id(ch) for ch in allowed_channels_set}
+
     try:
         print(f"Cargando metadata universal desde: {url}", flush=True)
         download_xml(url, TEMP_INPUT)
         context = ET.iterparse(TEMP_INPUT, events=("end",))
         previous_kept = None
+
         for event, elem in context:
             if elem.tag != "programme":
                 elem.clear()
                 continue
 
             ch_id = elem.get("channel")
-            is_relevant = False
+            canonical_id = canonical_channel_id(ch_id)
 
-            if ch_id in allowed_channels_set:
-                is_relevant = True
-            else:
-                for allowed_ch in allowed_channels_set:
-                    match, _ = is_same_channel(ch_id, allowed_ch)
-                    if match:
-                        is_relevant = True
-                        break
-
-            if is_relevant:
+            if canonical_id in allowed_canonical:
                 cloned = clone_element(elem)
                 entry = {
-                    "channel": ch_id,
+                    "channel": canonical_id,
                     "elem": cloned,
                     "source_url": url,
                     "prev_elem": clone_element(previous_kept["elem"]) if previous_kept else None,
@@ -1748,13 +1782,16 @@ def collect_metadata_entries(url, allowed_channels_set):
                     previous_kept["next_elem"] = clone_element(cloned)
                 entries.append(entry)
                 previous_kept = entry
+
             elem.clear()
+
         del context
     except Exception as e:
         print(f"Error cargando metadata: {e}", flush=True)
     finally:
         if os.path.exists(TEMP_INPUT):
             os.remove(TEMP_INPUT)
+
     print(f"Metadata cargada: {len(entries)} programas", flush=True)
     return entries
 
@@ -1772,8 +1809,10 @@ def main():
         print("Error: channels.txt está vacío", flush=True)
         return
 
+    allowed_canonical = {canonical_channel_id(ch) for ch in allowed_channels}
+
     # =============================
-    # FASE 1: DESCUBRIMIENTO DE CANALES (Lógica Estricta)
+    # FASE 1: DESCUBRIMIENTO DE CANALES
     # =============================
     good_sources = set()
     for sources in CHANNEL_SOURCE_RULES.values():
@@ -1782,7 +1821,7 @@ def main():
 
     CHANNEL_ID_ALIASES = {}
 
-    print(f"Analizando fuentes priorizadas...", flush=True)
+    print("Analizando fuentes priorizadas...", flush=True)
 
     for url in good_sources:
         if url not in EPG_URLS:
@@ -1797,15 +1836,17 @@ def main():
                         elem.clear()
                         continue
 
+                    canonical_real = canonical_channel_id(real_id)
+
                     for user_id in allowed_channels:
-                        match, score = is_same_channel(real_id, user_id)
-                        if match:
-                            if real_id not in CHANNEL_ID_ALIASES:
-                                CHANNEL_ID_ALIASES[real_id] = []
+                        if canonical_real == canonical_channel_id(user_id):
+                            CHANNEL_ID_ALIASES.setdefault(real_id, [])
                             if user_id not in CHANNEL_ID_ALIASES[real_id]:
                                 CHANNEL_ID_ALIASES[real_id].append(user_id)
-                                print(f"  -> Match Validado: '{real_id}' == '{user_id}' (Lógica Estricta)", flush=True)
+                                print(f"  -> Match validado: '{real_id}' == '{user_id}'", flush=True)
+
                 elem.clear()
+
             del context
             if os.path.exists(TEMP_INPUT):
                 os.remove(TEMP_INPUT)
@@ -1819,7 +1860,7 @@ def main():
     for metadata_url in METADATA_SOURCES:
         metadata_entries.extend(collect_metadata_entries(metadata_url, allowed_channels))
 
-    alias_source_norms = {normalize_channel_id_for_matching(k) for k in CHANNEL_ID_ALIASES.keys()}
+    alias_source_norms = {canonical_channel_id(k) for k in CHANNEL_ID_ALIASES.keys()}
 
     written_programmes = set()
     written_channels = set()
@@ -1843,8 +1884,13 @@ def main():
                     for event, elem in context:
                         if elem.tag == "channel":
                             ch_id = elem.get("id")
+                            canonical_ch_id = canonical_channel_id(ch_id)
 
-                            should_write = ch_id in allowed_channels and is_source_allowed_for_channel(ch_id, url) and ch_id not in written_channels
+                            should_write = (
+                                canonical_ch_id in allowed_canonical
+                                and is_source_allowed_for_channel(ch_id, url)
+                                and ch_id not in written_channels
+                            )
                             if should_write:
                                 out_f.write(ET.tostring(elem, encoding="utf-8"))
                                 out_f.write(b"\n")
@@ -1866,7 +1912,8 @@ def main():
                                 print(f"Procesando... {processed_programmes} programas", flush=True)
 
                             ch_id = elem.get("channel")
-                            is_ch_allowed = ch_id in allowed_channels and is_source_allowed_for_channel(ch_id, url)
+                            canonical_ch_id = canonical_channel_id(ch_id)
+                            is_ch_allowed = canonical_ch_id in allowed_canonical and is_source_allowed_for_channel(ch_id, url)
 
                             if is_ch_allowed:
                                 start = elem.get("start", "")
@@ -1877,7 +1924,7 @@ def main():
                                 apply_channel_offset(elem)
                                 cloned_programme = clone_element(elem)
                                 source_programmes_to_write.append({
-                                    "channel": ch_id,
+                                    "channel": canonical_ch_id,
                                     "elem": cloned_programme,
                                     "source_url": url
                                 })
@@ -1887,7 +1934,7 @@ def main():
                         if url in good_sources:
                             schedule_to_fix = [
                                 item for item in source_programmes_to_write
-                                if normalize_channel_id_for_matching(item["channel"]) in alias_source_norms
+                                if canonical_channel_id(item["channel"]) in alias_source_norms
                             ]
                             if schedule_to_fix and metadata_entries:
                                 print("Aplicando corrección de metadatos universal...", flush=True)
@@ -1902,7 +1949,7 @@ def main():
                                 target_ids.extend(CHANNEL_ID_ALIASES[original_ch_id])
 
                             for target_ch_id in target_ids:
-                                if target_ch_id not in allowed_channels:
+                                if canonical_channel_id(target_ch_id) not in allowed_canonical:
                                     continue
 
                                 if target_ch_id != original_ch_id:
