@@ -220,6 +220,11 @@ def normalize_text(text):
     text = re.sub(r"[^a-z0-9\s]", " ", text)
     return " ".join(text.split())
 
+TITLE_CASE_OVERRIDES = {
+    normalize_text("DTF St. Louis"): "DTF St. Louis",
+    normalize_text("M3GAN 2.0"): "M3GAN 2.0",
+}
+
 def strip_accents(text):
     if not text:
         return ""
@@ -870,6 +875,15 @@ def preserve_special_casing(base_title, canonical_title):
 
     return " ".join(merged)
 
+def apply_title_case_overrides(title):
+    if not title:
+        return title
+    key = normalize_text(title)
+    override = TITLE_CASE_OVERRIDES.get(key)
+    if override:
+        return override
+    return title
+
 def is_ambiguous_title(title):
     tokens = [t for t in normalize_text(title).split() if len(t) > 2]
     return len(tokens) <= 2
@@ -1382,6 +1396,7 @@ def process_programme(
     tmdb_data = None
     canonical_title = None
     tvmaze_data = None
+    source_canonical_title = base_title or clean_title or raw_title
 
     if need_tmdb or need_tv:
         tmdb_data = get_tmdb_data(
@@ -1454,6 +1469,11 @@ def process_programme(
 
     if canonical_title:
         final_title = preserve_special_casing(final_title, canonical_title)
+
+    if source_canonical_title:
+        final_title = preserve_special_casing(final_title, source_canonical_title)
+
+    final_title = apply_title_case_overrides(final_title)
 
     display_title = final_title
     is_series = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
