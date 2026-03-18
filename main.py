@@ -119,9 +119,20 @@ CHANNEL_SOURCE_RULES = {
     "Canal.Universal.Premiere.sv": [EPG_SV1],
     "ENTERTAINMENTTELEVISION.uy": [EPG_UY1],
     "WARNER CHANNEL.pe": [EPG_PE2],
+    "WARNER CHANNEL HD.pe": [EPG_PE2],
 }
 
 WARNER_DEBUG = []
+
+WARNER_SCHEDULE_CHANNELS = {
+    "WARNER CHANNEL.pe",
+    "WARNER CHANNEL HD.pe",
+}
+
+WARNER_METADATA_SOURCE = "https://epgshare01.online/epgshare01/epg_ripper_PE1.xml.gz"
+WARNER_SUSPICIOUS_REPEAT_THRESHOLD = 3
+WARNER_MAX_MATCH_MINUTES = 90
+WARNER_GOOD_MATCH_SCORE = 8.5
 
 # =========================
 # SESION HTTP
@@ -955,6 +966,171 @@ def is_source_allowed_for_channel(channel_id, source_url):
         return True
     return source_url in allowed_sources
 
+def is_warner_channel(channel_id):
+    return channel_id in WARNER_SCHEDULE_CHANNELS
+
+def parse_xmltv_dt_to_utc(xmltv_dt):
+    if not xmltv_dt:
+        return None
+    xmltv_dt = xmltv_dt.strip()
+    m = re.match(r"^(\d{14})(?:\s*([+-]\d{4}))?$", xmltv_dt)
+    if not m:
+        return None
+
+    base = datetime.strptime(m.group(1), "%Y%m%d%H%M%S")
+    tz = m.group(2)
+
+    if not tz:
+        return base
+
+    sign = 1 if tz[0] == "+" else -1
+    hours = int(tz[1:3])
+    minutes = int(tz[3:5])
+    offset = timedelta(hours=hours, minutes=minutes) * sign
+
+    return base - offset
+
+def programme_duration_minutes(elem):
+    start_dt = parse_xmltv_dt_to_utc(elem.get("start", ""))
+    stop_dt = parse_xmltv_dt_to_utc(elem.get("stop", ""))
+    if not start_dt or not stop_dt:
+        return None
+    return max(0, int((stop_dt - start_dt).total_seconds() // 60))
+
+def build_programme_signature(elem, prefer_latam=False):
+    title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam).strip()
+    subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam).strip()
+    desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam).strip()
+    ep = extract_xmltv_episode_num(elem) or ""
+
+    return (
+        normalize_text(title),
+        normalize_text(subtitle),
+        normalize_text(desc),
+        normalize_text(ep),
+    )
+
+def score_warner_metadata_match(schedule_elem, metadata_elem, prefer_latam=False):
+    schedule_start = parse_xmltv_dt_to_utc(schedule_elem.get("start", ""))
+    metadata_start = parse_xmltv_dt_to_utc(metadata_elem.get("start", ""))
+
+    if not schedule_start or not metadata_start:
+        return -999.0
+
+    delta_minutes = abs((schedule_start - metadata_start).total_seconds()) / 60.0
+    if delta_minutes > WARNER_MAX_MATCH_MINUTES:
+        return -999.0
+
+    schedule_title = pick_best_localized_text(schedule_elem, "title", prefer_latam=prefer_latam)
+    metadata_title = pick_best_localized_text(metadata_elem, "title", prefer_latam=prefer_latam)
+    schedule_desc = pick_best_localized_text(schedule_elem, "desc", prefer_latam=prefer_latam)
+    metadata_desc = pick_best_localized_text(metadata_elem, "desc", prefer_latam=prefer_latam)
+
+    schedule_base = strip_se_from_title(schedule_title) or schedule_title
+    metadata_base = strip_se_from_title(metadata_title) or metadata_title
+
+    title_ratio = text_similarity(schedule_base, metadata_base)
+    desc_ratio = overlap_score(schedule_desc, metadata_desc) if schedule_desc and metadata_desc else 0.0
+
+    dur_a = programme_duration_minutes(schedule_elem)
+    dur_b = programme_duration_minutes(metadata_elem)
+    duration_score = 0.0
+    if dur_a is not None and dur_b is not None:
+        diff = abs(dur_a - dur_b)
+        if diff <= 5:
+            duration_score = 2.0
+        elif diff <= 10:
+            duration_score = 1.0
+        elif diff > 20:
+            return -999.0
+
+    score = 0.0
+    score += max(0.0, 4.0 - (delta_minutes / 10.0))
+    score += title_ratio * 5.0
+    score += desc_ratio * 4.0
+    score += duration_score
+
+    metadata_ep = extract_xmltv_episode_num(metadata_elem)
+    if metadata_ep:
+        score += 0.5
+
+    return round(score, 3)
+
+def clone_element(elem):
+    return ET.fromstring(ET.tostring(elem, encoding="utf-8"))
+
+def copy_editorial_metadata(target_elem, source_elem):
+    for tag in ("title", "sub-title", "desc", "episode-num"):
+        for child in list(target_elem.findall(tag)):
+            target_elem.remove(child)
+
+    source_children = list(source_elem)
+
+    insert_index = 0
+    for child in source_children:
+        if child.tag in ("title", "sub-title", "desc", "episode-num"):
+            target_elem.insert(insert_index, clone_element(child))
+            insert_index += 1
+
+def apply_warner_metadata_fix(schedule_entries, metadata_entries):
+    if not schedule_entries or not metadata_entries:
+        return
+
+    suspicious_indexes = set()
+    run_start = 0
+
+    for i in range(1, len(schedule_entries) + 1):
+        same_run = False
+        if i < len(schedule_entries):
+            prev_elem = schedule_entries[i - 1]["elem"]
+            curr_elem = schedule_entries[i]["elem"]
+
+            prev_sig = build_programme_signature(prev_elem, prefer_latam=False)
+            curr_sig = build_programme_signature(curr_elem, prefer_latam=False)
+
+            prev_stop = prev_elem.get("stop", "")
+            curr_start = curr_elem.get("start", "")
+
+            same_run = (
+                schedule_entries[i - 1]["channel"] == schedule_entries[i]["channel"]
+                and prev_sig == curr_sig
+                and prev_stop == curr_start
+            )
+
+        if not same_run:
+            run_len = i - run_start
+            if run_len >= WARNER_SUSPICIOUS_REPEAT_THRESHOLD:
+                suspicious_indexes.update(range(run_start, i))
+            run_start = i
+
+    used_metadata = set()
+
+    for idx in suspicious_indexes:
+        schedule_entry = schedule_entries[idx]
+        schedule_elem = schedule_entry["elem"]
+
+        best_j = None
+        best_score = -999.0
+
+        for j, metadata_entry in enumerate(metadata_entries):
+            if j in used_metadata:
+                continue
+            if metadata_entry["channel"] != schedule_entry["channel"]:
+                continue
+
+            score = score_warner_metadata_match(
+                schedule_elem,
+                metadata_entry["elem"],
+                prefer_latam=False
+            )
+            if score > best_score:
+                best_score = score
+                best_j = j
+
+        if best_j is not None and best_score >= WARNER_GOOD_MATCH_SCORE:
+            copy_editorial_metadata(schedule_elem, metadata_entries[best_j]["elem"])
+            used_metadata.add(best_j)
+
 # =========================
 # TMDB
 # =========================
@@ -1522,6 +1698,40 @@ def download_xml(url, output_path):
                     if chunk:
                         f.write(chunk)
 
+def collect_warner_metadata_entries(url):
+    entries = []
+    try:
+        print(f"Cargando metadata Warner desde: {url}", flush=True)
+        download_xml(url, TEMP_INPUT)
+
+        context = ET.iterparse(TEMP_INPUT, events=("end",))
+        for event, elem in context:
+            if elem.tag != "programme":
+                elem.clear()
+                continue
+
+            ch_id = elem.get("channel")
+            if not is_warner_channel(ch_id):
+                elem.clear()
+                continue
+
+            cloned = clone_element(elem)
+            entries.append({
+                "channel": ch_id,
+                "elem": cloned,
+            })
+            elem.clear()
+
+        del context
+    except Exception as e:
+        print(f"Error cargando metadata Warner: {e}", flush=True)
+    finally:
+        if os.path.exists(TEMP_INPUT):
+            os.remove(TEMP_INPUT)
+
+    print(f"Metadata Warner cargada: {len(entries)} programas", flush=True)
+    return entries
+
 def main():
     print("Iniciando script...", flush=True)
 
@@ -1539,6 +1749,8 @@ def main():
     written_programmes = set()
     written_channels = set()
 
+    warner_metadata_entries = collect_warner_metadata_entries(WARNER_METADATA_SOURCE)
+
     t_global = time.time()
 
     try:
@@ -1550,6 +1762,7 @@ def main():
                 processed_programmes = 0
                 prefer_latam = is_latam_feed(url)
                 spanish_season_episode_format = use_spanish_season_episode_format(url)
+                source_programmes_to_write = []
 
                 try:
                     print(f"[{idx}/{len(EPG_URLS)}] Fuente: {url}", flush=True)
@@ -1583,7 +1796,7 @@ def main():
 
                             ch_id = elem.get("channel")
                             if ch_id in allowed_channels and is_source_allowed_for_channel(ch_id, url):
-                                if ch_id == "WARNER CHANNEL.pe":
+                                if ch_id in {"WARNER CHANNEL.pe", "WARNER CHANNEL HD.pe"}:
                                     WARNER_DEBUG.append({
                                         "source": url,
                                         "start": elem.get("start", ""),
@@ -1607,16 +1820,36 @@ def main():
 
                                 apply_channel_offset(elem)
 
-                                start = elem.get("start", "")
-                                stop = elem.get("stop", "")
+                                cloned_programme = clone_element(elem)
 
-                                prog_key = (ch_id, start, stop)
-                                if prog_key not in written_programmes:
-                                    out_f.write(ET.tostring(elem, encoding="utf-8"))
-                                    out_f.write(b"\n")
-                                    written_programmes.add(prog_key)
+                                source_programmes_to_write.append({
+                                    "channel": ch_id,
+                                    "elem": cloned_programme,
+                                    "source_url": url,
+                                })
 
                             elem.clear()
+
+                    if source_programmes_to_write:
+                        if url == EPG_PE2:
+                            warner_schedule_entries = [
+                                item for item in source_programmes_to_write
+                                if is_warner_channel(item["channel"])
+                            ]
+                            if warner_schedule_entries and warner_metadata_entries:
+                                apply_warner_metadata_fix(warner_schedule_entries, warner_metadata_entries)
+
+                        for item in source_programmes_to_write:
+                            prog_elem = item["elem"]
+                            ch_id = item["channel"]
+                            start = prog_elem.get("start", "")
+                            stop = prog_elem.get("stop", "")
+                            prog_key = (ch_id, start, stop)
+
+                            if prog_key not in written_programmes:
+                                out_f.write(ET.tostring(prog_elem, encoding="utf-8"))
+                                out_f.write(b"\n")
+                                written_programmes.add(prog_key)
 
                     del context
 
