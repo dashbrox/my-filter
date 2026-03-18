@@ -122,8 +122,6 @@ CHANNEL_SOURCE_RULES = {
     "WARNER CHANNEL HD.pe": [EPG_PE2],
 }
 
-# Alias manuales aprobados por el usuario.
-# El primer valor es el ID canónico que usará el script internamente.
 CHANNEL_EQUIVALENCE = {
     "WARNER CHANNEL.pe": [
         "WARNER CHANNEL.pe",
@@ -262,7 +260,6 @@ def normalize_text(text):
     return " ".join(text.split())
 
 def get_channel_country_code(ch_id):
-    """Extrae el código de país de forma estricta (ej: .pe, .mx)."""
     if not ch_id:
         return None
     match = re.search(r'\.([a-z]{2})(?:\.|$|hd|sd|\d)', ch_id.lower())
@@ -271,10 +268,6 @@ def get_channel_country_code(ch_id):
     return None
 
 def tokenize_channel_id(ch_id):
-    """
-    Convierte un ID en un conjunto de tokens significativos.
-    Ej: "WARNER.CHANNEL.(Warner).pe" -> {'warner', 'channel', 'pe'}
-    """
     if not ch_id:
         return set()
 
@@ -287,7 +280,6 @@ def tokenize_channel_id(ch_id):
         s = re.sub(rf'\.{country}(?:\.|$)', ' ', s)
 
     s = s.replace('.', ' ').replace('_', ' ').replace('-', ' ')
-
     tokens = s.split()
 
     noise = {'hd', 'sd', 'fhd', '4k', '1080p', '720p'}
@@ -299,10 +291,6 @@ def tokenize_channel_id(ch_id):
     return set(tokens)
 
 def normalize_channel_id_for_matching(ch_id):
-    """
-    Prioriza equivalencias manuales aprobadas por el usuario.
-    Si no existe equivalencia manual, usa la normalización previa.
-    """
     if not ch_id:
         return ""
 
@@ -323,10 +311,6 @@ def normalize_channel_id_for_matching(ch_id):
     return " ".join(parts).strip()
 
 def is_same_channel(id1, id2):
-    """
-    Primero respeta equivalencias manuales.
-    Luego usa la lógica estricta previa.
-    """
     c1 = canonical_channel_id(id1)
     c2 = canonical_channel_id(id2)
     if c1 and c2 and c1 == c2:
@@ -1771,6 +1755,7 @@ def collect_metadata_entries(url, allowed_channels_set):
 
             if canonical_id in allowed_canonical:
                 cloned = clone_element(elem)
+                cloned.set("channel", canonical_id)
                 entry = {
                     "channel": canonical_id,
                     "elem": cloned,
@@ -1811,9 +1796,6 @@ def main():
 
     allowed_canonical = {canonical_channel_id(ch) for ch in allowed_channels}
 
-    # =============================
-    # FASE 1: DESCUBRIMIENTO DE CANALES
-    # =============================
     good_sources = set()
     for sources in CHANNEL_SOURCE_RULES.values():
         for s in sources:
@@ -1853,9 +1835,6 @@ def main():
         except Exception as e:
             print(f"Error escaneando fuente {url}: {e}", flush=True)
 
-    # =============================
-    # FASE 2: RECOLECCION DE METADATOS
-    # =============================
     metadata_entries = []
     for metadata_url in METADATA_SOURCES:
         metadata_entries.extend(collect_metadata_entries(metadata_url, allowed_channels))
@@ -1878,7 +1857,6 @@ def main():
                 try:
                     print(f"[{idx}/{len(EPG_URLS)}] Fuente: {url}", flush=True)
                     download_xml(url, TEMP_INPUT)
-
                     context = ET.iterparse(TEMP_INPUT, events=("end",))
 
                     for event, elem in context:
@@ -1889,21 +1867,15 @@ def main():
                             should_write = (
                                 canonical_ch_id in allowed_canonical
                                 and is_source_allowed_for_channel(ch_id, url)
-                                and ch_id not in written_channels
+                                and canonical_ch_id not in written_channels
                             )
                             if should_write:
-                                out_f.write(ET.tostring(elem, encoding="utf-8"))
+                                channel_elem = clone_element(elem)
+                                channel_elem.set("id", canonical_ch_id)
+                                out_f.write(ET.tostring(channel_elem, encoding="utf-8"))
                                 out_f.write(b"\n")
-                                written_channels.add(ch_id)
+                                written_channels.add(canonical_ch_id)
 
-                            if ch_id in CHANNEL_ID_ALIASES:
-                                for alias_id in CHANNEL_ID_ALIASES[ch_id]:
-                                    if alias_id not in written_channels:
-                                        alias_elem = clone_element(elem)
-                                        alias_elem.set("id", alias_id)
-                                        out_f.write(ET.tostring(alias_elem, encoding="utf-8"))
-                                        out_f.write(b"\n")
-                                        written_channels.add(alias_id)
                             elem.clear()
 
                         elif elem.tag == "programme":
@@ -1922,7 +1894,10 @@ def main():
                                 normalize_subtitle_and_desc(elem, prefer_latam=prefer_latam, is_series=is_series)
                                 normalize_episode_num_elements(elem)
                                 apply_channel_offset(elem)
+
                                 cloned_programme = clone_element(elem)
+                                cloned_programme.set("channel", canonical_ch_id)
+
                                 source_programmes_to_write.append({
                                     "channel": canonical_ch_id,
                                     "elem": cloned_programme,
@@ -1942,30 +1917,22 @@ def main():
 
                         for item in source_programmes_to_write:
                             prog_elem = item["elem"]
-                            original_ch_id = item["channel"]
+                            target_ch_id = item["channel"]
 
-                            target_ids = [original_ch_id]
-                            if original_ch_id in CHANNEL_ID_ALIASES:
-                                target_ids.extend(CHANNEL_ID_ALIASES[original_ch_id])
+                            if canonical_channel_id(target_ch_id) not in allowed_canonical:
+                                continue
 
-                            for target_ch_id in target_ids:
-                                if canonical_channel_id(target_ch_id) not in allowed_canonical:
-                                    continue
+                            write_elem = prog_elem
+                            write_elem.set("channel", target_ch_id)
 
-                                if target_ch_id != original_ch_id:
-                                    write_elem = clone_element(prog_elem)
-                                    write_elem.set("channel", target_ch_id)
-                                else:
-                                    write_elem = prog_elem
+                            start = write_elem.get("start")
+                            stop = write_elem.get("stop")
+                            prog_key = (target_ch_id, start, stop)
 
-                                start = write_elem.get("start")
-                                stop = write_elem.get("stop")
-                                prog_key = (target_ch_id, start, stop)
-
-                                if prog_key not in written_programmes:
-                                    out_f.write(ET.tostring(write_elem, encoding="utf-8"))
-                                    out_f.write(b"\n")
-                                    written_programmes.add(prog_key)
+                            if prog_key not in written_programmes:
+                                out_f.write(ET.tostring(write_elem, encoding="utf-8"))
+                                out_f.write(b"\n")
+                                written_programmes.add(prog_key)
 
                     del context
                     print(f"Fuente terminada: {url.split('/')[-1]}", flush=True)
