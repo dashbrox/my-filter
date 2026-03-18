@@ -86,7 +86,8 @@ KNOWN_ACRONYMS = {
     "HBO", "CNN", "BBC", "FBI", "CIA", "CSI", "NCIS",
     "SWAT", "UFC", "USA", "UK", "FX", "AXN", "AMC",
     "TNT", "TCM", "MTV", "VH1", "DW", "DAZN",
-    "EPG", "TMDB", "TVMAZE"
+    "EPG", "TMDB", "TVMAZE",
+    "AM", "PM"
 }
 
 CHANNEL_TIME_OFFSETS = {
@@ -662,6 +663,18 @@ def normalize_dotted_acronym(word):
         return ".".join(letter.upper() for letter in letters) + "."
     return word
 
+def normalize_time_abbreviation(word):
+    if not word:
+        return word
+
+    cleaned = word.strip()
+
+    m = re.fullmatch(r"(?i)(a|p)\.?\s*m\.?", cleaned)
+    if m:
+        return f"{m.group(1).upper()}.M."
+
+    return word
+
 def normalize_plain_acronym(word):
     compact = re.sub(r"[^0-9A-Za-zÁÉÍÓÚÜÑ]", "", word or "")
     return compact.upper()
@@ -695,6 +708,10 @@ def spanish_title_case(text):
     def transform_word(word, force_capitalize=False):
         if not word:
             return word
+
+        time_fixed = normalize_time_abbreviation(word)
+        if time_fixed != word:
+            return time_fixed
 
         if is_dotted_acronym(word):
             return normalize_dotted_acronym(word)
