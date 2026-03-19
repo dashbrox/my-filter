@@ -129,3 +129,7 @@ TNTSERIES.uy
 ANIMALPLANET.uy
 ENTERTAINMENTTELEVISION.uy
 TNTSeries.cl
+Golden.mx
+GoldenEdge.mx
+GoldenPremier.mx
+GoldenPremier2.mx
