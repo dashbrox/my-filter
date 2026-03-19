@@ -53,7 +53,7 @@ REMOVE_SUBTITLE_ENTIRELY = False
 DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/1.6-Universal"
+USER_AGENT = "xmltv-title-normalizer/1.7-Universal"
 
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
@@ -138,7 +138,7 @@ METADATA_SOURCES = [
 MATCH_MAX_MINUTES = 720
 MATCH_INDIVIDUAL_MAX_MINUTES = 180
 MATCH_GOOD_SCORE = 8.5
-MATCH_INDIVIDUAL_GOOD_SCORE = 10.5
+MATCH_INDIVIDUAL_GOOD_SCORE = 8.0
 SUSPICIOUS_REPEAT_THRESHOLD = 3
 
 # =========================
@@ -521,6 +521,9 @@ def normalize_season_ep(text):
         r"\bT(\d{1,2})E(\d{1,2})\b",
         r"\b(\d+)\s*x\s*(\d+)\b",
         r"\b(\d+)\s*-\s*(\d+)\b",
+        r"\bTemp\.?\s*(\d+)\s*Ep\.?\s*(\d+)\b",
+        r"\bTemporada\s*(\d+)\s*(?:Episodio|Cap[ií]tulo|Ep\.?|Cap\.?)\s*(\d+)\b",
+        r"\bSeason\s*(\d+)\s*Episode\s*(\d+)\b",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
@@ -549,6 +552,24 @@ def extract_xmltv_episode_num(elem):
         se = normalize_season_ep(value)
         if se:
             return se
+    return None
+
+def extract_episode_from_title_desc_or_xml(elem):
+    ep = extract_xmltv_episode_num(elem)
+    if ep:
+        return ep
+    title = pick_best_localized_text(elem, "title", prefer_latam=True) or pick_best_localized_text(elem, "title", prefer_latam=False)
+    ep = extract_se_regex(title)
+    if ep:
+        return ep
+    desc = pick_best_localized_text(elem, "desc", prefer_latam=True) or pick_best_localized_text(elem, "desc", prefer_latam=False)
+    ep = extract_se_regex(desc)
+    if ep:
+        return ep
+    subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=True) or pick_best_localized_text(elem, "sub-title", prefer_latam=False)
+    ep = extract_se_regex(subtitle)
+    if ep:
+        return ep
     return None
 
 def infer_media_type_from_desc(desc):
@@ -981,7 +1002,7 @@ def build_programme_signature(elem, prefer_latam=False):
     title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam).strip()
     subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam).strip()
     desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam).strip()
-    ep = extract_xmltv_episode_num(elem) or ""
+    ep = extract_episode_from_title_desc_or_xml(elem) or ""
     return (normalize_text(title), normalize_text(subtitle), normalize_text(desc), normalize_text(ep))
 
 def clone_element(elem):
@@ -998,9 +1019,25 @@ def copy_editorial_metadata(target_elem, source_elem):
             target_elem.insert(insert_index, clone_element(child))
             insert_index += 1
 
+def description_for_matching(desc_text, subtitle_text=""):
+    if not desc_text:
+        return ""
+    cleaned = strip_leading_se_from_desc(desc_text or "").strip()
+    subtitle_clean = strip_leading_se_from_text(subtitle_text or "").strip()
+    if subtitle_clean:
+        lines = [line.strip() for line in cleaned.splitlines()]
+        if lines and normalize_text(lines[0]) == normalize_text(subtitle_clean):
+            cleaned = "\n".join(line for line in lines[1:] if line).strip()
+    return cleaned
+
 def get_programme_title_base(elem, prefer_latam=False):
     title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam).strip()
-    return strip_se_from_title(title) or title
+    subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam).strip()
+    desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam).strip()
+    desc_episode_title, _ = split_episode_title_from_desc(desc)
+    title = strip_se_from_title(title) or title
+    title = remove_episode_title_from_series_title(title, subtitle or desc_episode_title or "")
+    return " ".join(title.split()).strip()
 
 def get_series_key(elem, prefer_latam=False):
     return normalize_text(get_programme_title_base(elem, prefer_latam=prefer_latam))
@@ -1009,7 +1046,7 @@ def metadata_quality_score(elem, prefer_latam=False):
     title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam).strip()
     subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam).strip()
     desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam).strip()
-    ep = extract_xmltv_episode_num(elem)
+    ep = extract_episode_from_title_desc_or_xml(elem)
     score = 0
     if title:
         score += 2
@@ -1029,7 +1066,7 @@ def is_metadata_suspicious(elem, prev_elem=None, next_elem=None, prefer_latam=Fa
     title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam).strip()
     subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam).strip()
     desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam).strip()
-    ep = extract_xmltv_episode_num(elem)
+    ep = extract_episode_from_title_desc_or_xml(elem)
     if not subtitle or not desc or not ep:
         return True
     if subtitle and normalize_text(subtitle) == normalize_text(title):
@@ -1042,29 +1079,130 @@ def is_metadata_suspicious(elem, prev_elem=None, next_elem=None, prefer_latam=Fa
             return True
     return False
 
-def anchor_match(schedule_elem, metadata_elem, prefer_latam=False):
-    if schedule_elem is None or metadata_elem is None:
+def build_matching_record(elem, prefer_latam=False, spanish_season_episode_format=False, normalize_pipeline=False, apply_offset=False):
+    working = elem
+    if normalize_pipeline or apply_offset:
+        working = clone_element(elem)
+
+    if apply_offset:
+        apply_channel_offset(working)
+
+    if normalize_pipeline:
+        start_time_str = working.get("start", "")
+        new_title, is_series = process_programme(
+            working,
+            start_time_str,
+            prefer_latam=prefer_latam,
+            spanish_season_episode_format=spanish_season_episode_format
+        )
+        replace_all_title_elements(working, new_title, prefer_latam=prefer_latam)
+        normalize_subtitle_and_desc(working, prefer_latam=prefer_latam, is_series=is_series)
+        normalize_episode_num_elements(working)
+
+    title = pick_best_localized_text(working, "title", prefer_latam=prefer_latam).strip()
+    subtitle = pick_best_localized_text(working, "sub-title", prefer_latam=prefer_latam).strip()
+    desc = pick_best_localized_text(working, "desc", prefer_latam=prefer_latam).strip()
+
+    desc_episode_title, desc_without_ep_title = split_episode_title_from_desc(desc)
+    subtitle_hint = strip_leading_se_from_text(subtitle or desc_episode_title or "").strip()
+
+    title_base = strip_se_from_title(title) or title
+    title_base = remove_episode_title_from_series_title(title_base, subtitle_hint or desc_episode_title or "")
+    title_base = " ".join(title_base.split()).strip()
+
+    desc_compare = description_for_matching(desc_without_ep_title if desc_episode_title else desc, subtitle_hint or desc_episode_title or "")
+    episode = extract_episode_from_title_desc_or_xml(working)
+
+    return {
+        "title": title,
+        "subtitle": subtitle_hint or subtitle.strip(),
+        "desc": desc,
+        "desc_compare": desc_compare,
+        "title_base": title_base,
+        "series_key": normalize_text(title_base),
+        "episode": episode,
+        "start_utc": parse_xmltv_dt_to_utc(working.get("start", "")),
+        "stop_utc": parse_xmltv_dt_to_utc(working.get("stop", "")),
+        "duration": programme_duration_minutes(working),
+    }
+
+def ensure_matching_record(obj, prefer_latam=False, spanish_season_episode_format=False):
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        if "series_key" in obj and "title_base" in obj:
+            return obj
+        if "match" in obj and isinstance(obj["match"], dict):
+            return obj["match"]
+        if "elem" in obj:
+            return build_matching_record(
+                obj["elem"],
+                prefer_latam=prefer_latam,
+                spanish_season_episode_format=spanish_season_episode_format,
+                normalize_pipeline=False,
+                apply_offset=False
+            )
+    if isinstance(obj, ET.Element):
+        return build_matching_record(
+            obj,
+            prefer_latam=prefer_latam,
+            spanish_season_episode_format=spanish_season_episode_format,
+            normalize_pipeline=False,
+            apply_offset=False
+        )
+    return None
+
+def attach_channel_neighbors(entries):
+    buckets = {}
+    for item in entries:
+        buckets.setdefault(canonical_channel_id(item["channel"]), []).append(item)
+
+    for _, items in buckets.items():
+        items.sort(key=lambda x: parse_xmltv_dt_to_utc(x["elem"].get("start", "")) or datetime.min)
+        for i, item in enumerate(items):
+            prev_item = items[i - 1] if i > 0 else None
+            next_item = items[i + 1] if i + 1 < len(items) else None
+            item["prev_elem"] = clone_element(prev_item["elem"]) if prev_item is not None else None
+            item["next_elem"] = clone_element(next_item["elem"]) if next_item is not None else None
+            item["prev_match"] = prev_item["match"] if prev_item is not None else None
+            item["next_match"] = next_item["match"] if next_item is not None else None
+
+def group_entries_by_channel(entries):
+    grouped = {}
+    for item in entries:
+        grouped.setdefault(canonical_channel_id(item["channel"]), []).append(item)
+    for channel_id in grouped:
+        grouped[channel_id].sort(key=lambda x: parse_xmltv_dt_to_utc(x["elem"].get("start", "")) or datetime.min)
+    return grouped
+
+def anchor_match(schedule_obj, metadata_obj, prefer_latam=False):
+    schedule_rec = ensure_matching_record(schedule_obj, prefer_latam=prefer_latam)
+    metadata_rec = ensure_matching_record(metadata_obj, prefer_latam=prefer_latam)
+    if schedule_rec is None or metadata_rec is None:
         return False
-    schedule_key = get_series_key(schedule_elem, prefer_latam=prefer_latam)
-    metadata_key = get_series_key(metadata_elem, prefer_latam=prefer_latam)
+
+    schedule_key = schedule_rec.get("series_key") or ""
+    metadata_key = metadata_rec.get("series_key") or ""
     if not schedule_key or not metadata_key:
         return False
     if schedule_key == metadata_key:
         return True
-    title_ratio = text_similarity(schedule_key, metadata_key)
+
+    title_ratio = text_similarity(schedule_rec.get("title_base", ""), metadata_rec.get("title_base", ""))
     if title_ratio >= 0.93:
         return True
-    schedule_desc = pick_best_localized_text(schedule_elem, "desc", prefer_latam=prefer_latam)
-    metadata_desc = pick_best_localized_text(metadata_elem, "desc", prefer_latam=prefer_latam)
+
+    schedule_desc = schedule_rec.get("desc_compare") or schedule_rec.get("desc") or ""
+    metadata_desc = metadata_rec.get("desc_compare") or metadata_rec.get("desc") or ""
     if schedule_desc and metadata_desc and overlap_score(schedule_desc, metadata_desc) >= 0.45:
         return True
     return False
 
-def get_anchor_title(elem, prefer_latam=False):
-    if elem is None:
+def get_anchor_title(obj, prefer_latam=False):
+    rec = ensure_matching_record(obj, prefer_latam=prefer_latam)
+    if rec is None:
         return ""
-    title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam).strip()
-    return strip_se_from_title(title) or title
+    return rec.get("title_base", "") or ""
 
 def titles_anchor_similar(a, b):
     if not a or not b:
@@ -1081,34 +1219,40 @@ def titles_anchor_similar(a, b):
         return True
     return False
 
-def extract_episode_from_desc_or_xml(elem):
-    ep = extract_xmltv_episode_num(elem)
-    if ep:
-        return ep
-    desc = pick_best_localized_text(elem, "desc", prefer_latam=True) or pick_best_localized_text(elem, "desc", prefer_latam=False)
-    return extract_se_regex(desc)
+def extract_episode_from_desc_or_xml(obj):
+    rec = ensure_matching_record(obj)
+    if rec is None:
+        return None
+    return rec.get("episode")
 
-def score_metadata_match(schedule_elem, metadata_elem, prefer_latam=False):
-    schedule_start = parse_xmltv_dt_to_utc(schedule_elem.get("start", ""))
-    metadata_start = parse_xmltv_dt_to_utc(metadata_elem.get("start", ""))
+def score_metadata_match(schedule_obj, metadata_obj, prefer_latam=False):
+    schedule_rec = ensure_matching_record(schedule_obj, prefer_latam=prefer_latam)
+    metadata_rec = ensure_matching_record(metadata_obj, prefer_latam=prefer_latam)
+    if schedule_rec is None or metadata_rec is None:
+        return -999.0
+
+    schedule_start = schedule_rec.get("start_utc")
+    metadata_start = metadata_rec.get("start_utc")
     if not schedule_start or not metadata_start:
         return -999.0
+
     delta_minutes = abs((schedule_start - metadata_start).total_seconds()) / 60.0
     if delta_minutes > MATCH_MAX_MINUTES:
         return -999.0
 
-    schedule_title = pick_best_localized_text(schedule_elem, "title", prefer_latam=prefer_latam)
-    metadata_title = pick_best_localized_text(metadata_elem, "title", prefer_latam=prefer_latam)
-    schedule_desc = pick_best_localized_text(schedule_elem, "desc", prefer_latam=prefer_latam)
-    metadata_desc = pick_best_localized_text(metadata_elem, "desc", prefer_latam=prefer_latam)
-    schedule_base = strip_se_from_title(schedule_title) or schedule_title
-    metadata_base = strip_se_from_title(metadata_title) or metadata_title
+    schedule_base = schedule_rec.get("title_base", "")
+    metadata_base = metadata_rec.get("title_base", "")
+    schedule_desc = schedule_rec.get("desc_compare") or schedule_rec.get("desc") or ""
+    metadata_desc = metadata_rec.get("desc_compare") or metadata_rec.get("desc") or ""
+    schedule_sub = schedule_rec.get("subtitle", "")
+    metadata_sub = metadata_rec.get("subtitle", "")
 
     title_ratio = text_similarity(schedule_base, metadata_base)
     desc_ratio = overlap_score(schedule_desc, metadata_desc) if schedule_desc and metadata_desc else 0.0
+    subtitle_ratio = text_similarity(schedule_sub, metadata_sub) if schedule_sub and metadata_sub else 0.0
 
-    dur_a = programme_duration_minutes(schedule_elem)
-    dur_b = programme_duration_minutes(metadata_elem)
+    dur_a = schedule_rec.get("duration")
+    dur_b = metadata_rec.get("duration")
     duration_score = 0.0
     if dur_a is not None and dur_b is not None:
         diff = abs(dur_a - dur_b)
@@ -1123,23 +1267,37 @@ def score_metadata_match(schedule_elem, metadata_elem, prefer_latam=False):
     score += max(0.0, 4.0 - (delta_minutes / 10.0))
     score += title_ratio * 5.0
     score += desc_ratio * 4.0
+    score += subtitle_ratio * 2.5
     score += duration_score
-    metadata_ep = extract_xmltv_episode_num(metadata_elem)
-    if metadata_ep:
+
+    sched_ep = schedule_rec.get("episode")
+    meta_ep = metadata_rec.get("episode")
+    if sched_ep and meta_ep and sched_ep == meta_ep:
+        score += 2.0
+    elif meta_ep:
         score += 0.5
+
     return round(score, 3)
 
-def score_metadata_match_loose(schedule_elem, metadata_elem, prefer_latam=False):
-    schedule_title = pick_best_localized_text(schedule_elem, "title", prefer_latam=prefer_latam)
-    metadata_title = pick_best_localized_text(metadata_elem, "title", prefer_latam=prefer_latam)
-    schedule_desc = pick_best_localized_text(schedule_elem, "desc", prefer_latam=prefer_latam)
-    metadata_desc = pick_best_localized_text(metadata_elem, "desc", prefer_latam=prefer_latam)
-    schedule_base = strip_se_from_title(schedule_title) or schedule_title
-    metadata_base = strip_se_from_title(metadata_title) or metadata_title
+def score_metadata_match_loose(schedule_obj, metadata_obj, prefer_latam=False):
+    schedule_rec = ensure_matching_record(schedule_obj, prefer_latam=prefer_latam)
+    metadata_rec = ensure_matching_record(metadata_obj, prefer_latam=prefer_latam)
+    if schedule_rec is None or metadata_rec is None:
+        return -999.0
+
+    schedule_base = schedule_rec.get("title_base", "")
+    metadata_base = metadata_rec.get("title_base", "")
+    schedule_desc = schedule_rec.get("desc_compare") or schedule_rec.get("desc") or ""
+    metadata_desc = metadata_rec.get("desc_compare") or metadata_rec.get("desc") or ""
+    schedule_sub = schedule_rec.get("subtitle", "")
+    metadata_sub = metadata_rec.get("subtitle", "")
+
     title_ratio = text_similarity(schedule_base, metadata_base)
     desc_ratio = overlap_score(schedule_desc, metadata_desc) if schedule_desc and metadata_desc else 0.0
-    dur_a = programme_duration_minutes(schedule_elem)
-    dur_b = programme_duration_minutes(metadata_elem)
+    subtitle_ratio = text_similarity(schedule_sub, metadata_sub) if schedule_sub and metadata_sub else 0.0
+
+    dur_a = schedule_rec.get("duration")
+    dur_b = metadata_rec.get("duration")
     duration_score = 0.0
     if dur_a is not None and dur_b is not None:
         diff = abs(dur_a - dur_b)
@@ -1149,24 +1307,38 @@ def score_metadata_match_loose(schedule_elem, metadata_elem, prefer_latam=False)
             duration_score = 1.0
         elif diff > 20:
             duration_score = -3.0
+
     score = 0.0
     score += title_ratio * 6.0
     score += desc_ratio * 5.0
+    score += subtitle_ratio * 2.5
     score += duration_score
-    metadata_ep = extract_xmltv_episode_num(metadata_elem)
-    if metadata_ep:
+
+    sched_ep = schedule_rec.get("episode")
+    meta_ep = metadata_rec.get("episode")
+    if sched_ep and meta_ep and sched_ep == meta_ep:
+        score += 1.5
+    elif meta_ep:
         score += 0.5
+
     return round(score, 3)
 
-def score_individual_match(schedule_elem, metadata_elem, prefer_latam=False):
-    schedule_start = parse_xmltv_dt_to_utc(schedule_elem.get("start", ""))
-    metadata_start = parse_xmltv_dt_to_utc(metadata_elem.get("start", ""))
+def score_individual_match(schedule_obj, metadata_obj, prefer_latam=False):
+    schedule_rec = ensure_matching_record(schedule_obj, prefer_latam=prefer_latam)
+    metadata_rec = ensure_matching_record(metadata_obj, prefer_latam=prefer_latam)
+    if schedule_rec is None or metadata_rec is None:
+        return -999.0
+
+    schedule_start = schedule_rec.get("start_utc")
+    metadata_start = metadata_rec.get("start_utc")
     if not schedule_start or not metadata_start:
         return -999.0
+
     delta_minutes = abs((schedule_start - metadata_start).total_seconds()) / 60.0
     if delta_minutes > MATCH_INDIVIDUAL_MAX_MINUTES:
         return -999.0
-    score = score_metadata_match(schedule_elem, metadata_elem, prefer_latam=prefer_latam)
+
+    score = score_metadata_match(schedule_rec, metadata_rec, prefer_latam=prefer_latam)
     if score <= -999:
         return score
     score += max(0.0, 2.0 - (delta_minutes / 90.0))
@@ -1208,43 +1380,51 @@ def find_metadata_sequence(schedule_entries, start_idx, end_idx, metadata_entrie
     if not schedule_run:
         return []
 
-    normalized_channel = normalize_channel_id_for_matching(schedule_run[0]["channel"])
-    schedule_series_key = get_series_key(schedule_run[0]["elem"], prefer_latam=prefer_latam)
+    run_base = schedule_run[0]["match"]["title_base"]
+    run_series_key = schedule_run[0]["match"]["series_key"]
     run_len = len(schedule_run)
 
     metadata_by_source = {}
-    for idx, item in enumerate(metadata_entries):
-        if normalize_channel_id_for_matching(item["channel"]) != normalized_channel:
+    for item in metadata_entries:
+        meta_match = item["match"]
+        same_series = (
+            meta_match["series_key"] == run_series_key
+            or titles_anchor_similar(meta_match["title_base"], run_base)
+        )
+        if not same_series:
             continue
-        if get_series_key(item["elem"], prefer_latam=prefer_latam) != schedule_series_key:
-            continue
-        metadata_by_source.setdefault(item["source_url"], []).append((idx, item))
+        metadata_by_source.setdefault(item["source_url"], []).append(item)
 
     if not metadata_by_source:
         return []
 
-    schedule_prev = schedule_entries[start_idx - 1]["elem"] if start_idx > 0 else None
-    schedule_next = schedule_entries[end_idx]["elem"] if end_idx < len(schedule_entries) else None
+    schedule_prev = schedule_entries[start_idx - 1] if start_idx > 0 else None
+    schedule_next = schedule_entries[end_idx] if end_idx < len(schedule_entries) else None
 
     best_sequence = []
     best_score = -999.0
 
     for source_url, source_items in metadata_by_source.items():
-        only_items = [x[1] for x in source_items]
-        for local_start in range(len(only_items)):
-            seq = only_items[local_start:local_start + run_len]
+        source_items = sorted(
+            source_items,
+            key=lambda x: parse_xmltv_dt_to_utc(x["elem"].get("start", "")) or datetime.min
+        )
+        for local_start in range(len(source_items)):
+            seq = source_items[local_start:local_start + run_len]
             if len(seq) < run_len:
                 continue
+
             total = 0.0
             ok = True
             last_ep_num = None
+
             for sched_item, meta_item in zip(schedule_run, seq):
-                meta_elem = meta_item["elem"]
-                score = score_metadata_match_loose(sched_item["elem"], meta_elem, prefer_latam=prefer_latam)
+                score = score_metadata_match_loose(sched_item["match"], meta_item["match"], prefer_latam=prefer_latam)
                 if score < 3.5:
                     ok = False
                     break
-                ep_num = extract_xmltv_episode_num(meta_elem)
+
+                ep_num = meta_item["match"].get("episode")
                 if ep_num:
                     m = re.match(r"^\s*S(\d{2})\s*E(\d{2})\s*$", ep_num, flags=re.IGNORECASE)
                     if m:
@@ -1253,99 +1433,164 @@ def find_metadata_sequence(schedule_entries, start_idx, end_idx, metadata_entrie
                             ok = False
                             break
                         last_ep_num = ep_index
+
                 total += score
+
             if not ok:
                 continue
 
-            meta_prev = only_items[local_start - 1]["elem"] if local_start > 0 else None
-            meta_next = only_items[local_start + run_len]["elem"] if local_start + run_len < len(only_items) else None
+            meta_prev = source_items[local_start - 1] if local_start > 0 else None
+            meta_next = source_items[local_start + run_len] if local_start + run_len < len(source_items) else None
 
             anchors_available = 0
             anchors_matched = 0
+
             if schedule_prev is not None:
                 anchors_available += 1
                 if anchor_match(schedule_prev, meta_prev, prefer_latam=prefer_latam):
                     anchors_matched += 1
+
             if schedule_next is not None:
                 anchors_available += 1
                 if anchor_match(schedule_next, meta_next, prefer_latam=prefer_latam):
                     anchors_matched += 1
+
             if anchors_available == 0:
                 continue
             if anchors_matched != anchors_available:
                 continue
+
             if total > best_score:
                 best_score = total
                 best_sequence = seq
+
     return best_sequence
 
 def apply_metadata_fix(schedule_entries, metadata_entries, prefer_latam=False, spanish_season_episode_format=False):
     if not schedule_entries or not metadata_entries:
         return
 
-    suspicious_runs = get_suspicious_run_ranges(schedule_entries)
-    touched_indexes = set()
+    schedule_groups = group_entries_by_channel(schedule_entries)
+    metadata_groups = group_entries_by_channel(metadata_entries)
 
-    for start_idx, end_idx in suspicious_runs:
-        metadata_seq = find_metadata_sequence(schedule_entries, start_idx, end_idx, metadata_entries, prefer_latam=prefer_latam)
-        if len(metadata_seq) != (end_idx - start_idx):
+    for channel_id, channel_schedule in schedule_groups.items():
+        channel_metadata = metadata_groups.get(channel_id, [])
+        if not channel_metadata:
             continue
-        for offset, meta_item in enumerate(metadata_seq):
-            idx = start_idx + offset
-            schedule_elem = schedule_entries[idx]["elem"]
-            copy_editorial_metadata(schedule_elem, meta_item["elem"])
+
+        suspicious_runs = get_suspicious_run_ranges(channel_schedule)
+        touched_indexes = set()
+
+        for start_idx, end_idx in suspicious_runs:
+            metadata_seq = find_metadata_sequence(
+                channel_schedule,
+                start_idx,
+                end_idx,
+                channel_metadata,
+                prefer_latam=prefer_latam
+            )
+            if len(metadata_seq) != (end_idx - start_idx):
+                continue
+
+            for offset, meta_item in enumerate(metadata_seq):
+                idx = start_idx + offset
+                schedule_item = channel_schedule[idx]
+                schedule_elem = schedule_item["elem"]
+
+                copy_editorial_metadata(schedule_elem, meta_item["elem"])
+
+                start_time_str = schedule_elem.get("start", "")
+                new_title, is_series = process_programme(
+                    schedule_elem,
+                    start_time_str,
+                    prefer_latam,
+                    spanish_season_episode_format
+                )
+                replace_all_title_elements(schedule_elem, new_title, prefer_latam=prefer_latam)
+                normalize_subtitle_and_desc(schedule_elem, prefer_latam=prefer_latam, is_series=is_series)
+                normalize_episode_num_elements(schedule_elem)
+
+                schedule_item["match"] = build_matching_record(
+                    schedule_elem,
+                    prefer_latam=prefer_latam,
+                    spanish_season_episode_format=spanish_season_episode_format,
+                    normalize_pipeline=False,
+                    apply_offset=False
+                )
+                touched_indexes.add(idx)
+
+        for idx, sched_item in enumerate(channel_schedule):
+            if idx in touched_indexes:
+                continue
+
+            schedule_elem = sched_item["elem"]
+            prev_item = channel_schedule[idx - 1] if idx > 0 else None
+            next_item = channel_schedule[idx + 1] if idx + 1 < len(channel_schedule) else None
+
+            if not is_metadata_suspicious(
+                schedule_elem,
+                prev_elem=prev_item["elem"] if prev_item is not None else None,
+                next_elem=next_item["elem"] if next_item is not None else None,
+                prefer_latam=prefer_latam
+            ):
+                continue
+
+            schedule_series_key = sched_item["match"]["series_key"]
+            schedule_title_base = sched_item["match"]["title_base"]
+
+            best_meta = None
+            best_score = -999.0
+
+            for meta_item in channel_metadata:
+                meta_match = meta_item["match"]
+                same_series = (
+                    meta_match["series_key"] == schedule_series_key
+                    or titles_anchor_similar(meta_match["title_base"], schedule_title_base)
+                )
+                if not same_series:
+                    continue
+
+                score = score_individual_match(sched_item["match"], meta_match, prefer_latam=prefer_latam)
+                if score <= -999:
+                    continue
+
+                if prev_item is not None and anchor_match(prev_item, meta_item.get("prev_match"), prefer_latam=prefer_latam):
+                    score += 2.0
+                if next_item is not None and anchor_match(next_item, meta_item.get("next_match"), prefer_latam=prefer_latam):
+                    score += 2.0
+
+                schedule_quality = metadata_quality_score(schedule_elem, prefer_latam=prefer_latam)
+                metadata_quality = metadata_quality_score(meta_item["elem"], prefer_latam=prefer_latam)
+                if metadata_quality + 3 < schedule_quality:
+                    score -= 1.0
+
+                if score > best_score:
+                    best_score = score
+                    best_meta = meta_item
+
+            if best_meta is None or best_score < MATCH_INDIVIDUAL_GOOD_SCORE:
+                continue
+
+            copy_editorial_metadata(schedule_elem, best_meta["elem"])
+
             start_time_str = schedule_elem.get("start", "")
-            new_title, is_series = process_programme(schedule_elem, start_time_str, prefer_latam, spanish_season_episode_format)
+            new_title, is_series = process_programme(
+                schedule_elem,
+                start_time_str,
+                prefer_latam,
+                spanish_season_episode_format
+            )
             replace_all_title_elements(schedule_elem, new_title, prefer_latam=prefer_latam)
             normalize_subtitle_and_desc(schedule_elem, prefer_latam=prefer_latam, is_series=is_series)
             normalize_episode_num_elements(schedule_elem)
-            touched_indexes.add(idx)
 
-    for idx, sched_item in enumerate(schedule_entries):
-        if idx in touched_indexes:
-            continue
-        schedule_elem = sched_item["elem"]
-        prev_elem = schedule_entries[idx - 1]["elem"] if idx > 0 else None
-        next_elem = schedule_entries[idx + 1]["elem"] if idx + 1 < len(schedule_entries) else None
-
-        if not is_metadata_suspicious(schedule_elem, prev_elem=prev_elem, next_elem=next_elem, prefer_latam=prefer_latam):
-            continue
-
-        normalized_channel = normalize_channel_id_for_matching(sched_item["channel"])
-        schedule_series_key = get_series_key(schedule_elem, prefer_latam=prefer_latam)
-
-        best_meta = None
-        best_score = -999.0
-        for meta_item in metadata_entries:
-            if normalize_channel_id_for_matching(meta_item["channel"]) != normalized_channel:
-                continue
-            if get_series_key(meta_item["elem"], prefer_latam=prefer_latam) != schedule_series_key:
-                continue
-            meta_elem = meta_item["elem"]
-            score = score_individual_match(schedule_elem, meta_elem, prefer_latam=prefer_latam)
-            if score <= -999:
-                continue
-            meta_prev = meta_item.get("prev_elem")
-            meta_next = meta_item.get("next_elem")
-            if prev_elem is not None and anchor_match(prev_elem, meta_prev, prefer_latam=prefer_latam):
-                score += 2.0
-            if next_elem is not None and anchor_match(next_elem, meta_next, prefer_latam=prefer_latam):
-                score += 2.0
-            if metadata_quality_score(meta_elem, prefer_latam=prefer_latam) <= metadata_quality_score(schedule_elem, prefer_latam=prefer_latam):
-                score -= 2.5
-            if score > best_score:
-                best_score = score
-                best_meta = meta_item
-
-        if best_meta is None or best_score < MATCH_INDIVIDUAL_GOOD_SCORE:
-            continue
-
-        copy_editorial_metadata(schedule_elem, best_meta["elem"])
-        start_time_str = schedule_elem.get("start", "")
-        new_title, is_series = process_programme(schedule_elem, start_time_str, prefer_latam, spanish_season_episode_format)
-        replace_all_title_elements(schedule_elem, new_title, prefer_latam=prefer_latam)
-        normalize_subtitle_and_desc(schedule_elem, prefer_latam=prefer_latam, is_series=is_series)
-        normalize_episode_num_elements(schedule_elem)
+            sched_item["match"] = build_matching_record(
+                schedule_elem,
+                prefer_latam=prefer_latam,
+                spanish_season_episode_format=spanish_season_episode_format,
+                normalize_pipeline=False,
+                apply_offset=False
+            )
 
 # =========================
 # WARNER POR BLOQUES DE 3 HORAS
@@ -1409,25 +1654,27 @@ def split_schedule_day_into_3h_windows(day_entries):
 
     return windows
 
-def check_anchor_soft(schedule_elem, metadata_elem, prefer_latam=False):
-    if schedule_elem is None and metadata_elem is None:
+def check_anchor_soft(schedule_obj, metadata_obj, prefer_latam=False):
+    if schedule_obj is None and metadata_obj is None:
         return True
-    if schedule_elem is None or metadata_elem is None:
+    if schedule_obj is None or metadata_obj is None:
         return False
 
-    t1 = get_anchor_title(schedule_elem, prefer_latam=prefer_latam)
-    t2 = get_anchor_title(metadata_elem, prefer_latam=prefer_latam)
+    t1 = get_anchor_title(schedule_obj, prefer_latam=prefer_latam)
+    t2 = get_anchor_title(metadata_obj, prefer_latam=prefer_latam)
 
     if titles_anchor_similar(t1, t2):
         return True
 
-    d1 = programme_duration_minutes(schedule_elem)
-    d2 = programme_duration_minutes(metadata_elem)
+    d1 = ensure_matching_record(schedule_obj, prefer_latam=prefer_latam)
+    d2 = ensure_matching_record(metadata_obj, prefer_latam=prefer_latam)
+    dur1 = d1.get("duration") if d1 else None
+    dur2 = d2.get("duration") if d2 else None
 
-    if d1 and d2:
-        if d1 > 45 and d2 > 45 and text_similarity(t1, t2) >= 0.20:
+    if dur1 and dur2:
+        if dur1 > 45 and dur2 > 45 and text_similarity(t1, t2) >= 0.20:
             return True
-        if d1 <= 45 and d2 <= 45 and text_similarity(t1, t2) >= 0.20:
+        if dur1 <= 45 and dur2 <= 45 and text_similarity(t1, t2) >= 0.20:
             return True
 
     if overlap_score(t1, t2) > 0.2:
@@ -1438,7 +1685,7 @@ def check_anchor_soft(schedule_elem, metadata_elem, prefer_latam=False):
 def is_monotonic_episode_block(items):
     last_ep = None
     for item in items:
-        donor_ep = extract_episode_from_desc_or_xml(item["elem"])
+        donor_ep = item["match"].get("episode")
         if donor_ep:
             m = re.match(r"^\s*S(\d{2})\s*E(\d{2})\s*$", donor_ep, flags=re.IGNORECASE)
             if m:
@@ -1492,15 +1739,12 @@ def score_block_candidate(schedule_block_items, candidate, prefer_latam=False):
     strict_title_hits = 0
 
     for sched_item, donor_item in zip(schedule_block_items, donor_items):
-        sched_elem = sched_item["elem"]
-        donor_elem = donor_item["elem"]
-
-        score = score_metadata_match_loose(sched_elem, donor_elem, prefer_latam=prefer_latam)
+        score = score_metadata_match_loose(sched_item["match"], donor_item["match"], prefer_latam=prefer_latam)
         if score < 1.5:
             return -999.0
 
-        s_title = get_programme_title_base(sched_elem, prefer_latam=prefer_latam)
-        d_title = get_programme_title_base(donor_elem, prefer_latam=prefer_latam)
+        s_title = sched_item["match"]["title_base"]
+        d_title = donor_item["match"]["title_base"]
         if titles_anchor_similar(s_title, d_title):
             strict_title_hits += 1
 
@@ -1516,15 +1760,15 @@ def score_block_candidate(schedule_block_items, candidate, prefer_latam=False):
     last_sched_idx = schedule_block_items[-1].get("_global_idx")
 
     if first_sched_idx is not None and first_sched_idx > 0:
-        sched_prev = schedule_block_items[0]["_all_schedule_entries"][first_sched_idx - 1]["elem"]
+        sched_prev = schedule_block_items[0]["_all_schedule_entries"][first_sched_idx - 1]
     if last_sched_idx is not None and last_sched_idx + 1 < len(schedule_block_items[0]["_all_schedule_entries"]):
-        sched_next = schedule_block_items[0]["_all_schedule_entries"][last_sched_idx + 1]["elem"]
+        sched_next = schedule_block_items[0]["_all_schedule_entries"][last_sched_idx + 1]
 
     all_donor_items = candidate["all_items"]
     if candidate["start_idx"] > 0:
-        donor_prev = all_donor_items[candidate["start_idx"] - 1]["elem"]
+        donor_prev = all_donor_items[candidate["start_idx"] - 1]
     if candidate["end_idx"] < len(all_donor_items):
-        donor_next = all_donor_items[candidate["end_idx"]]["elem"]
+        donor_next = all_donor_items[candidate["end_idx"]]
 
     prev_ok = check_anchor_soft(sched_prev, donor_prev, prefer_latam=prefer_latam)
     next_ok = check_anchor_soft(sched_next, donor_next, prefer_latam=prefer_latam)
@@ -1537,10 +1781,10 @@ def score_block_candidate(schedule_block_items, candidate, prefer_latam=False):
     if next_ok:
         total_score += 5.0
 
-    first_sched_title = get_programme_title_base(schedule_block_items[0]["elem"], prefer_latam=prefer_latam)
-    last_sched_title = get_programme_title_base(schedule_block_items[-1]["elem"], prefer_latam=prefer_latam)
-    first_donor_title = get_programme_title_base(donor_items[0]["elem"], prefer_latam=prefer_latam)
-    last_donor_title = get_programme_title_base(donor_items[-1]["elem"], prefer_latam=prefer_latam)
+    first_sched_title = schedule_block_items[0]["match"]["title_base"]
+    last_sched_title = schedule_block_items[-1]["match"]["title_base"]
+    first_donor_title = donor_items[0]["match"]["title_base"]
+    last_donor_title = donor_items[-1]["match"]["title_base"]
 
     if titles_anchor_similar(first_sched_title, first_donor_title):
         total_score += 2.5
@@ -1615,6 +1859,14 @@ def apply_metadata_fix_warner_by_3h_blocks(schedule_entries, metadata_entries, p
                 replace_all_title_elements(schedule_elem, new_title, prefer_latam=prefer_latam)
                 normalize_subtitle_and_desc(schedule_elem, prefer_latam=prefer_latam, is_series=is_series)
                 normalize_episode_num_elements(schedule_elem)
+
+                sched_item["match"] = build_matching_record(
+                    schedule_elem,
+                    prefer_latam=prefer_latam,
+                    spanish_season_episode_format=spanish_season_episode_format,
+                    normalize_pipeline=False,
+                    apply_offset=False
+                )
 
 # =========================
 # TMDB
@@ -2034,12 +2286,13 @@ def download_xml(url, output_path):
 def collect_metadata_entries(url, allowed_channels_set):
     entries = []
     allowed_canonical = {canonical_channel_id(ch) for ch in allowed_channels_set}
+    prefer_latam = is_latam_feed(url)
+    spanish_season_episode_format = use_spanish_season_episode_format(url)
 
     try:
         print(f"Cargando metadata universal desde: {url}", flush=True)
         download_xml(url, TEMP_INPUT)
         context = ET.iterparse(TEMP_INPUT, events=("end",))
-        previous_kept = None
 
         for event, elem in context:
             if elem.tag != "programme":
@@ -2052,17 +2305,26 @@ def collect_metadata_entries(url, allowed_channels_set):
             if canonical_id in allowed_canonical:
                 cloned = clone_element(elem)
                 cloned.set("channel", canonical_id)
+
                 entry = {
                     "channel": canonical_id,
                     "elem": cloned,
                     "source_url": url,
-                    "prev_elem": clone_element(previous_kept["elem"]) if previous_kept else None,
+                    "prefer_latam": prefer_latam,
+                    "spanish_season_episode_format": spanish_season_episode_format,
+                    "match": build_matching_record(
+                        cloned,
+                        prefer_latam=prefer_latam,
+                        spanish_season_episode_format=spanish_season_episode_format,
+                        normalize_pipeline=True,
+                        apply_offset=True
+                    ),
+                    "prev_elem": None,
                     "next_elem": None,
+                    "prev_match": None,
+                    "next_match": None,
                 }
-                if previous_kept is not None:
-                    previous_kept["next_elem"] = clone_element(cloned)
                 entries.append(entry)
-                previous_kept = entry
 
             elem.clear()
 
@@ -2072,6 +2334,8 @@ def collect_metadata_entries(url, allowed_channels_set):
     finally:
         if os.path.exists(TEMP_INPUT):
             os.remove(TEMP_INPUT)
+
+    attach_channel_neighbors(entries)
 
     print(f"Metadata cargada: {len(entries)} programas", flush=True)
     return entries
@@ -2200,7 +2464,16 @@ def main():
                                 source_programmes_to_write.append({
                                     "channel": canonical_ch_id,
                                     "elem": cloned_programme,
-                                    "source_url": url
+                                    "source_url": url,
+                                    "prefer_latam": prefer_latam,
+                                    "spanish_season_episode_format": spanish_season_episode_format,
+                                    "match": build_matching_record(
+                                        cloned_programme,
+                                        prefer_latam=prefer_latam,
+                                        spanish_season_episode_format=spanish_season_episode_format,
+                                        normalize_pipeline=False,
+                                        apply_offset=False
+                                    ),
                                 })
                             elem.clear()
 
@@ -2223,9 +2496,21 @@ def main():
                             ]
 
                             if other_schedule:
-                                apply_metadata_fix(other_schedule, metadata_entries, prefer_latam, spanish_season_episode_format)
+                                apply_metadata_fix(
+                                    other_schedule,
+                                    metadata_entries,
+                                    prefer_latam,
+                                    spanish_season_episode_format
+                                )
 
                             if warner_schedule:
+                                apply_metadata_fix(
+                                    warner_schedule,
+                                    metadata_entries,
+                                    prefer_latam,
+                                    spanish_season_episode_format
+                                )
+
                                 print(f"Aplicando corrección Warner por bloques de 3 horas a {len(warner_schedule)} programas...", flush=True)
                                 apply_metadata_fix_warner_by_3h_blocks(
                                     warner_schedule,
