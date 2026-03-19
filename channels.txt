@@ -99,7 +99,6 @@ DisneyChannel.mx
 StarChannel.pe
 plex.tv.Tennis.Channel.2.plex
 plex.tv.Tennis+.plex
-WarnerChannel.pe
 M+.Estrenos.es
 DAZN.F1.es
 Sony.hn
@@ -114,8 +113,6 @@ SkySportsTennis.uk
 fashion-tv
 SuperTennis.HD.it
 UK:.Tennis.Channel.be
-WarnerChannel.sv
-WarnerChannel.mx
 Canal.DW.(Latinoamérica).mx
 Canal.Universal.Cinema.sv
 Canal.Universal.Comedy.sv
@@ -132,4 +129,3 @@ TNTSERIES.uy
 ANIMALPLANET.uy
 ENTERTAINMENTTELEVISION.uy
 TNTSeries.cl
-WARNER CHANNEL.pe
