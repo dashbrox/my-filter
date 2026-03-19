@@ -124,7 +124,6 @@ CHANNEL_SOURCE_RULES = {
 
 CHANNEL_EQUIVALENCE = {
     "WARNER CHANNEL.pe": [
-        "WARNER CHANNEL.pe",
         "WARNER CHANNEL HD.pe",
         "WARNER.CHANNEL.(Warner).pe",
         "WarnerChannel.pe",
