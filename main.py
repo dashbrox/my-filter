@@ -1089,32 +1089,6 @@ def extract_episode_from_desc_or_xml(elem):
     desc = pick_best_localized_text(elem, "desc", prefer_latam=True) or pick_best_localized_text(elem, "desc", prefer_latam=False)
     return extract_se_regex(desc)
 
-def get_runs_by_series(entries, prefer_latam=False):
-    runs = []
-    if not entries:
-        return runs
-
-    run_start = 0
-    for i in range(1, len(entries) + 1):
-        same_run = False
-        if i < len(entries):
-            prev_elem = entries[i - 1]["elem"]
-            curr_elem = entries[i]["elem"]
-
-            prev_series = get_series_key(prev_elem, prefer_latam=prefer_latam)
-            curr_series = get_series_key(curr_elem, prefer_latam=prefer_latam)
-
-            prev_stop = prev_elem.get("stop", "")
-            curr_start = curr_elem.get("start", "")
-
-            same_run = (prev_series == curr_series and prev_stop == curr_start)
-
-        if not same_run:
-            runs.append((run_start, i))
-            run_start = i
-
-    return runs
-
 def score_metadata_match(schedule_elem, metadata_elem, prefer_latam=False):
     schedule_start = parse_xmltv_dt_to_utc(schedule_elem.get("start", ""))
     metadata_start = parse_xmltv_dt_to_utc(metadata_elem.get("start", ""))
@@ -1183,6 +1157,20 @@ def score_metadata_match_loose(schedule_elem, metadata_elem, prefer_latam=False)
     metadata_ep = extract_xmltv_episode_num(metadata_elem)
     if metadata_ep:
         score += 0.5
+    return round(score, 3)
+
+def score_individual_match(schedule_elem, metadata_elem, prefer_latam=False):
+    schedule_start = parse_xmltv_dt_to_utc(schedule_elem.get("start", ""))
+    metadata_start = parse_xmltv_dt_to_utc(metadata_elem.get("start", ""))
+    if not schedule_start or not metadata_start:
+        return -999.0
+    delta_minutes = abs((schedule_start - metadata_start).total_seconds()) / 60.0
+    if delta_minutes > MATCH_INDIVIDUAL_MAX_MINUTES:
+        return -999.0
+    score = score_metadata_match(schedule_elem, metadata_elem, prefer_latam=prefer_latam)
+    if score <= -999:
+        return score
+    score += max(0.0, 2.0 - (delta_minutes / 90.0))
     return round(score, 3)
 
 def get_run_boundaries(schedule_entries):
@@ -1292,20 +1280,6 @@ def find_metadata_sequence(schedule_entries, start_idx, end_idx, metadata_entrie
                 best_sequence = seq
     return best_sequence
 
-def score_individual_match(schedule_elem, metadata_elem, prefer_latam=False):
-    schedule_start = parse_xmltv_dt_to_utc(schedule_elem.get("start", ""))
-    metadata_start = parse_xmltv_dt_to_utc(metadata_elem.get("start", ""))
-    if not schedule_start or not metadata_start:
-        return -999.0
-    delta_minutes = abs((schedule_start - metadata_start).total_seconds()) / 60.0
-    if delta_minutes > MATCH_INDIVIDUAL_MAX_MINUTES:
-        return -999.0
-    score = score_metadata_match(schedule_elem, metadata_elem, prefer_latam=prefer_latam)
-    if score <= -999:
-        return score
-    score += max(0.0, 2.0 - (delta_minutes / 90.0))
-    return round(score, 3)
-
 def apply_metadata_fix(schedule_entries, metadata_entries, prefer_latam=False, spanish_season_episode_format=False):
     if not schedule_entries or not metadata_entries:
         return
@@ -1374,7 +1348,209 @@ def apply_metadata_fix(schedule_entries, metadata_entries, prefer_latam=False, s
         normalize_subtitle_and_desc(schedule_elem, prefer_latam=prefer_latam, is_series=is_series)
         normalize_episode_num_elements(schedule_elem)
 
-def apply_metadata_fix_warner_anchored(schedule_entries, metadata_entries, prefer_latam=False, spanish_season_episode_format=False):
+# =========================
+# WARNER POR BLOQUES DE 3 HORAS
+# =========================
+
+def floor_to_hour(dt_obj):
+    return dt_obj.replace(minute=0, second=0, microsecond=0)
+
+def floor_to_window(dt_obj, hours=3):
+    floored = floor_to_hour(dt_obj)
+    window_hour = (floored.hour // hours) * hours
+    return floored.replace(hour=window_hour)
+
+def get_xmltv_day_key(elem):
+    dt_obj = parse_xmltv_dt_to_utc(elem.get("start", ""))
+    if not dt_obj:
+        return None
+    return dt_obj.strftime("%Y%m%d")
+
+def slice_entries_by_day(entries):
+    days = {}
+    for item in entries:
+        day_key = get_xmltv_day_key(item["elem"])
+        if not day_key:
+            continue
+        days.setdefault(day_key, []).append(item)
+    for day_key in days:
+        days[day_key].sort(key=lambda x: parse_xmltv_dt_to_utc(x["elem"].get("start", "")) or datetime.min)
+    return days
+
+def split_schedule_day_into_3h_windows(day_entries):
+    windows = []
+    if not day_entries:
+        return windows
+
+    starts = [parse_xmltv_dt_to_utc(item["elem"].get("start", "")) for item in day_entries]
+    starts = [x for x in starts if x is not None]
+    if not starts:
+        return windows
+
+    first_dt = min(starts)
+    last_dt = max(starts)
+    current = floor_to_window(first_dt, hours=3)
+
+    while current <= last_dt + timedelta(hours=3):
+        window_end = current + timedelta(hours=3)
+        block = []
+        for item in day_entries:
+            start_dt = parse_xmltv_dt_to_utc(item["elem"].get("start", ""))
+            if start_dt is None:
+                continue
+            if current <= start_dt < window_end:
+                block.append(item)
+        if block:
+            windows.append({
+                "window_start": current,
+                "window_end": window_end,
+                "items": block
+            })
+        current = window_end
+
+    return windows
+
+def check_anchor_soft(schedule_elem, metadata_elem, prefer_latam=False):
+    if schedule_elem is None and metadata_elem is None:
+        return True
+    if schedule_elem is None or metadata_elem is None:
+        return False
+
+    t1 = get_anchor_title(schedule_elem, prefer_latam=prefer_latam)
+    t2 = get_anchor_title(metadata_elem, prefer_latam=prefer_latam)
+
+    if titles_anchor_similar(t1, t2):
+        return True
+
+    d1 = programme_duration_minutes(schedule_elem)
+    d2 = programme_duration_minutes(metadata_elem)
+
+    if d1 and d2:
+        if d1 > 45 and d2 > 45 and text_similarity(t1, t2) >= 0.20:
+            return True
+        if d1 <= 45 and d2 <= 45 and text_similarity(t1, t2) >= 0.20:
+            return True
+
+    if overlap_score(t1, t2) > 0.2:
+        return True
+
+    return False
+
+def is_monotonic_episode_block(items):
+    last_ep = None
+    for item in items:
+        donor_ep = extract_episode_from_desc_or_xml(item["elem"])
+        if donor_ep:
+            m = re.match(r"^\s*S(\d{2})\s*E(\d{2})\s*$", donor_ep, flags=re.IGNORECASE)
+            if m:
+                curr_ep = (int(m.group(1)), int(m.group(2)))
+                if last_ep is not None and curr_ep <= last_ep:
+                    return False
+                last_ep = curr_ep
+    return True
+
+def build_metadata_candidate_slices(metadata_entries, count_needed):
+    candidates = []
+    if count_needed <= 0:
+        return candidates
+
+    by_source_day = {}
+    for item in metadata_entries:
+        source_url = item["source_url"]
+        day_key = get_xmltv_day_key(item["elem"])
+        if not day_key:
+            continue
+        by_source_day.setdefault((source_url, day_key), []).append(item)
+
+    for key, items in by_source_day.items():
+        items.sort(key=lambda x: parse_xmltv_dt_to_utc(x["elem"].get("start", "")) or datetime.min)
+        if len(items) < count_needed:
+            continue
+        source_url, day_key = key
+        for idx in range(0, len(items) - count_needed + 1):
+            slice_items = items[idx:idx + count_needed]
+            candidates.append({
+                "source_url": source_url,
+                "day_key": day_key,
+                "start_idx": idx,
+                "end_idx": idx + count_needed,
+                "items": slice_items,
+                "all_items": items,
+            })
+    return candidates
+
+def score_block_candidate(schedule_block_items, candidate, prefer_latam=False):
+    donor_items = candidate["items"]
+    if len(schedule_block_items) != len(donor_items):
+        return -999.0
+
+    sched_prev = None
+    sched_next = None
+    donor_prev = None
+    donor_next = None
+
+    total_score = 0.0
+    strict_title_hits = 0
+
+    for sched_item, donor_item in zip(schedule_block_items, donor_items):
+        sched_elem = sched_item["elem"]
+        donor_elem = donor_item["elem"]
+
+        score = score_metadata_match_loose(sched_elem, donor_elem, prefer_latam=prefer_latam)
+        if score < 1.5:
+            return -999.0
+
+        s_title = get_programme_title_base(sched_elem, prefer_latam=prefer_latam)
+        d_title = get_programme_title_base(donor_elem, prefer_latam=prefer_latam)
+        if titles_anchor_similar(s_title, d_title):
+            strict_title_hits += 1
+
+        total_score += score
+
+    if strict_title_hits == 0:
+        return -999.0
+
+    if not is_monotonic_episode_block(donor_items):
+        return -999.0
+
+    first_sched_idx = schedule_block_items[0].get("_global_idx")
+    last_sched_idx = schedule_block_items[-1].get("_global_idx")
+
+    if first_sched_idx is not None and first_sched_idx > 0:
+        sched_prev = schedule_block_items[0]["_all_schedule_entries"][first_sched_idx - 1]["elem"]
+    if last_sched_idx is not None and last_sched_idx + 1 < len(schedule_block_items[0]["_all_schedule_entries"]):
+        sched_next = schedule_block_items[0]["_all_schedule_entries"][last_sched_idx + 1]["elem"]
+
+    all_donor_items = candidate["all_items"]
+    if candidate["start_idx"] > 0:
+        donor_prev = all_donor_items[candidate["start_idx"] - 1]["elem"]
+    if candidate["end_idx"] < len(all_donor_items):
+        donor_next = all_donor_items[candidate["end_idx"]]["elem"]
+
+    prev_ok = check_anchor_soft(sched_prev, donor_prev, prefer_latam=prefer_latam)
+    next_ok = check_anchor_soft(sched_next, donor_next, prefer_latam=prefer_latam)
+
+    if not prev_ok and not next_ok:
+        return -999.0
+
+    if prev_ok:
+        total_score += 5.0
+    if next_ok:
+        total_score += 5.0
+
+    first_sched_title = get_programme_title_base(schedule_block_items[0]["elem"], prefer_latam=prefer_latam)
+    last_sched_title = get_programme_title_base(schedule_block_items[-1]["elem"], prefer_latam=prefer_latam)
+    first_donor_title = get_programme_title_base(donor_items[0]["elem"], prefer_latam=prefer_latam)
+    last_donor_title = get_programme_title_base(donor_items[-1]["elem"], prefer_latam=prefer_latam)
+
+    if titles_anchor_similar(first_sched_title, first_donor_title):
+        total_score += 2.5
+    if titles_anchor_similar(last_sched_title, last_donor_title):
+        total_score += 2.5
+
+    return round(total_score, 3)
+
+def apply_metadata_fix_warner_by_3h_blocks(schedule_entries, metadata_entries, prefer_latam=False, spanish_season_episode_format=False):
     if not schedule_entries or not metadata_entries:
         return
 
@@ -1392,118 +1568,39 @@ def apply_metadata_fix_warner_anchored(schedule_entries, metadata_entries, prefe
     if not schedule_entries or not metadata_entries:
         return
 
-    schedule_runs = get_runs_by_series(schedule_entries, prefer_latam=prefer_latam)
+    schedule_entries.sort(key=lambda x: parse_xmltv_dt_to_utc(x["elem"].get("start", "")) or datetime.min)
 
-    metadata_runs = []
-    for source_url in sorted({m["source_url"] for m in metadata_entries}):
-        source_items = [m for m in metadata_entries if m["source_url"] == source_url]
-        for start_idx, end_idx in get_runs_by_series(source_items, prefer_latam=prefer_latam):
-            metadata_runs.append({
-                "source_url": source_url,
-                "start_idx": start_idx,
-                "end_idx": end_idx,
-                "items": source_items[start_idx:end_idx],
-            })
+    for idx, item in enumerate(schedule_entries):
+        item["_global_idx"] = idx
+        item["_all_schedule_entries"] = schedule_entries
 
-    def check_anchor_soft(sched_elem, meta_elem):
-        if sched_elem is None and meta_elem is None:
-            return True
-        if sched_elem is None or meta_elem is None:
-            return False
+    schedule_days = slice_entries_by_day(schedule_entries)
 
-        t1 = get_anchor_title(sched_elem, prefer_latam=prefer_latam)
-        t2 = get_anchor_title(meta_elem, prefer_latam=prefer_latam)
+    for _, day_entries in sorted(schedule_days.items()):
+        windows = split_schedule_day_into_3h_windows(day_entries)
 
-        if titles_anchor_similar(t1, t2):
-            return True
-
-        d1 = programme_duration_minutes(sched_elem)
-        d2 = programme_duration_minutes(meta_elem)
-
-        if d1 and d2:
-            if d1 > 45 and d2 > 45 and text_similarity(t1, t2) >= 0.20:
-                return True
-            if d1 <= 45 and d2 <= 45 and text_similarity(t1, t2) >= 0.20:
-                return True
-
-        if overlap_score(t1, t2) > 0.2:
-            return True
-
-        return False
-
-    for s_start, s_end in schedule_runs:
-        sched_run = schedule_entries[s_start:s_end]
-        if not sched_run or len(sched_run) < 2:
-            continue
-
-        sched_series_key = get_series_key(sched_run[0]["elem"], prefer_latam=prefer_latam)
-        if not sched_series_key:
-            continue
-
-        sched_prev = schedule_entries[s_start - 1]["elem"] if s_start > 0 else None
-        sched_next = schedule_entries[s_end]["elem"] if s_end < len(schedule_entries) else None
-
-        best_candidate = None
-        best_score = -999.0
-
-        for meta_run in metadata_runs:
-            donor_items = meta_run["items"]
-            if len(donor_items) != len(sched_run):
+        for window in windows:
+            block_items = window["items"]
+            if len(block_items) < 2:
                 continue
 
-            donor_series_key = get_series_key(donor_items[0]["elem"], prefer_latam=prefer_latam)
-            if donor_series_key != sched_series_key:
+            candidates = build_metadata_candidate_slices(metadata_entries, len(block_items))
+            if not candidates:
                 continue
 
-            donor_source_items = [m for m in metadata_entries if m["source_url"] == meta_run["source_url"]]
-            donor_prev = donor_source_items[meta_run["start_idx"] - 1]["elem"] if meta_run["start_idx"] > 0 else None
-            donor_next = donor_source_items[meta_run["end_idx"]]["elem"] if meta_run["end_idx"] < len(donor_source_items) else None
+            best_candidate = None
+            best_score = -999.0
 
-            prev_ok = check_anchor_soft(sched_prev, donor_prev)
-            next_ok = check_anchor_soft(sched_next, donor_next)
+            for candidate in candidates:
+                score = score_block_candidate(block_items, candidate, prefer_latam=prefer_latam)
+                if score > best_score:
+                    best_score = score
+                    best_candidate = candidate
 
-            if not prev_ok and not next_ok:
+            if not best_candidate or best_score < 8.0:
                 continue
 
-            total_score = 0.0
-            ok = True
-            last_ep = None
-
-            for sched_item, donor_item in zip(sched_run, donor_items):
-                sched_elem = sched_item["elem"]
-                donor_elem = donor_item["elem"]
-
-                score = score_metadata_match_loose(sched_elem, donor_elem, prefer_latam=prefer_latam)
-                if score < 2.0:
-                    ok = False
-                    break
-
-                donor_ep = extract_episode_from_desc_or_xml(donor_elem)
-                if donor_ep:
-                    m = re.match(r"^\s*S(\d{2})\s*E(\d{2})\s*$", donor_ep, flags=re.IGNORECASE)
-                    if m:
-                        curr_ep = (int(m.group(1)), int(m.group(2)))
-                        if last_ep is not None and curr_ep <= last_ep:
-                            ok = False
-                            break
-                        last_ep = curr_ep
-
-                total_score += score
-
-            if not ok:
-                continue
-
-            if prev_ok:
-                total_score += 5.0
-            if next_ok:
-                total_score += 5.0
-
-            if total_score > best_score:
-                best_score = total_score
-                best_candidate = donor_items
-
-        if best_candidate:
-            for sched_item, donor_item in zip(sched_run, best_candidate):
+            for sched_item, donor_item in zip(block_items, best_candidate["items"]):
                 schedule_elem = sched_item["elem"]
                 donor_elem = donor_item["elem"]
 
@@ -2130,8 +2227,8 @@ def main():
                                 apply_metadata_fix(other_schedule, metadata_entries, prefer_latam, spanish_season_episode_format)
 
                             if warner_schedule:
-                                print(f"Aplicando corrección Warner anclada a {len(warner_schedule)} programas...", flush=True)
-                                apply_metadata_fix_warner_anchored(
+                                print(f"Aplicando corrección Warner por bloques de 3 horas a {len(warner_schedule)} programas...", flush=True)
+                                apply_metadata_fix_warner_by_3h_blocks(
                                     warner_schedule,
                                     metadata_entries,
                                     prefer_latam=prefer_latam,
