@@ -33,6 +33,7 @@ EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz",
     "https://iptv-epg.org/files/epg-uy.xml",
     "https://www.open-epg.com/files/peru2.xml.gz",
+    "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv/gt.xml",
 ]
 EPG_URLS = list(dict.fromkeys(EPG_URLS))
 
@@ -103,7 +104,7 @@ EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
 EPG_MX = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_SV1 = "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz"
 EPG_UY1 = "https://iptv-epg.org/files/epg-uy.xml"
-EPG_MITV = "https://www.open-epg.com/files/peru2.xml.gz"
+EPG_MITV = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv/gt.xml"
 
 CHANNEL_SOURCE_RULES = {
     "Space.co": [EPG_CO1],
