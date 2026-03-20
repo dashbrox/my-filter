@@ -59,7 +59,7 @@ CinemaxHits.us
 Cinemax.mx
 TNT.mx
 TNTSeries.gt
-AXN.co
+AXN.gt
 AXNWhite.es
 AMC.ar
 TennisChannel.us
@@ -124,7 +124,6 @@ StarComedy.co
 USA.uy
 EEntertainmentTelevision.us
 SONYMOVIES.uy
-AXN.uy
 TNTSERIES.uy
 ANIMALPLANET.uy
 ENTERTAINMENTTELEVISION.uy
