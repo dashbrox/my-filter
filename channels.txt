@@ -118,7 +118,7 @@ Canal.Universal.Cinema.sv
 Canal.Universal.Comedy.sv
 Canal.Universal.Crime.sv
 Canal.Universal.Premiere.sv
-WarnerChannel.pe
+gt#warner
 StarCinema.co
 StarComedy.co
 USA.uy
