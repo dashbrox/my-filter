@@ -92,6 +92,7 @@ KNOWN_ACRONYMS = {
 
 CHANNEL_TIME_OFFSETS = {
     "Lifetime.ar": +11,
+    "WarnerChannel.gt": -2,
 }
 
 EPG_CO1 = "https://epgshare01.online/epgshare01/epg_ripper_CO1.xml.gz"
