@@ -16,8 +16,22 @@ from urllib3.util.retry import Retry
 # =========================
 
 EPG_COUNTRY_CODES = """
-ar au bo ca co cl cr do ec sv gt hn it mx ni pa py pe za es se gb us uy ve
+au ca it ni za es se gb us
 """.split()
+
+MITV_BASE = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv"
+
+EPG_MITV_AR = f"{MITV_BASE}/ar.xml"
+EPG_MITV_CL = f"{MITV_BASE}/cl.xml"
+EPG_MITV_CO = f"{MITV_BASE}/co.xml"
+EPG_MITV_GT = f"{MITV_BASE}/gt.xml"
+EPG_MITV_HN = f"{MITV_BASE}/hn.xml"
+EPG_MITV_MX = f"{MITV_BASE}/mx.xml"
+EPG_MITV_PE = f"{MITV_BASE}/pe.xml"
+EPG_MITV_PY = f"{MITV_BASE}/py.xml"
+EPG_MITV_SV = f"{MITV_BASE}/sv.xml"
+
+EPG_GATOTV = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/gatotv.com/guide.xml"
 
 EPG_URLS = [f"https://iptv-epg.org/files/epg-{code}.xml" for code in EPG_COUNTRY_CODES]
 EPG_URLS += [
@@ -33,7 +47,16 @@ EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz",
     "https://iptv-epg.org/files/epg-uy.xml",
     "https://www.open-epg.com/files/peru2.xml.gz",
-    "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv/gt.xml",
+    EPG_MITV_AR,
+    EPG_MITV_CL,
+    EPG_MITV_CO,
+    EPG_MITV_GT,
+    EPG_MITV_HN,
+    EPG_MITV_MX,
+    EPG_MITV_PE,
+    EPG_MITV_PY,
+    EPG_MITV_SV,
+    EPG_GATOTV,
 ]
 EPG_URLS = list(dict.fromkeys(EPG_URLS))
 
@@ -104,7 +127,7 @@ EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
 EPG_MX = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
 EPG_SV1 = "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz"
 EPG_UY1 = "https://iptv-epg.org/files/epg-uy.xml"
-EPG_MITV = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv/gt.xml"
+EPG_MITV = EPG_MITV_GT
 
 CHANNEL_SOURCE_RULES = {
     "Space.co": [EPG_CO1],
@@ -212,6 +235,8 @@ def save_cache():
 # =========================
 # ALIAS MANUALES DE CANALES
 # =========================
+
+CHANNEL_EQUIVALENCE = {}
 
 def build_channel_alias_map():
     alias_to_canonical = {}
@@ -414,6 +439,10 @@ def get_feed_code(url):
     m = re.search(r"epg_ripper_([a-z]{2})\d*\.xml\.gz", u)
     if m:
         return m.group(1)
+    if "/guides/mi.tv/" in u:
+        m = re.search(r"/([a-z]{2})\.xml$", u)
+        if m:
+            return m.group(1)
     country_aliases = {
         "peru": "pe", "argentina": "ar", "mexico": "mx", "colombia": "co",
         "chile": "cl", "uruguay": "uy", "venezuela": "ve", "ecuador": "ec",
