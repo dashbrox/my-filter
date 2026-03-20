@@ -120,15 +120,7 @@ CHANNEL_SOURCE_RULES = {
     "Canal.Universal.Crime.sv": [EPG_SV1],
     "Canal.Universal.Premiere.sv": [EPG_SV1],
     "ENTERTAINMENTTELEVISION.uy": [EPG_UY1],
-    "WarnerChannel.pe": [EPG_MITV],
-}
-
-CHANNEL_EQUIVALENCE = {
-    "WARNER CHANNEL.pe": [
-        "WARNER CHANNEL HD.pe",
-        "WARNER.CHANNEL.(Warner).pe",
-        "WarnerChannel.pe",
-    ],
+    "gt#warner": [EPG_MITV],
 }
 
 # =========================
