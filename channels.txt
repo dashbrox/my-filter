@@ -303,3 +303,5 @@ WarnerChannel.gt
 X-Time.gt
 Cartoonito.gt
 TUDNMexico.gt
+GoldenPremier.co
+GoldenPremier2.cr
