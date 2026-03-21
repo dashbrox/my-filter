@@ -237,3 +237,9 @@ gt#animal-planet
 gt#amc-hd
 gt#amc
 gt#a-e-mundo
+co#max-up
+UniversalReality.us@SD
+UniversalPremiere.us@East
+UniversalCrime.us@East
+UniversalComedy.us@SD
+UniversalCinema.us@SD
