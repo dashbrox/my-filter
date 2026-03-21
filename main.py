@@ -16,7 +16,7 @@ from urllib3.util.retry import Retry
 # =========================
 
 EPG_COUNTRY_CODES = """
-au ca it ni za es se gt pe ar mx gb us
+au ca it ni za es se gb us
 """.split()
 
 MITV_BASE = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv"
@@ -236,13 +236,17 @@ def normalize_mitv_channel_id(ch_id):
     if not ch_id:
         return ch_id
 
-    ch_id = ch_id.strip().lower()
+    ch_id = ch_id.strip()
 
-    if re.match(r"^[a-z]{2}#.+$", ch_id, re.IGNORECASE):
-        ch_id = ch_id.replace("#", ".", 1)
-
-    ch_id = ch_id.replace("-", "")
-    ch_id = re.sub(r"\s+", "", ch_id)
+    # CAMBIO:
+    # mi.tv usa ids como gt#hbo-plus-mexico
+    # se deben normalizar a gt.hboplusmexico
+    match = re.match(r"^([a-z]{2})#(.+)$", ch_id, re.IGNORECASE)
+    if match:
+        country = match.group(1).lower()
+        rest = match.group(2).strip()
+        rest = rest.replace("-", "")
+        return f"{country}.{rest}"
 
     return ch_id
 
@@ -263,16 +267,6 @@ def canonical_channel_id(ch_id):
         return ch_id
     ch_id = normalize_mitv_channel_id(ch_id)
     return CHANNEL_ALIAS_MAP.get(ch_id, ch_id)
-
-CHANNEL_TIME_OFFSETS = {
-    normalize_mitv_channel_id(k): v
-    for k, v in CHANNEL_TIME_OFFSETS.items()
-}
-
-CHANNEL_SOURCE_RULES = {
-    normalize_mitv_channel_id(k): v
-    for k, v in CHANNEL_SOURCE_RULES.items()
-}
 
 # =========================
 # UTILS TEXTO Y SIMILITUD
@@ -296,7 +290,7 @@ def get_channel_country_code(ch_id):
     if match:
         return match.group(1)
 
-    match = re.search(r"\.([a-z]{2})(?:\.|$|hd|sd|\d)", s)
+    match = re.search(r'\.([a-z]{2})(?:\.|$|hd|sd|\d)', s)
     if match:
         return match.group(1)
 
@@ -310,16 +304,16 @@ def tokenize_channel_id(ch_id):
     country = get_channel_country_code(ch_id)
 
     s = ch_id.lower()
-    s = re.sub(r"\([^)]*\)", " ", s)
+    s = re.sub(r'\([^)]*\)', ' ', s)
 
     if country:
-        s = re.sub(rf"^{country}\.", " ", s)
-        s = re.sub(rf"\.{country}(?:\.|$)", " ", s)
+        s = re.sub(rf'^{country}\.', ' ', s)
+        s = re.sub(rf'\.{country}(?:\.|$)', ' ', s)
 
-    s = s.replace(".", " ").replace("_", " ").replace("-", " ")
+    s = s.replace('.', ' ').replace('_', ' ').replace('-', ' ')
     tokens = s.split()
 
-    noise = {"hd", "sd", "fhd", "4k", "1080p", "720p"}
+    noise = {'hd', 'sd', 'fhd', '4k', '1080p', '720p'}
     tokens = [t for t in tokens if t not in noise]
 
     if country:
@@ -336,7 +330,7 @@ def normalize_channel_id_for_matching(ch_id):
         return canonical.lower().strip()
 
     country = get_channel_country_code(ch_id) or ""
-    generic_words = {"channel", "tv", "television", "network", "cable", "satelital"}
+    generic_words = {'channel', 'tv', 'television', 'network', 'cable', 'satelital'}
     tokens = tokenize_channel_id(ch_id)
     nums = {t for t in tokens if t.isdigit()}
     core = sorted(tokens - generic_words - nums - ({country} if country else set()))
@@ -377,7 +371,7 @@ def is_same_channel(id1, id2):
     elif nums1 or nums2:
         return False, 0.0
 
-    generic_words = {"channel", "tv", "television", "network", "cable", "satelital"}
+    generic_words = {'channel', 'tv', 'television', 'network', 'cable', 'satelital'}
     core1 = tokens1 - generic_words - nums1 - {country1}
     core2 = tokens2 - generic_words - nums2 - {country2}
 
@@ -387,7 +381,7 @@ def is_same_channel(id1, id2):
     if core1 == core2:
         return True, 1.0
 
-    allowed_extra_tokens = {"bros", "brothers", "intl", "international"}
+    allowed_extra_tokens = {'bros', 'brothers', 'intl', 'international'}
     extras = (core1 - core2) | (core2 - core1)
     if (core1.issubset(core2) or core2.issubset(core1)) and extras <= allowed_extra_tokens:
         return True, 0.95
@@ -1420,19 +1414,13 @@ def main():
         return
 
     with open(CHANNELS_FILE, "r", encoding="utf-8-sig") as f:
-        allowed_channels = [line.strip() for line in f if line.strip()]
+        allowed_channels = {line.strip() for line in f if line.strip()}
 
     if not allowed_channels:
         print("Error: channels.txt está vacío", flush=True)
         return
 
     allowed_canonical = {canonical_channel_id(ch) for ch in allowed_channels}
-
-    preferred_output_id = {}
-    for ch in allowed_channels:
-        canonical = canonical_channel_id(ch)
-        if canonical not in preferred_output_id:
-            preferred_output_id[canonical] = ch
 
     good_sources = set()
     for sources in CHANNEL_SOURCE_RULES.values():
@@ -1448,24 +1436,32 @@ def main():
             continue
         try:
             download_xml(url, TEMP_INPUT)
-            context = ET.iterparse(TEMP_INPUT, events=("end",))
+
+            # CAMBIO:
+            # evitar elem.clear() global porque vacía hijos antes de procesar el padre
+            context = ET.iterparse(TEMP_INPUT, events=("start", "end"))
+            _, root = next(context)
+
             for event, elem in context:
+                if event != "end":
+                    continue
+
                 if elem.tag == "channel":
                     real_id = elem.get("id")
-                    if not real_id:
-                        elem.clear()
-                        continue
+                    if real_id:
+                        canonical_real = canonical_channel_id(real_id)
 
-                    canonical_real = canonical_channel_id(real_id)
+                        for user_id in allowed_channels:
+                            if canonical_real == canonical_channel_id(user_id):
+                                CHANNEL_ID_ALIASES.setdefault(real_id, [])
+                                if user_id not in CHANNEL_ID_ALIASES[real_id]:
+                                    CHANNEL_ID_ALIASES[real_id].append(user_id)
+                                    print(f"  -> Match validado: '{real_id}' == '{user_id}'", flush=True)
 
-                    for user_id in allowed_channels:
-                        if canonical_real == canonical_channel_id(user_id):
-                            CHANNEL_ID_ALIASES.setdefault(real_id, [])
-                            if user_id not in CHANNEL_ID_ALIASES[real_id]:
-                                CHANNEL_ID_ALIASES[real_id].append(user_id)
-                                print(f"  -> Match validado: '{real_id}' == '{user_id}'", flush=True)
+                    root.remove(elem)
 
-                elem.clear()
+                elif elem.tag == "programme":
+                    root.remove(elem)
 
             del context
             if os.path.exists(TEMP_INPUT):
@@ -1488,9 +1484,16 @@ def main():
                 try:
                     print(f"[{idx}/{len(EPG_URLS)}] Fuente: {url}", flush=True)
                     download_xml(url, TEMP_INPUT)
-                    context = ET.iterparse(TEMP_INPUT, events=("end",))
+
+                    # CAMBIO:
+                    # evitar elem.clear() global porque vacía title/desc/display-name/url
+                    context = ET.iterparse(TEMP_INPUT, events=("start", "end"))
+                    _, root = next(context)
 
                     for event, elem in context:
+                        if event != "end":
+                            continue
+
                         if elem.tag == "channel":
                             ch_id = elem.get("id")
                             canonical_ch_id = canonical_channel_id(ch_id)
@@ -1501,15 +1504,13 @@ def main():
                                 and canonical_ch_id not in written_channels
                             )
                             if should_write:
-                                output_id = preferred_output_id.get(canonical_ch_id, ch_id)
-
                                 channel_elem = clone_element(elem)
-                                channel_elem.set("id", output_id)
+                                channel_elem.set("id", canonical_ch_id)
                                 out_f.write(ET.tostring(channel_elem, encoding="utf-8"))
                                 out_f.write(b"\n")
                                 written_channels.add(canonical_ch_id)
 
-                            elem.clear()
+                            root.remove(elem)
 
                         elif elem.tag == "programme":
                             processed_programmes += 1
@@ -1529,9 +1530,7 @@ def main():
                                 apply_channel_offset(elem)
 
                                 cloned_programme = clone_element(elem)
-
-                                output_id = preferred_output_id.get(canonical_ch_id, ch_id)
-                                cloned_programme.set("channel", output_id)
+                                cloned_programme.set("channel", canonical_ch_id)
 
                                 start = cloned_programme.get("start")
                                 stop = cloned_programme.get("stop")
@@ -1542,7 +1541,7 @@ def main():
                                     out_f.write(b"\n")
                                     written_programmes.add(prog_key)
 
-                            elem.clear()
+                            root.remove(elem)
 
                     del context
                     print(f"Fuente terminada: {url.split('/')[-1]}", flush=True)
