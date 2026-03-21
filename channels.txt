@@ -206,3 +206,5 @@ pe#fx
 pe#axn
 DW.de@DeutschPlus
 pe#syfy
+Panico.mx@SD
+sony_movies_latinoamerica
