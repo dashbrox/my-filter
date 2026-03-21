@@ -132,3 +132,10 @@ Golden.mx
 GoldenEdge.mx
 GoldenPremier.mx
 GoldenPremier2.mx
+gt#hbo-oeste
+gt#hbo-2
+gt#hbo-family
+gt#hbo-plus-mexico
+gt#hbo-signature
+gt#max-prime
+gt#max
