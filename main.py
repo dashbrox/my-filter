@@ -137,7 +137,7 @@ CHANNEL_SOURCE_RULES = {
     "Canal.Universal.Crime.sv": [EPG_SV1],
     "Canal.Universal.Premiere.sv": [EPG_SV1],
     "ENTERTAINMENTTELEVISION.uy": [EPG_UY1],
-    "gt#warner": [EPG_MITV],
+    "gt.warner": [EPG_MITV],
 }
 
 # =========================
@@ -232,12 +232,25 @@ def save_cache():
 
 CHANNEL_EQUIVALENCE = {}
 
+def normalize_mitv_channel_id(ch_id):
+    if not ch_id:
+        return ch_id
+
+    ch_id = ch_id.strip()
+
+    if re.match(r"^[a-z]{2}#.+$", ch_id, re.IGNORECASE):
+        return ch_id.replace("#", ".", 1)
+
+    return ch_id
+
 def build_channel_alias_map():
     alias_to_canonical = {}
     for canonical_id, aliases in CHANNEL_EQUIVALENCE.items():
-        alias_to_canonical[canonical_id] = canonical_id
+        canonical_norm = normalize_mitv_channel_id(canonical_id)
+        alias_to_canonical[canonical_norm] = canonical_norm
         for alias in aliases:
-            alias_to_canonical[alias] = canonical_id
+            alias_norm = normalize_mitv_channel_id(alias)
+            alias_to_canonical[alias_norm] = canonical_norm
     return alias_to_canonical
 
 CHANNEL_ALIAS_MAP = build_channel_alias_map()
@@ -245,6 +258,7 @@ CHANNEL_ALIAS_MAP = build_channel_alias_map()
 def canonical_channel_id(ch_id):
     if not ch_id:
         return ch_id
+    ch_id = normalize_mitv_channel_id(ch_id)
     return CHANNEL_ALIAS_MAP.get(ch_id, ch_id)
 
 # =========================
@@ -262,21 +276,31 @@ def normalize_text(text):
 def get_channel_country_code(ch_id):
     if not ch_id:
         return None
-    match = re.search(r'\.([a-z]{2})(?:\.|$|hd|sd|\d)', ch_id.lower())
+
+    s = normalize_mitv_channel_id(ch_id).lower().strip()
+
+    match = re.match(r"^([a-z]{2})\.", s)
     if match:
         return match.group(1)
+
+    match = re.search(r'\.([a-z]{2})(?:\.|$|hd|sd|\d)', s)
+    if match:
+        return match.group(1)
+
     return None
 
 def tokenize_channel_id(ch_id):
     if not ch_id:
         return set()
 
+    ch_id = normalize_mitv_channel_id(ch_id)
     country = get_channel_country_code(ch_id)
 
     s = ch_id.lower()
     s = re.sub(r'\([^)]*\)', ' ', s)
 
     if country:
+        s = re.sub(rf'^{country}\.', ' ', s)
         s = re.sub(rf'\.{country}(?:\.|$)', ' ', s)
 
     s = s.replace('.', ' ').replace('_', ' ').replace('-', ' ')
@@ -939,7 +963,7 @@ def shift_xmltv_datetime(xmltv_dt, minutes):
     return dt.strftime("%Y%m%d%H%M%S")
 
 def apply_channel_offset(elem):
-    ch_id = elem.get("channel")
+    ch_id = canonical_channel_id(elem.get("channel"))
     offset = CHANNEL_TIME_OFFSETS.get(ch_id, 0)
     if not offset:
         return
