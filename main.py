@@ -236,10 +236,13 @@ def normalize_mitv_channel_id(ch_id):
     if not ch_id:
         return ch_id
 
-    ch_id = ch_id.strip()
+    ch_id = ch_id.strip().lower()
 
     if re.match(r"^[a-z]{2}#.+$", ch_id, re.IGNORECASE):
-        return ch_id.replace("#", ".", 1)
+        ch_id = ch_id.replace("#", ".", 1)
+
+    ch_id = ch_id.replace("-", "")
+    ch_id = re.sub(r"\s+", "", ch_id)
 
     return ch_id
 
@@ -260,6 +263,16 @@ def canonical_channel_id(ch_id):
         return ch_id
     ch_id = normalize_mitv_channel_id(ch_id)
     return CHANNEL_ALIAS_MAP.get(ch_id, ch_id)
+
+CHANNEL_TIME_OFFSETS = {
+    normalize_mitv_channel_id(k): v
+    for k, v in CHANNEL_TIME_OFFSETS.items()
+}
+
+CHANNEL_SOURCE_RULES = {
+    normalize_mitv_channel_id(k): v
+    for k, v in CHANNEL_SOURCE_RULES.items()
+}
 
 # =========================
 # UTILS TEXTO Y SIMILITUD
@@ -283,7 +296,7 @@ def get_channel_country_code(ch_id):
     if match:
         return match.group(1)
 
-    match = re.search(r'\.([a-z]{2})(?:\.|$|hd|sd|\d)', s)
+    match = re.search(r"\.([a-z]{2})(?:\.|$|hd|sd|\d)", s)
     if match:
         return match.group(1)
 
@@ -297,16 +310,16 @@ def tokenize_channel_id(ch_id):
     country = get_channel_country_code(ch_id)
 
     s = ch_id.lower()
-    s = re.sub(r'\([^)]*\)', ' ', s)
+    s = re.sub(r"\([^)]*\)", " ", s)
 
     if country:
-        s = re.sub(rf'^{country}\.', ' ', s)
-        s = re.sub(rf'\.{country}(?:\.|$)', ' ', s)
+        s = re.sub(rf"^{country}\.", " ", s)
+        s = re.sub(rf"\.{country}(?:\.|$)", " ", s)
 
-    s = s.replace('.', ' ').replace('_', ' ').replace('-', ' ')
+    s = s.replace(".", " ").replace("_", " ").replace("-", " ")
     tokens = s.split()
 
-    noise = {'hd', 'sd', 'fhd', '4k', '1080p', '720p'}
+    noise = {"hd", "sd", "fhd", "4k", "1080p", "720p"}
     tokens = [t for t in tokens if t not in noise]
 
     if country:
@@ -323,7 +336,7 @@ def normalize_channel_id_for_matching(ch_id):
         return canonical.lower().strip()
 
     country = get_channel_country_code(ch_id) or ""
-    generic_words = {'channel', 'tv', 'television', 'network', 'cable', 'satelital'}
+    generic_words = {"channel", "tv", "television", "network", "cable", "satelital"}
     tokens = tokenize_channel_id(ch_id)
     nums = {t for t in tokens if t.isdigit()}
     core = sorted(tokens - generic_words - nums - ({country} if country else set()))
@@ -364,7 +377,7 @@ def is_same_channel(id1, id2):
     elif nums1 or nums2:
         return False, 0.0
 
-    generic_words = {'channel', 'tv', 'television', 'network', 'cable', 'satelital'}
+    generic_words = {"channel", "tv", "television", "network", "cable", "satelital"}
     core1 = tokens1 - generic_words - nums1 - {country1}
     core2 = tokens2 - generic_words - nums2 - {country2}
 
@@ -374,7 +387,7 @@ def is_same_channel(id1, id2):
     if core1 == core2:
         return True, 1.0
 
-    allowed_extra_tokens = {'bros', 'brothers', 'intl', 'international'}
+    allowed_extra_tokens = {"bros", "brothers", "intl", "international"}
     extras = (core1 - core2) | (core2 - core1)
     if (core1.issubset(core2) or core2.issubset(core1)) and extras <= allowed_extra_tokens:
         return True, 0.95
@@ -1407,13 +1420,19 @@ def main():
         return
 
     with open(CHANNELS_FILE, "r", encoding="utf-8-sig") as f:
-        allowed_channels = {line.strip() for line in f if line.strip()}
+        allowed_channels = [line.strip() for line in f if line.strip()]
 
     if not allowed_channels:
         print("Error: channels.txt está vacío", flush=True)
         return
 
     allowed_canonical = {canonical_channel_id(ch) for ch in allowed_channels}
+
+    preferred_output_id = {}
+    for ch in allowed_channels:
+        canonical = canonical_channel_id(ch)
+        if canonical not in preferred_output_id:
+            preferred_output_id[canonical] = ch
 
     good_sources = set()
     for sources in CHANNEL_SOURCE_RULES.values():
@@ -1482,8 +1501,10 @@ def main():
                                 and canonical_ch_id not in written_channels
                             )
                             if should_write:
+                                output_id = preferred_output_id.get(canonical_ch_id, ch_id)
+
                                 channel_elem = clone_element(elem)
-                                channel_elem.set("id", canonical_ch_id)
+                                channel_elem.set("id", output_id)
                                 out_f.write(ET.tostring(channel_elem, encoding="utf-8"))
                                 out_f.write(b"\n")
                                 written_channels.add(canonical_ch_id)
@@ -1508,7 +1529,9 @@ def main():
                                 apply_channel_offset(elem)
 
                                 cloned_programme = clone_element(elem)
-                                cloned_programme.set("channel", canonical_ch_id)
+
+                                output_id = preferred_output_id.get(canonical_ch_id, ch_id)
+                                cloned_programme.set("channel", output_id)
 
                                 start = cloned_programme.get("start")
                                 stop = cloned_programme.get("stop")
