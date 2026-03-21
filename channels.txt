@@ -63,6 +63,7 @@ TNTSeries.gt
 AXN.gt
 AXNWhite.es
 AMC.ar
+Sony.sv
 TennisChannel.us
 SkySportsTennis.uk
 Eurosport2.es
