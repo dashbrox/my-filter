@@ -16,7 +16,7 @@ from urllib3.util.retry import Retry
 # =========================
 
 EPG_COUNTRY_CODES = """
-au ca it ni za es se gb us
+au ca it ni za es se gt pe ar mx gb us
 """.split()
 
 MITV_BASE = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv"
