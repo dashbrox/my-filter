@@ -80,6 +80,7 @@ LATAM_FEED_CODES = {
 }
 
 IBERO_SPANISH_CODES = LATAM_FEED_CODES | {"es"}
+TVMAZE_AUTHORITATIVE_COUNTRY_CODES = {"us", "gb", "ca"}
 
 STOPWORDS = {
     "de", "la", "el", "los", "las", "un", "una", "unos", "unas",
@@ -489,6 +490,15 @@ def is_latam_feed(url):
 def use_spanish_season_episode_format(url):
     code = get_feed_code(url)
     return code in IBERO_SPANISH_CODES
+
+def should_use_tvmaze_authoritative(url, channel_id):
+    channel_code = get_channel_country_code(channel_id)
+    if channel_code in TVMAZE_AUTHORITATIVE_COUNTRY_CODES:
+        return True
+    feed_code = get_feed_code(url)
+    if not channel_code and feed_code in TVMAZE_AUTHORITATIVE_COUNTRY_CODES:
+        return True
+    return False
 
 def extract_new_marker(text):
     if not text:
@@ -1038,9 +1048,11 @@ def set_or_replace_desc(elem, desc_text, prefer_latam=False):
             insert_index = i + 1
     elem.insert(insert_index, new_desc)
 
-def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False):
-    current_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
-    current_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
+def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False, preferred_subtitle=None, preferred_desc=None):
+    current_subtitle = preferred_subtitle if preferred_subtitle and preferred_subtitle.strip() else pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
+    current_desc = preferred_desc if preferred_desc and preferred_desc.strip() else pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
+    current_subtitle = (current_subtitle or "").strip()
+    current_desc = strip_html_tags((current_desc or "").strip())
     extracted_ep_title = None
     cleaned_desc = current_desc.strip() if current_desc else ""
     ep_title_from_desc, desc_without_ep_title = split_episode_title_from_desc(current_desc)
@@ -1221,7 +1233,7 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False):
 # =========================
 
 def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
-    cache_key = f"tvmaze_v2:{normalize_text(show_name)}:{air_date}:{normalize_text(subtitle)}:{normalize_text(desc)[:160]}:{year or ''}"
+    cache_key = f"tvmaze_v3:{normalize_text(show_name)}:{air_date}:{normalize_text(subtitle)}:{normalize_text(desc)[:160]}:{year or ''}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
@@ -1260,7 +1272,7 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
                         score += 0.8
                 except Exception:
                     pass
-            ranked_shows.append((score, show))
+            ranked_shows.append((score, show, show_summary))
         if not ranked_shows:
             cache_set(cache_key, None)
             return None
@@ -1268,7 +1280,7 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
         best_episode = None
         best_score = -999.0
         subtitle_hint = strip_leading_se_from_text(subtitle or "").strip()
-        for base_score, show in ranked_shows[:5]:
+        for base_score, show, show_summary in ranked_shows[:5]:
             show_id = show.get("id")
             if not show_id:
                 continue
@@ -1280,6 +1292,7 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
                 continue
             for ep in episodes:
                 ep_name = (ep.get("name") or "").strip()
+                ep_summary = strip_html_tags(ep.get("summary") or "")
                 ep_score = base_score
                 if subtitle_hint and ep_name:
                     ep_title_ratio = text_similarity(subtitle_hint, ep_name)
@@ -1292,8 +1305,10 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
                         "season": ep.get("season"),
                         "episode": ep.get("number"),
                         "name": ep_name,
+                        "summary": ep_summary,
                         "show_id": show_id,
-                        "show_name": show.get("name"),
+                        "show_name": (show.get("name") or "").strip(),
+                        "show_summary": show_summary,
                         "match_score": round(ep_score, 3),
                     }
         if not best_episode or best_score < 5.4:
@@ -1310,7 +1325,7 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
 # PROCESAMIENTO PRINCIPAL
 # =========================
 
-def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_episode_format=False):
+def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_episode_format=False, tvmaze_authoritative=False):
     raw_title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam)
     raw_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
     raw_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
@@ -1334,6 +1349,9 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
     canonical_title = None
     tvmaze_data = None
     source_canonical_title = base_title or clean_title or raw_title
+    preferred_subtitle = None
+    preferred_desc = None
+    tvmaze_title_applied = False
 
     if need_tmdb or need_tv:
         tmdb_data = get_tmdb_data(final_title, desc=raw_desc, subtitle=subtitle_hint, year=final_year, prefer_latam=prefer_latam)
@@ -1369,7 +1387,21 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
                     tvmaze_data = get_tvmaze_episode(fallback_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
             if not final_se and tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
-            if tvmaze_data and tvmaze_data.get("show_name"):
+            if tvmaze_authoritative and tvmaze_data:
+                tvmaze_show_name = (tvmaze_data.get("show_name") or "").strip()
+                tvmaze_episode_name = (tvmaze_data.get("name") or "").strip()
+                tvmaze_episode_summary = strip_html_tags(tvmaze_data.get("summary") or "")
+                if tvmaze_show_name:
+                    final_title = tvmaze_show_name
+                    canonical_title = tvmaze_show_name
+                    tvmaze_title_applied = True
+                elif tvmaze_data.get("show_name"):
+                    canonical_title = (tvmaze_data.get("show_name") or "").strip() or canonical_title
+                if tvmaze_episode_name:
+                    preferred_subtitle = tvmaze_episode_name
+                if tvmaze_episode_summary:
+                    preferred_desc = tvmaze_episode_summary
+            elif tvmaze_data and tvmaze_data.get("show_name"):
                 tvmaze_show_name = tvmaze_data["show_name"].strip()
                 if normalize_text(final_title) == normalize_text(tvmaze_show_name):
                     canonical_title = tvmaze_show_name
@@ -1380,7 +1412,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
         final_title = spanish_title_case(final_title)
     if canonical_title:
         final_title = preserve_special_casing(final_title, canonical_title)
-    if source_canonical_title:
+    if source_canonical_title and not tvmaze_title_applied:
         final_title = preserve_special_casing(final_title, source_canonical_title)
     final_title = apply_title_case_overrides(final_title)
     display_title = final_title
@@ -1390,7 +1422,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
         display_title += f" | {display_se}"
     if has_new:
         display_title += " ᴺᵉʷ"
-    return display_title, is_series
+    return display_title, is_series, preferred_subtitle, preferred_desc
 
 def download_xml(url, output_path):
     print(f"Descargando: {url}", flush=True)
@@ -1524,9 +1556,22 @@ def main():
 
                             if is_ch_allowed:
                                 start = elem.get("start", "")
-                                new_title, is_series = process_programme(elem, start, prefer_latam, spanish_season_episode_format)
+                                tvmaze_authoritative = should_use_tvmaze_authoritative(url, ch_id)
+                                new_title, is_series, preferred_subtitle, preferred_desc = process_programme(
+                                    elem,
+                                    start,
+                                    prefer_latam=prefer_latam,
+                                    spanish_season_episode_format=spanish_season_episode_format,
+                                    tvmaze_authoritative=tvmaze_authoritative,
+                                )
                                 replace_all_title_elements(elem, new_title, prefer_latam=prefer_latam)
-                                normalize_subtitle_and_desc(elem, prefer_latam=prefer_latam, is_series=is_series)
+                                normalize_subtitle_and_desc(
+                                    elem,
+                                    prefer_latam=prefer_latam,
+                                    is_series=is_series,
+                                    preferred_subtitle=preferred_subtitle,
+                                    preferred_desc=preferred_desc,
+                                )
                                 normalize_episode_num_elements(elem)
                                 apply_channel_offset(elem)
 
