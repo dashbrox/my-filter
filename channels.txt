@@ -226,3 +226,4 @@ GoldenPremier2.cr
 TNTSeries.pe
 WarnerChannel.us@Mexico
 mx#hbo-oeste-hd
+StarChannel.mx@SD
