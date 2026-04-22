@@ -224,3 +224,5 @@ WarnerChannel.gt
 GoldenPremier.co
 GoldenPremier2.cr
 TNTSeries.pe
+WarnerChannel.us@Mexico
+mx#hbo-oeste-hd
