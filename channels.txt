@@ -202,7 +202,6 @@ ESPN+.gt
 ESPN3.gt
 HBOFamily.gt
 HBOMundi.gt
-HBOOeste.gt
 HBOPlusMexico.gt
 HBOPlusPanregional.gt
 HBOSignature.gt
