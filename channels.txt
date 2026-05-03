@@ -209,7 +209,6 @@ MTV.gt
 NationalGeographic.gt
 Sony.gt
 Syfy.gt
-TNT.gt
 TNTSeries.gt
 GoldenPremier.co
 GoldenPremier2.cr
