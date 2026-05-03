@@ -217,3 +217,4 @@ gt#hbo-oeste
 SkySportsPlus.uk
 SkySportsF1UHD.uk
 pe#tnt-series
+gt#hbo-signature
