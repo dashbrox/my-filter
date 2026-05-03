@@ -56,7 +56,6 @@ CinemaxAction.us
 CinemaxClassics.us
 CinemaxHits.us
 Cinemax.mx
-TNTSeries.gt
 AXN.gt
 AXNWhite.es
 AMC.ar
@@ -121,10 +120,8 @@ StarComedy.co
 USA.uy
 EEntertainmentTelevision.us
 SONYMOVIES.uy
-TNTSERIES.uy
 ANIMALPLANET.uy
 ENTERTAINMENTTELEVISION.uy
-TNTSeries.cl
 Golden.mx
 GoldenEdge.mx
 GoldenPremier.mx
@@ -209,7 +206,6 @@ MTV.gt
 NationalGeographic.gt
 Sony.gt
 Syfy.gt
-TNTSeries.gt
 GoldenPremier.co
 GoldenPremier2.cr
 TNTSeries.pe
@@ -221,3 +217,4 @@ gt#hbo-2
 gt#hbo-oeste
 SkySportsPlus.uk
 SkySportsF1UHD.uk
+pe#tnt-series
