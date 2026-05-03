@@ -56,7 +56,6 @@ CinemaxAction.us
 CinemaxClassics.us
 CinemaxHits.us
 Cinemax.mx
-TNT.mx
 TNTSeries.gt
 AXN.gt
 AXNWhite.es
