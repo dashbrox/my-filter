@@ -52,8 +52,6 @@ HBOSignature.co
 HBOXtreme.co
 HBOPlusEste.co
 HBOFamily.co
-HBO2.mx
-HBO.mx
 CinemaxAction.us
 CinemaxClassics.us
 CinemaxHits.us
@@ -202,7 +200,6 @@ E!.gt
 ESPN.gt
 ESPN+.gt
 ESPN3.gt
-HBO2.gt
 HBOFamily.gt
 HBOMundi.gt
 HBOOeste.gt
