@@ -219,4 +219,5 @@ SkySportsF1UHD.uk
 pe#tnt-series
 gt#hbo-signature
 gt#hbo-plus-mexico
+mx#hbo-plus-mexico
 gt#max-prime-mexico
