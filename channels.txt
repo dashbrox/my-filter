@@ -222,3 +222,4 @@ gt#hbo-2
 gt#hbo-oeste
 SkySportsPlus.uk
 SkySportsF1UHD.uk
+co#max-up
