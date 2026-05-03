@@ -132,6 +132,7 @@ GoldenPremier.mx
 GoldenPremier2.mx
 gt#max
 gt#tnt-hd
+mx#tnt-hd
 gt#space
 gt#sony
 NationalGeographicLatinAmerica.us@Panregional
