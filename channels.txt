@@ -85,7 +85,6 @@ ElGourmet.mx
 Panico.cr
 ESPN2.mx
 ESPN.mx
-Space.co
 Lifetime.ar
 filmAndarts.ar
 NationalGeographic.ar
@@ -209,7 +208,6 @@ Lifetime.gt
 MTV.gt
 NationalGeographic.gt
 Sony.gt
-Space.gt
 Syfy.gt
 TNT.gt
 TNTSeries.gt
