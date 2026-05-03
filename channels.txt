@@ -96,7 +96,6 @@ AandE.ar
 FashionTV.uk
 CWWPIX.us
 DisneyChannel.mx
-StarChannel.pe
 plex.tv.Tennis.Channel.2.plex
 plex.tv.Tennis+.plex
 M+.Estrenos.es
@@ -211,7 +210,6 @@ MTV.gt
 NationalGeographic.gt
 Sony.gt
 Space.gt
-StarChannel.gt
 Syfy.gt
 TNT.gt
 TNTSeries.gt
