@@ -32,8 +32,6 @@ EPG_MITV_PE = f"{MITV_BASE}/pe.xml"
 EPG_MITV_PY = f"{MITV_BASE}/py.xml"
 EPG_MITV_SV = f"{MITV_BASE}/sv.xml"
 
-EPG_GATOTV = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/gatotv.com/guide.xml"
-
 EPG_URLS = [f"https://iptv-epg.org/files/epg-{code}.xml" for code in EPG_COUNTRY_CODES]
 EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
@@ -51,7 +49,6 @@ EPG_URLS += [
     EPG_MITV_PE,
     EPG_MITV_PY,
     EPG_MITV_SV,
-    EPG_GATOTV,
 ]
 EPG_URLS = list(dict.fromkeys(EPG_URLS))
 
