@@ -225,9 +225,6 @@ def normalize_mitv_channel_id(ch_id):
 
     ch_id = ch_id.strip()
 
-    # CAMBIO:
-    # mi.tv usa ids como gt#hbo-plus-mexico
-    # se deben normalizar a gt.hboplusmexico
     match = re.match(r"^([a-z]{2})#(.+)$", ch_id, re.IGNORECASE)
     if match:
         country = match.group(1).lower()
@@ -998,7 +995,7 @@ def replace_all_title_elements(elem, new_title, prefer_latam=False):
     new_title_elem = ET.Element("title")
     new_title_elem.text = new_title
     if prefer_latam:
-        new_title_elem.set("lang", "es")
+        new_title_elem.set("lang", "es-419")
     elem.insert(0, new_title_elem)
 
 def set_or_replace_subtitle(elem, subtitle_text, prefer_latam=False):
@@ -1009,7 +1006,7 @@ def set_or_replace_subtitle(elem, subtitle_text, prefer_latam=False):
     new_sub = ET.Element("sub-title")
     new_sub.text = subtitle_text
     if prefer_latam:
-        new_sub.set("lang", "es")
+        new_sub.set("lang", "es-419")
     title_index = 0
     for i, child in enumerate(list(elem)):
         if child.tag == "title":
@@ -1025,7 +1022,7 @@ def set_or_replace_desc(elem, desc_text, prefer_latam=False):
     new_desc = ET.Element("desc")
     new_desc.text = desc_text
     if prefer_latam:
-        new_desc.set("lang", "es")
+        new_desc.set("lang", "es-419")
     children = list(elem)
     insert_index = len(children)
     for i, child in enumerate(children):
@@ -1096,9 +1093,61 @@ def tmdb_search_multi(title, language):
     cache_set(cache_key, None)
     return None
 
+def get_tmdb_latam_title_via_translations(tmdb_id, media_type):
+    """Obtiene título en español LATAM usando /translations de TMDB."""
+    if not TMDB_API_KEY or not tmdb_id or media_type not in ("movie", "tv"):
+        return None
+    
+    cache_key = f"tmdb_translations:{media_type}:{tmdb_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    endpoint = "movie" if media_type == "movie" else "tv"
+    url = f"https://api.themoviedb.org/3/{endpoint}/{tmdb_id}/translations"
+    params = {"api_key": TMDB_API_KEY}
+    
+    try:
+        r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
+        if r.status_code == 200:
+            data = r.json()
+            translations = data.get("translations", [])
+            
+            priority = [
+                ("es", "MX"), ("es", "419"), ("es", "AR"), ("es", "CO"),
+                ("es", "CL"), ("es", "PE"), ("es", "US"), ("es", "ES")
+            ]
+            
+            for iso_639, iso_3166 in priority:
+                for t in translations:
+                    if t.get("iso_639_1") == iso_639 and t.get("iso_3166_1") == iso_3166:
+                        title = (t.get("data", {}).get("title") or "").strip()
+                        if title:
+                            cache_set(cache_key, title)
+                            return title
+            
+            for t in translations:
+                if t.get("iso_639_1") == "es":
+                    title = (t.get("data", {}).get("title") or "").strip()
+                    if title:
+                        cache_set(cache_key, title)
+                        return title
+                        
+    except Exception as e:
+        print(f"Error TMDB translations: {e}", flush=True)
+    
+    cache_set(cache_key, None)
+    return None
+
 def get_tmdb_localized_title(tmdb_id, media_type, prefer_latam=False):
     if not TMDB_API_KEY or not tmdb_id or media_type not in ("movie", "tv"):
         return None
+    
+    if prefer_latam:
+        latam_title = get_tmdb_latam_title_via_translations(tmdb_id, media_type)
+        if latam_title:
+            return latam_title
+    
     lang_chain = ["es-MX", "es-419", "es-AR", "es-CO", "es"] if prefer_latam else ["es-ES", "es"]
     for lang in lang_chain:
         cache_key = f"tmdb_title:{media_type}:{tmdb_id}:{lang}"
@@ -1122,15 +1171,42 @@ def get_tmdb_localized_title(tmdb_id, media_type, prefer_latam=False):
         cache_set(cache_key, None)
     return None
 
-def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False):
+def get_tmdb_latam_overview(tmdb_id, media_type):
+    """Obtiene el resumen (overview) en español LATAM."""
+    if not TMDB_API_KEY or not tmdb_id or media_type not in ("movie", "tv"):
+        return None
+    cache_key = f"tmdb_overview_latam:{media_type}:{tmdb_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    
+    endpoint = "movie" if media_type == "movie" else "tv"
+    url = f"https://api.themoviedb.org/3/{endpoint}/{tmdb_id}"
+    params = {"api_key": TMDB_API_KEY, "language": "es-MX"}
+    try:
+        r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
+        if r.status_code == 200:
+            data = r.json()
+            overview = (data.get("overview") or "").strip()
+            cache_set(cache_key, overview)
+            return overview
+    except Exception as e:
+        print(f"Error TMDB overview LATAM: {e}", flush=True)
+    cache_set(cache_key, None)
+    return None
+
+def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False, search_title_en=None):
     if not TMDB_API_KEY or not title:
         return None
     cache_key = f"tmdb_best_v2:{normalize_text(title)}:{normalize_text(subtitle)}:{normalize_text(desc)[:160]}:{year or ''}:{'latam' if prefer_latam else 'default'}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-    search_lang = "es-MX" if prefer_latam else "es-ES"
-    data = tmdb_search_multi(title, search_lang)
+    
+    search_query = search_title_en if search_title_en and prefer_latam else title
+    search_lang = "en" if search_title_en and prefer_latam else ("es-MX" if prefer_latam else "es-ES")
+    
+    data = tmdb_search_multi(search_query, search_lang)
     if not data or not data.get("results"):
         cache_set(cache_key, None)
         return None
@@ -1264,7 +1340,6 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
         ranked_shows.sort(key=lambda x: x[0], reverse=True)
         best_episode = None
         best_score = -999.0
-        subtitle_hint = strip_leading_se_from_text(subtitle or "").strip()
         for base_score, show, show_summary in ranked_shows[:5]:
             show_id = show.get("id")
             if not show_id:
@@ -1328,28 +1403,35 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
     base_title = remove_episode_title_from_series_title(base_title, subtitle_hint)
     final_title = base_title
     should_translate = prefer_latam and not xml_has_spanish_title
-    need_tmdb = (not final_year) or should_translate or prefer_latam
-    need_tv = not final_se
-    tmdb_data = None
-    canonical_title = None
-    tvmaze_data = None
-    source_canonical_title = base_title or clean_title or raw_title
     preferred_subtitle = None
     preferred_desc = None
     tvmaze_title_applied = False
-
-    if need_tmdb or need_tv:
-        tmdb_data = get_tmdb_data(final_title, desc=raw_desc, subtitle=subtitle_hint, year=final_year, prefer_latam=prefer_latam)
-
-    if tmdb_data:
-        localized_title = (tmdb_data.get("localized_title") or "").strip()
-        canonical_from_tmdb = (tmdb_data.get("canonical_title") or "").strip()
-        if localized_title:
-            canonical_title = localized_title
-            if should_translate or should_replace_with_localized_title(final_title, localized_title):
-                final_title = localized_title
-        elif canonical_from_tmdb:
-            canonical_title = canonical_from_tmdb
+    
+    # === LÓGICA ERICTA: SOLO CONSULTAR TMDB SI EXISTE TÍTULO EN INGLÉS ===
+    english_title = None
+    if prefer_latam:
+        for t_elem in elem.findall("title"):
+            if norm_lang(t_elem.get("lang")) in ("en", "en-us", "en-gb"):
+                english_title = (t_elem.text or "").strip()
+                break
+                
+    tmdb_data = None
+    if english_title and prefer_latam:
+        tmdb_data = get_tmdb_data(
+            english_title,
+            desc=raw_desc,
+            subtitle=subtitle_hint,
+            year=final_year,
+            prefer_latam=prefer_latam,
+            search_title_en=english_title
+        )
+        if tmdb_data and tmdb_data.get("localized_title"):
+            final_title = tmdb_data["localized_title"]
+            latam_overview = get_tmdb_latam_overview(tmdb_data["id"], tmdb_data["type"])
+            if latam_overview:
+                preferred_desc = latam_overview
+    # SI NO HAY TÍTULO EN INGLÉS: SE SALTA TMDB POR COMPLETO Y SE RESPETA EL ORIGINAL
+    # ========================================================================
 
     if not final_year and tmdb_data:
         final_year = tmdb_data.get("year")
@@ -1378,10 +1460,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
                 tvmaze_episode_summary = strip_html_tags(tvmaze_data.get("summary") or "")
                 if tvmaze_show_name:
                     final_title = tvmaze_show_name
-                    canonical_title = tvmaze_show_name
                     tvmaze_title_applied = True
-                elif tvmaze_data.get("show_name"):
-                    canonical_title = (tvmaze_data.get("show_name") or "").strip() or canonical_title
                 if tvmaze_episode_name:
                     preferred_subtitle = tvmaze_episode_name
                 if tvmaze_episode_summary:
@@ -1389,16 +1468,12 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
             elif tvmaze_data and tvmaze_data.get("show_name"):
                 tvmaze_show_name = tvmaze_data["show_name"].strip()
                 if normalize_text(final_title) == normalize_text(tvmaze_show_name):
-                    canonical_title = tvmaze_show_name
+                    pass
         except ValueError:
             pass
 
     if final_title and (prefer_latam or xml_has_spanish_title):
         final_title = spanish_title_case(final_title)
-    if canonical_title:
-        final_title = preserve_special_casing(final_title, canonical_title)
-    if source_canonical_title and not tvmaze_title_applied:
-        final_title = preserve_special_casing(final_title, source_canonical_title)
     final_title = apply_title_case_overrides(final_title)
     display_title = final_title
     is_series = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
@@ -1455,8 +1530,6 @@ def main():
         try:
             download_xml(url, TEMP_INPUT)
 
-            # CAMBIO:
-            # evitar elem.clear() global porque vacía hijos antes de procesar el padre
             context = ET.iterparse(TEMP_INPUT, events=("start", "end"))
             _, root = next(context)
 
@@ -1503,8 +1576,6 @@ def main():
                     print(f"[{idx}/{len(EPG_URLS)}] Fuente: {url}", flush=True)
                     download_xml(url, TEMP_INPUT)
 
-                    # CAMBIO:
-                    # evitar elem.clear() global porque vacía title/desc/display-name/url
                     context = ET.iterparse(TEMP_INPUT, events=("start", "end"))
                     _, root = next(context)
 
