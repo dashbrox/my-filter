@@ -119,20 +119,12 @@ EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
 EPG_MITV = EPG_MITV_GT
 
 CHANNEL_SOURCE_RULES = {
-    "Space.co": [EPG_CO1],
     "M+.Estrenos.es": [EPG_ES1],
     "DAZN.F1.es": [EPG_ES1],
     "tennis-plus": [EPG_RAKUTEN],
     "fashion-tv": [EPG_RAKUTEN],
     "SuperTennis.HD.it": [EPG_IT],
     "UK:.Tennis.Channel.be": [EPG_RAKUTEN2],
-    "Canal.DW.(Latinoamérica).mx": [EPG_MX],
-    "Canal.Universal.Cinema.sv": [EPG_SV1],
-    "Canal.Universal.Comedy.sv": [EPG_SV1],
-    "Canal.Universal.Crime.sv": [EPG_SV1],
-    "Canal.Universal.Premiere.sv": [EPG_SV1],
-    "ENTERTAINMENTTELEVISION.uy": [EPG_UY1],
-    "gt.warner": [EPG_MITV],
 }
 
 # =========================
