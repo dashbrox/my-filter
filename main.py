@@ -112,14 +112,10 @@ CHANNEL_TIME_OFFSETS = {
     "WarnerChannel.gt": -2,
 }
 
-EPG_CO1 = "https://epgshare01.online/epgshare01/epg_ripper_CO1.xml.gz"
 EPG_ES1 = "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz"
 EPG_RAKUTEN = "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz"
 EPG_IT = "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz"
 EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
-EPG_MX = "https://epgshare01.online/epgshare01/epg_ripper_MX1.xml.gz"
-EPG_SV1 = "https://epgshare01.online/epgshare01/epg_ripper_SV1.xml.gz"
-EPG_UY1 = "https://iptv-epg.org/files/epg-uy.xml"
 EPG_MITV = EPG_MITV_GT
 
 CHANNEL_SOURCE_RULES = {
