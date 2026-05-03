@@ -228,3 +228,5 @@ WarnerChannel.us@Mexico
 mx#hbo-oeste-hd
 StarChannel.mx@SD
 mx#hbo-2
+gt#hbo-2
+gt#hbo-oeste
