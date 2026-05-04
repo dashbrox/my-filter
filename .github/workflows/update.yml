@@ -15,11 +15,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     env:
       PYTHONUNBUFFERED: "1"
       TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout
@@ -31,6 +32,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Cache de API
+        uses: actions/cache@v4
+        with:
+          path: api_cache.json
+          # Clave fija: no depende de channels.txt para evitar invalidación constante
+          key: ${{ runner.os }}-epg-cache-v1
+          # Fallback: restaura cualquier caché anterior si no existe la clave exacta
+          restore-keys: |
+            ${{ runner.os }}-epg-cache-
 
       - name: Instalar dependencias
         run: |
