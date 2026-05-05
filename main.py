@@ -1481,7 +1481,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
                         preferred_desc = latam_overview
         # SI NO HAY TÍTULO EN INGLÉS: SE SALTA TMDB Y SE RESPETA EL ORIGINAL
 
-    if not final_year and tmdb_
+    if not final_year and tmdb_data:
         final_year = tmdb_data.get("year")
 
     # CORRECCIÓN 5 y 8: TVMaze solo activo si NO es LATAM y hay contexto (S/E o Fecha)
@@ -1501,7 +1501,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
                     tvmaze_data = get_tvmaze_episode(fallback_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
             if not final_se and tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
-            if tvmaze_authoritative and tvmaze_
+            if tvmaze_authoritative and tvmaze_data:
                 tvmaze_show_name = (tvmaze_data.get("show_name") or "").strip()
                 tvmaze_episode_name = (tvmaze_data.get("name") or "").strip()
                 tvmaze_episode_summary = strip_html_tags(tvmaze_data.get("summary") or "")
