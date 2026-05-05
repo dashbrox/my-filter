@@ -194,6 +194,14 @@ def cache_get(key):
     return entry["data"]
 
 def cache_set(key, data):
+    # CORRECCIÓN 7: No cachear null para patrones no indexables
+    if data is None and key.startswith("tmdb_best_v2:"):
+        match = re.search(r"tmdb_best_v2:([^:]+):", key)
+        if match:
+            title = match.group(1).lower()
+            NON_INDEXABLE = re.compile(r"\b(alto frontera|cam alert|patrulla policial|noticiero|infomercial|televenta|paid programming|highlights|resumen|episodio \d+|temporada \d+)\b", re.IGNORECASE)
+            if NON_INDEXABLE.search(title):
+                return  # No guardar null para contenido no indexable
     api_cache[key] = {
         "ts": now_ts(),
         "data": data
@@ -402,6 +410,10 @@ def text_similarity(a, b):
 TITLE_CASE_OVERRIDES = {
     normalize_text("DTF St. Louis"): "DTF St. Louis",
     normalize_text("M3GAN 2.0"): "M3GAN 2.0",
+    normalize_text("e.t. el extraterrestre"): "E.T. el Extraterrestre",
+    normalize_text("e.t"): "E.T.",
+    normalize_text("kung fu panda"): "Kung Fu Panda",
+    normalize_text("escarabajo azul"): "Escarabajo Azul",
 }
 
 def strip_accents(text):
@@ -1073,15 +1085,23 @@ def normalize_episode_num_elements(elem):
 # TMDB
 # =========================
 
-def tmdb_search_multi(title, language):
-    if not TMDB_API_KEY:
+def tmdb_search_multi(title, language, year=None):
+    if not TMDB_API_KEY or not title:
         return None
-    cache_key = f"tmdb_search:{normalize_text(title)}:{language}"
+    
+    # Clave de caché incluye año para evitar colisiones
+    cache_key = f"tmdb_search:{normalize_text(title)}:{language}:{year or 'sin_año'}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
+
     url = "https://api.themoviedb.org/3/search/multi"
     params = {"api_key": TMDB_API_KEY, "query": title, "language": language}
+    
+    # REGLA ESTRICTA: Incluir año en la petición HTTP si existe
+    if year:
+        params["year"] = year
+
     try:
         r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
         if r.status_code == 200:
@@ -1203,14 +1223,34 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False, se
     if cached is not None:
         return cached
     
-    search_query = search_title_en if search_title_en and prefer_latam else title
+    # Limpiar query antes de usar
+    clean_query = re.split(r"[:|–—]", title)[0].strip()
+    clean_query = re.sub(r"\b(episodio|temporada|capitulo|cap\.)\s*\d+", "", clean_query, flags=re.IGNORECASE).strip()
+    clean_query = re.sub(r"\b(s\d{1,2}\s*e\d{1,2}|t\d{1,2}\s*e\d{1,2})\b", "", clean_query, flags=re.IGNORECASE).strip()
+    
+    if not clean_query or len(clean_query) < 4:
+        cache_set(cache_key, None)
+        return None
+    
+    expected_type = infer_media_type_from_desc(desc)
+    
+    # CORRECCIÓN 8 (ESTRICTA): Película sin año = ABORTAR.
+    # Esto evita confundir homónimos como "It" (1990) vs "It" (2017) si no se especifica el año.
+    if expected_type == "movie" and not year:
+        cache_set(cache_key, None)
+        return None
+
+    search_query = search_title_en if search_title_en and prefer_latam else clean_query
     search_lang = "en" if search_title_en and prefer_latam else ("es-MX" if prefer_latam else "es-ES")
     
-    data = tmdb_search_multi(search_query, search_lang)
+    # Para series, no pasamos el año a la API de búsqueda porque suele ser el año del episodio,
+    # no el de estreno, y eso causaría falsos negativos. Pero para películas, es obligatorio.
+    data = tmdb_search_multi(search_query, search_lang, year=year if expected_type == "movie" else None)
+    
     if not data or not data.get("results"):
         cache_set(cache_key, None)
         return None
-    expected_type = infer_media_type_from_desc(desc)
+        
     norm_title = normalize_text(title)
     source_sequel = detect_sequel_marker(title)
     ambiguous_title = is_ambiguous_title(title)
@@ -1407,44 +1447,51 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
     preferred_desc = None
     tvmaze_title_applied = False
     
-    # === LÓGICA ERICTA: SOLO CONSULTAR TMDB SI EXISTE TÍTULO EN INGLÉS ===
-    english_title = None
-    if prefer_latam:
-        for t_elem in elem.findall("title"):
-            if norm_lang(t_elem.get("lang")) in ("en", "en-us", "en-gb"):
-                english_title = (t_elem.text or "").strip()
-                break
-                
-    tmdb_data = None
-    if english_title and prefer_latam:
-        tmdb_data = get_tmdb_data(
-            english_title,
-            desc=raw_desc,
-            subtitle=subtitle_hint,
-            year=final_year,
-            prefer_latam=prefer_latam,
-            search_title_en=english_title
-        )
-        if tmdb_data and tmdb_data.get("localized_title"):
-            final_title = tmdb_data["localized_title"]
-            latam_overview = get_tmdb_latam_overview(tmdb_data["id"], tmdb_data["type"])
-            if latam_overview:
-                preferred_desc = latam_overview
-    # SI NO HAY TÍTULO EN INGLÉS: SE SALTA TMDB POR COMPLETO Y SE RESPETA EL ORIGINAL
-    # ========================================================================
+    # CORRECCIÓN 2: Filtrar contenido no indexable antes de consultar APIs
+    NON_INDEXABLE = re.compile(r"\b(alto frontera|cam alert|patrulla policial|noticiero|infomercial|televenta|paid programming|highlights|resumen|hechos|eyewitness|cbs news|nbc4|pix11|fox 5|sportscentre|deportes|nba|nfl|mlb|tennis|formula 1|f1|motogp)\b", re.IGNORECASE)
+    if NON_INDEXABLE.search(f"{base_title} {raw_desc}"):
+        # Saltar consultas a APIs para contenido no indexable
+        tmdb_data = None
+        tvmaze_data = None
+    else:
+        # === LÓGICA PARA LATAM: USAR TÍTULO EN INGLÉS PARA TMDB ===
+        english_title = None
+        if prefer_latam:
+            for t_elem in elem.findall("title"):
+                if norm_lang(t_elem.get("lang")) in ("en", "en-us", "en-gb"):
+                    english_title = (t_elem.text or "").strip()
+                    break
+                    
+        tmdb_data = None
+        if english_title and prefer_latam:
+            tmdb_data = get_tmdb_data(
+                english_title,
+                desc=raw_desc,
+                subtitle=subtitle_hint,
+                year=final_year,
+                prefer_latam=prefer_latam,
+                search_title_en=english_title
+            )
+            if tmdb_data and tmdb_data.get("localized_title"):
+                final_title = tmdb_data["localized_title"]
+                # CORRECCIÓN 4: Solo inyectar sinopsis para películas, no series
+                if tmdb_data.get("type") == "movie":
+                    latam_overview = get_tmdb_latam_overview(tmdb_data["id"], "movie")
+                    if latam_overview:
+                        preferred_desc = latam_overview
+        # SI NO HAY TÍTULO EN INGLÉS: SE SALTA TMDB Y SE RESPETA EL ORIGINAL
 
-    if not final_year and tmdb_data:
+    if not final_year and tmdb_
         final_year = tmdb_data.get("year")
 
-    should_try_tvmaze = False
-    if tmdb_data and tmdb_data.get("type") == "tv":
-        should_try_tvmaze = True
-    elif final_se:
-        should_try_tvmaze = True
+    # CORRECCIÓN 5 y 8: TVMaze solo activo si NO es LATAM y hay contexto (S/E o Fecha)
+    # REGLA ESTRICTA: Nunca buscar TVMaze "a ciegas" sin fecha o temporada.
+    air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d") if start_time_str and len(start_time_str) >= 8 else None
+    has_context = air_date or final_se
+    should_try_tvmaze = not prefer_latam and has_context and (final_se or (tmdb_data and tmdb_data.get("type") == "tv"))
 
     if should_try_tvmaze:
         try:
-            air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
             query_title = final_title or base_title or clean_title
             tvmaze_data = get_tvmaze_episode(query_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
             if not tvmaze_data and clean_title and clean_title != query_title:
@@ -1454,7 +1501,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
                     tvmaze_data = get_tvmaze_episode(fallback_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
             if not final_se and tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
-            if tvmaze_authoritative and tvmaze_data:
+            if tvmaze_authoritative and tvmaze_
                 tvmaze_show_name = (tvmaze_data.get("show_name") or "").strip()
                 tvmaze_episode_name = (tvmaze_data.get("name") or "").strip()
                 tvmaze_episode_summary = strip_html_tags(tvmaze_data.get("summary") or "")
