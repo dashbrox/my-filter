@@ -823,6 +823,57 @@ def detect_title_language(text):
 # CAPA 2: CAPITALIZACION INTELIGENTE
 # =========================
 
+def commercial_title_case(text, lang="es"):
+    """
+    Capitalización comercial profesional. Se aplica SIEMPRE al final.
+    - Primera palabra: siempre mayúscula.
+    - Después de : | - – : siempre mayúscula.
+    - Artículos, preposiciones y conjunciones cortas: minúscula.
+    - Acrónimos (HBO, G.I., USA, 4K, M3GAN, etc.): se preservan.
+    - Números romanos: se preservan.
+    """
+    if not text:
+        return ""
+    text = re.sub(r':(\S)', r': ', text)
+    text = re.sub(r'\|(\S)', r'| ', text)
+    text = re.sub(r'–(\S)', r'– ', text)
+    text = text.strip()
+    words = text.split()
+    if not words:
+        return ""
+    if lang == "es":
+        minor_words = SPANISH_MINOR_WORDS
+    else:
+        minor_words = {
+            "a", "an", "and", "as", "at", "but", "by", "for", "from", "in",
+            "nor", "of", "on", "or", "per", "the", "to", "vs", "vs.", "v",
+            "v.", "with"
+        }
+    result = []
+    for idx, word in enumerate(words):
+        if not word:
+            continue
+        if should_preserve_allcaps_token(word) or has_special_uppercase_pattern(word):
+            result.append(word)
+            continue
+        if re.fullmatch(r"[IVXLCDM]+", word):
+            result.append(word)
+            continue
+        after_separator = False
+        if idx > 0:
+            prev = words[idx - 1]
+            if any(prev.endswith(s) for s in (":", "|", "-", "–")):
+                after_separator = True
+        low = word.lower()
+        if idx == 0 or after_separator:
+            result.append(low[:1].upper() + low[1:] if len(low) > 1 else low.upper())
+            continue
+        if low in minor_words:
+            result.append(low)
+            continue
+        result.append(low[:1].upper() + low[1:] if len(low) > 1 else low.upper())
+    return " ".join(result)
+
 def looks_clean_title(text):
     return (
         text
@@ -1140,7 +1191,7 @@ def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False, prefe
     chosen_subtitle = strip_leading_se_from_text(chosen_subtitle).strip()
     should_spanish_case_subtitle = bool(chosen_subtitle) and (prefer_latam or has_spanish_variant(elem, "sub-title") or extracted_ep_title is not None)
     if chosen_subtitle and should_spanish_case_subtitle:
-        chosen_subtitle = smart_title_case(chosen_subtitle, prefer_latam=prefer_latam)
+        chosen_subtitle = commercial_title_case(chosen_subtitle, lang="es" if prefer_latam else "en")
     set_or_replace_subtitle(elem, chosen_subtitle, prefer_latam=prefer_latam)
     final_desc = cleaned_desc
     if is_series and chosen_subtitle:
