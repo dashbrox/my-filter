@@ -834,8 +834,9 @@ def looks_clean_title(text):
 def spanish_title_case(text):
     if not text:
         return ""
-    if looks_clean_title(text):
-        return text
+    # FIX: No usar looks_clean_title como early return.
+    # TMDB devuelve títulos localizados en español con capitalización inconsistente
+    # (ej: "Exterminio: El templo de huesos"). Siempre aplicar reglas españolas.
     text = re.sub(r':(\S)', r': \1', text).strip()
     words = text.split()
     if not words:
@@ -865,6 +866,7 @@ def spanish_title_case(text):
             result.append(word)
             continue
         low = word.lower()
+        # Primera palabra o palabra después de dos puntos (inicio de subtítulo)
         if idx == 0 or (idx > 0 and words[idx-1].endswith(":")):
             result.append(low[:1].upper() + low[1:] if len(low) > 1 else low.upper())
             continue
@@ -1575,6 +1577,7 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
 
         best_movie = None
         best_score = -1.0
+        has_subtitle = ":" in base_title or " - " in base_title
 
         if tmdb_results and tmdb_results.get("results"):
             for item in tmdb_results["results"][:10]:
@@ -1590,6 +1593,7 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
                 # REGLA ESTRICTA DE PELICULA:
                 # - Si hay año en el EPG, debe coincidir (±1 año)
                 # - Si NO hay año, el título debe ser match > 0.92 (casi exacto)
+                # - Si el título tiene subtítulo (:), exigir match más alto
                 year_ok = True
                 if final_year and cand_year:
                     try:
@@ -1598,7 +1602,8 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
                     except Exception:
                         year_ok = False
                 elif not final_year:
-                    if title_sim < 0.92:
+                    min_sim = 0.95 if has_subtitle else 0.92
+                    if title_sim < min_sim:
                         year_ok = False
 
                 if not year_ok:
@@ -1612,8 +1617,13 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
                     best_score = score
                     best_movie = item
 
-        # Aplicar SOLO si encontramos una pelicula valida
-        if best_movie and best_score >= 6.0:
+        # Umbrales estrictos según confianza del match
+        score_threshold = 6.0 if (final_year and best_movie and extract_candidate_year(best_movie) == str(final_year)) else 8.5
+        if has_subtitle and not final_year:
+            score_threshold = 9.0  # Muy estricto si tiene subtítulo pero no año
+
+        # Aplicar SOLO si encontramos una pelicula valida con score suficiente
+        if best_movie and best_score >= score_threshold:
             movie_id = best_movie.get("id")
             # Obtener título localizado según region
             localized = get_tmdb_localized_title(movie_id, "movie", prefer_latam=prefer_latam)
@@ -1622,25 +1632,26 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
             final_title = localized or canonical or base_title
             api_data_found = True
 
-            # Obtener sinopsis localizada
-            overview = None
-            if prefer_latam:
-                overview = get_tmdb_latam_overview(movie_id, "movie")
-            if not overview:
-                ov_lang = "es-MX" if prefer_latam else "en-US"
-                try:
-                    r = SESSION.get(
-                        f"https://api.themoviedb.org/3/movie/{movie_id}",
-                        params={"api_key": TMDB_API_KEY, "language": ov_lang},
-                        timeout=API_TIMEOUT
-                    )
-                    if r.status_code == 200:
-                        overview = (r.json().get("overview") or "").strip()
-                except Exception:
-                    pass
+            # Obtener sinopsis localizada SOLO si el match es muy fuerte
+            if best_score >= 8.0:
+                overview = None
+                if prefer_latam:
+                    overview = get_tmdb_latam_overview(movie_id, "movie")
+                if not overview:
+                    ov_lang = "es-MX" if prefer_latam else "en-US"
+                    try:
+                        r = SESSION.get(
+                            f"https://api.themoviedb.org/3/movie/{movie_id}",
+                            params={"api_key": TMDB_API_KEY, "language": ov_lang},
+                            timeout=API_TIMEOUT
+                        )
+                        if r.status_code == 200:
+                            overview = (r.json().get("overview") or "").strip()
+                    except Exception:
+                        pass
 
-            if overview and not is_tba(overview):
-                preferred_desc = overview
+                if overview and not is_tba(overview):
+                    preferred_desc = overview
 
             # Subtítulo: año de la pelicula si no habia uno util
             if not preferred_subtitle and final_year:
@@ -1821,14 +1832,15 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
         if normalize_text(final_title) == normalize_text(cached):
             final_title = cached
 
-    # Capitalizacion inteligente
-    title_lang = detect_title_language(final_title)
+    # === CAPITALIZACIÓN COMERCIAL FINAL ===
+    # Se aplica SIEMPRE como último paso. No importa si vino del EPG, TMDB o TVMaze.
+    # El casing original se ignora; se fuerza el estilo profesional.
     if final_title:
-        final_title = smart_title_case(final_title, prefer_latam=prefer_latam, detected_lang=title_lang)
-
-    # Preservar casing especial de APIs
-    if api_data_found and base_title:
-        final_title = preserve_special_casing(final_title, base_title)
+        final_title = commercial_title_case(final_title, lang=target_lang)
+    
+    # Subtítulo también: capitalización comercial
+    if preferred_subtitle:
+        preferred_subtitle = commercial_title_case(preferred_subtitle, lang=target_lang)
 
     final_title = apply_title_case_overrides(final_title)
 
