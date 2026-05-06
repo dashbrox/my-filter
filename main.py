@@ -20,7 +20,7 @@ ar bo ca co cl cr do ec sv gt
 hn it mx py pe es gb us uy ve 
 """.split()
 
-MITV_BASE = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv"
+MITV_BASE = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv "
 
 EPG_MITV_AR = f"{MITV_BASE}/ar.xml"
 EPG_MITV_CL = f"{MITV_BASE}/cl.xml"
@@ -32,14 +32,14 @@ EPG_MITV_PE = f"{MITV_BASE}/pe.xml"
 EPG_MITV_PY = f"{MITV_BASE}/py.xml"
 EPG_MITV_SV = f"{MITV_BASE}/sv.xml"
 
-EPG_URLS = [f"https://iptv-epg.org/files/epg-{code}.xml" for code in EPG_COUNTRY_CODES]
+EPG_URLS = [f"https://iptv-epg.org/files/epg- {code}.xml" for code in EPG_COUNTRY_CODES]
 EPG_URLS += [
-    "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
-    "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz ",
+    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz ",
+    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz ",
+    "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz ",
+    "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz ",
+    "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz ",
     EPG_MITV_AR,
     EPG_MITV_CL,
     EPG_MITV_CO,
@@ -112,10 +112,10 @@ CHANNEL_TIME_OFFSETS = {
     "WarnerChannel.gt": -2,
 }
 
-EPG_ES1 = "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz"
-EPG_RAKUTEN = "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz"
-EPG_IT = "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz"
-EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
+EPG_ES1 = "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz "
+EPG_RAKUTEN = "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz "
+EPG_IT = "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz "
+EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz "
 EPG_MITV = EPG_MITV_GT
 
 CHANNEL_SOURCE_RULES = {
@@ -1076,15 +1076,17 @@ def normalize_episode_num_elements(elem):
 # TMDB
 # =========================
 
-def tmdb_search_multi(title, language):
+def tmdb_search_multi(title, language, year=None):
     if not TMDB_API_KEY:
         return None
-    cache_key = f"tmdb_search:{normalize_text(title)}:{language}"
+    cache_key = f"tmdb_search:{normalize_text(title)}:{language}:{year or ''}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-    url = "https://api.themoviedb.org/3/search/multi"
+    url = "https://api.themoviedb.org/3/search/multi "
     params = {"api_key": TMDB_API_KEY, "query": title, "language": language}
+    if year:
+        params["year"] = year
     try:
         r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
         if r.status_code == 200:
@@ -1096,63 +1098,134 @@ def tmdb_search_multi(title, language):
     cache_set(cache_key, None)
     return None
 
-def get_tmdb_localized_title(tmdb_id, media_type, prefer_latam=False):
-    if not TMDB_API_KEY or not tmdb_id or media_type not in ("movie", "tv"):
+def tmdb_find_by_external_id(imdb_id, source="imdb_id"):
+    if not TMDB_API_KEY or not imdb_id:
         return None
-    lang_chain = ["es-MX", "es-419", "es-AR", "es-CO", "es"] if prefer_latam else ["es-ES", "es"]
+    cache_key = f"tmdb_find:{source}:{imdb_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    url = f"https://api.themoviedb.org/3/find/ {imdb_id}"
+    params = {"api_key": TMDB_API_KEY, "external_source": source}
+    try:
+        r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
+        if r.status_code == 200:
+            data = r.json()
+            cache_set(cache_key, data)
+            return data
+    except Exception as e:
+        print(f"Error TMDB find: {e}", flush=True)
+    cache_set(cache_key, None)
+    return None
+
+def get_tmdb_localized_details(tmdb_id, media_type, prefer_latam=False):
+    if not TMDB_API_KEY or not tmdb_id or media_type not in ("movie", "tv"):
+        return None, None
+    if prefer_latam:
+        lang_chain = ["es-MX", "es-419", "es-AR", "es-CO", "es-CL", "es-PE", "es-US", "es"]
+    else:
+        lang_chain = ["en-US", "en", "es-ES", "es"]
     for lang in lang_chain:
-        cache_key = f"tmdb_title:{media_type}:{tmdb_id}:{lang}"
+        cache_key = f"tmdb_details:{media_type}:{tmdb_id}:{lang}"
         cached = cache_get(cache_key)
         if cached is not None:
             if cached:
-                return cached
+                return cached.get("title"), cached.get("overview")
             continue
-        url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}"
+        url = f"https://api.themoviedb.org/3/ {media_type}/{tmdb_id}"
         params = {"api_key": TMDB_API_KEY, "language": lang}
         try:
             r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
             if r.status_code == 200:
                 data = r.json()
                 title = (data.get("title") or data.get("name") or "").strip()
+                overview = (data.get("overview") or "").strip()
                 if title:
-                    cache_set(cache_key, title)
-                    return title
+                    result = {"title": title, "overview": overview}
+                    cache_set(cache_key, result)
+                    return title, overview
         except Exception as e:
-            print(f"Error TMDB localized title: {e}", flush=True)
+            print(f"Error TMDB localized details: {e}", flush=True)
         cache_set(cache_key, None)
-    return None
+    return None, None
 
-def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False):
+def get_tmdb_tv_episode_details(tmdb_id, season, episode, prefer_latam=False):
+    if not TMDB_API_KEY or not tmdb_id or season is None or episode is None:
+        return None, None
+    if prefer_latam:
+        lang_chain = ["es-MX", "es-419", "es-AR", "es-CO", "es-CL", "es-PE", "es-US", "es"]
+    else:
+        lang_chain = ["en-US", "en", "es-ES", "es"]
+    for lang in lang_chain:
+        cache_key = f"tmdb_episode:{tmdb_id}:{season}:{episode}:{lang}"
+        cached = cache_get(cache_key)
+        if cached is not None:
+            if cached:
+                return cached.get("name"), cached.get("overview")
+            continue
+        url = f"https://api.themoviedb.org/3/tv/ {tmdb_id}/season/{season}/episode/{episode}"
+        params = {"api_key": TMDB_API_KEY, "language": lang}
+        try:
+            r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
+            if r.status_code == 200:
+                data = r.json()
+                name = (data.get("name") or "").strip()
+                overview = (data.get("overview") or "").strip()
+                if name:
+                    result = {"name": name, "overview": overview}
+                    cache_set(cache_key, result)
+                    return name, overview
+        except Exception as e:
+            print(f"Error TMDB episode details: {e}", flush=True)
+        cache_set(cache_key, None)
+    return None, None
+
+def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False, season=None, episode=None):
     if not TMDB_API_KEY or not title:
         return None
-    cache_key = f"tmdb_best_v2:{normalize_text(title)}:{normalize_text(subtitle)}:{normalize_text(desc)[:160]}:{year or ''}:{'latam' if prefer_latam else 'default'}"
+    cache_key = f"tmdb_best_v3:{normalize_text(title)}:{normalize_text(subtitle)}:{normalize_text(desc)[:160]}:{year or ''}:{season or ''}:{episode or ''}:{'latam' if prefer_latam else 'default'}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-    search_lang = "es-MX" if prefer_latam else "es-ES"
-    data = tmdb_search_multi(title, search_lang)
+
+    # Buscar primero en ingles para obtener match correcto del contenido
+    search_lang = "en-US"
+    data = tmdb_search_multi(title, search_lang, year=year)
+
+    # Fallback: si no hay resultados en ingles, buscar en el idioma local
+    if not data or not data.get("results"):
+        fallback_lang = "es-MX" if prefer_latam else "en-US"
+        if fallback_lang != search_lang:
+            data = tmdb_search_multi(title, fallback_lang, year=year)
+
     if not data or not data.get("results"):
         cache_set(cache_key, None)
         return None
+
     expected_type = infer_media_type_from_desc(desc)
     norm_title = normalize_text(title)
     source_sequel = detect_sequel_marker(title)
     ambiguous_title = is_ambiguous_title(title)
     best_item = None
     best_score = -999.0
+
     for item in data.get("results", [])[:10]:
         media_type = item.get("media_type")
         if media_type not in ("movie", "tv"):
             continue
+
         candidate_title = (item.get("title") or item.get("name") or "").strip()
         candidate_original = (item.get("original_title") or item.get("original_name") or "").strip()
         overview = item.get("overview") or ""
         candidate_year = extract_candidate_year(item)
+
         title_ratio = max(text_similarity(title, candidate_title), text_similarity(title, candidate_original))
         desc_ratio = overlap_score(desc, overview) if desc and overview else 0.0
+
         min_title_ratio = 0.78 if ambiguous_title else 0.58
         if title_ratio < min_title_ratio:
             continue
+
         if desc and overview:
             if title_ratio < 0.93 and desc_ratio < 0.18:
                 continue
@@ -1160,12 +1233,14 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False):
                 continue
         elif ambiguous_title and desc:
             continue
+
         if year and candidate_year:
             try:
                 if abs(int(year) - int(candidate_year)) > 1:
                     continue
             except Exception:
                 pass
+
         candidate_sequel = detect_sequel_marker(candidate_title) or detect_sequel_marker(candidate_original)
         score = 0.0
         score += title_ratio * 8.0
@@ -1198,18 +1273,35 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False):
         if score > best_score:
             best_score = score
             best_item = item
+
     if not best_item or best_score < 5.5:
         cache_set(cache_key, None)
         return None
+
     result = {
         "type": best_item.get("media_type"),
         "year": extract_candidate_year(best_item),
         "id": best_item.get("id"),
         "localized_title": None,
+        "localized_overview": None,
         "canonical_title": (best_item.get("title") or best_item.get("name") or "").strip() or None,
         "match_score": round(best_score, 3),
     }
-    result["localized_title"] = get_tmdb_localized_title(result["id"], result["type"], prefer_latam=prefer_latam)
+
+    # Obtener titulo y sinopsis localizados segun el idioma del canal
+    loc_title, loc_overview = get_tmdb_localized_details(result["id"], result["type"], prefer_latam=prefer_latam)
+    if loc_title:
+        result["localized_title"] = loc_title
+        result["localized_overview"] = loc_overview
+
+    # Para series con temporada/episodio, obtener datos del episodio localizado
+    if result["type"] == "tv" and season is not None and episode is not None:
+        ep_name, ep_overview = get_tmdb_tv_episode_details(result["id"], season, episode, prefer_latam=prefer_latam)
+        if ep_name:
+            result["episode_name"] = ep_name
+        if ep_overview:
+            result["episode_overview"] = ep_overview
+
     cache_set(cache_key, result)
     return result
 
@@ -1223,7 +1315,7 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
     if cached is not None:
         return cached
     try:
-        r_show = SESSION.get("https://api.tvmaze.com/search/shows", params={"q": show_name}, timeout=API_TIMEOUT)
+        r_show = SESSION.get("https://api.tvmaze.com/search/shows ", params={"q": show_name}, timeout=API_TIMEOUT)
         if r_show.status_code != 200:
             cache_set(cache_key, None)
             return None
@@ -1269,7 +1361,7 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
             show_id = show.get("id")
             if not show_id:
                 continue
-            r_ep = SESSION.get(f"https://api.tvmaze.com/shows/{show_id}/episodesbydate", params={"date": air_date}, timeout=API_TIMEOUT)
+            r_ep = SESSION.get(f"https://api.tvmaze.com/shows/ {show_id}/episodesbydate", params={"date": air_date}, timeout=API_TIMEOUT)
             if r_ep.status_code != 200:
                 continue
             episodes = r_ep.json() or []
@@ -1328,7 +1420,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
     base_title = remove_episode_title_from_series_title(base_title, subtitle_hint)
     final_title = base_title
     should_translate = prefer_latam and not xml_has_spanish_title
-    need_tmdb = (not final_year) or should_translate or prefer_latam
+    need_tmdb = (not final_year) or should_translate or prefer_latam or True
     need_tv = not final_se
     tmdb_data = None
     canonical_title = None
@@ -1338,18 +1430,65 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
     preferred_desc = None
     tvmaze_title_applied = False
 
-    if need_tmdb or need_tv:
-        tmdb_data = get_tmdb_data(final_title, desc=raw_desc, subtitle=subtitle_hint, year=final_year, prefer_latam=prefer_latam)
+    # Parsear season/episode para busqueda TMDB de series
+    tmdb_season = None
+    tmdb_episode = None
+    if final_se:
+        m = re.match(r"^\s*S(\d{2})\s*E(\d{2})\s*$", final_se, flags=re.IGNORECASE)
+        if m:
+            tmdb_season = int(m.group(1))
+            tmdb_episode = int(m.group(2))
+
+    # Buscar en TMDB siempre para obtener informacion correcta
+    tmdb_data = get_tmdb_data(
+        final_title,
+        desc=raw_desc,
+        subtitle=subtitle_hint,
+        year=final_year,
+        prefer_latam=prefer_latam,
+        season=tmdb_season,
+        episode=tmdb_episode,
+    )
 
     if tmdb_data:
         localized_title = (tmdb_data.get("localized_title") or "").strip()
         canonical_from_tmdb = (tmdb_data.get("canonical_title") or "").strip()
-        if localized_title:
+
+        # Para canales LATAM/Espana: usar titulo en espanol latino
+        # Para canales NO LATAM: usar titulo en ingles (canonical/en)
+        if prefer_latam and localized_title:
+            canonical_title = localized_title
+            if should_translate or should_replace_with_localized_title(final_title, localized_title):
+                final_title = localized_title
+        elif not prefer_latam and canonical_from_tmdb:
+            # Canales no LATAM: mantener en ingles
+            canonical_title = canonical_from_tmdb
+            final_title = canonical_from_tmdb
+        elif localized_title:
             canonical_title = localized_title
             if should_translate or should_replace_with_localized_title(final_title, localized_title):
                 final_title = localized_title
         elif canonical_from_tmdb:
             canonical_title = canonical_from_tmdb
+
+        # Usar sinopsis de TMDB si esta disponible
+        if prefer_latam:
+            tmdb_overview = (tmdb_data.get("localized_overview") or "").strip()
+            ep_overview = (tmdb_data.get("episode_overview") or "").strip()
+        else:
+            tmdb_overview = (tmdb_data.get("localized_overview") or tmdb_data.get("overview") or "").strip()
+            ep_overview = (tmdb_data.get("episode_overview") or "").strip()
+
+        if ep_overview:
+            preferred_desc = ep_overview
+        elif tmdb_overview:
+            preferred_desc = tmdb_overview
+
+        # Para series, usar nombre del episodio localizado como subtitle
+        if tmdb_data.get("type") == "tv":
+            ep_name = (tmdb_data.get("episode_name") or "").strip()
+            if ep_name and not preferred_subtitle:
+                preferred_subtitle = ep_name
 
     if not final_year and tmdb_data:
         final_year = tmdb_data.get("year")
@@ -1393,6 +1532,13 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
         except ValueError:
             pass
 
+    # Si no hay datos de TMDB ni TVMaze, mantener exactamente lo que viene de la guia original
+    if not tmdb_data and not tvmaze_data:
+        final_title = base_title or clean_title or raw_title
+        preferred_subtitle = raw_subtitle if raw_subtitle else None
+        preferred_desc = raw_desc if raw_desc else None
+
+    # Aplicar capitalizacion solo si hay cambios o es LATAM
     if final_title and (prefer_latam or xml_has_spanish_title):
         final_title = spanish_title_case(final_title)
     if canonical_title:
@@ -1540,7 +1686,7 @@ def main():
                             is_ch_allowed = canonical_ch_id in allowed_canonical and is_source_allowed_for_channel(ch_id, url)
 
                             if is_ch_allowed:
-                                start = elem.get("start", "")
+                                start = elem.get("start")
                                 tvmaze_authoritative = should_use_tvmaze_authoritative(url, ch_id)
                                 new_title, is_series, preferred_subtitle, preferred_desc = process_programme(
                                     elem,
