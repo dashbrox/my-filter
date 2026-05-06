@@ -1518,13 +1518,12 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
             # Buscar en TVMaze si TMDB no es válido para TV
             pass # Ya consultado arriba
 
-    # 4. Aplicar API data si está completa
+        # 4. Aplicar API data si está completa
     if ep_title_api and not is_tba(ep_title_api):
-        if final_se:
-            final_title = f"{show_title_api or base_title} | {ep_title_api}"
-        else:
-            final_title = ep_title_api
+        # REGLA: El título del episodio va en preferred_subtitle, NUNCA en final_title
+        preferred_subtitle = ep_title_api
         tvmaze_title_applied = True
+    # final_title ya contiene el nombre de la serie (show_title_api o base_title)
         
     if ep_desc_api and not is_tba(ep_desc_api):
         preferred_desc = strip_html_tags(ep_desc_api)
@@ -1534,18 +1533,23 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
     if not final_year and tmdb_data:
         final_year = tmdb_data.get("year")
 
-    # 5. Pipeline de formato EXACTA al script base
+        # 5. Pipeline de formato: REGLAS DEL USUARIO SIEMPRE APLICAN
+    # a) spanish_title_case: normaliza mayúsculas/minúsculas según reglas en español
     if final_title and (prefer_latam or xml_has_spanish_title):
         final_title = spanish_title_case(final_title)
+    
+    # b) preserve_special_casing: protege acrónimos y patrones (CSI, HBO, E.T., etc.)
     if canonical_title:
         final_title = preserve_special_casing(final_title, canonical_title)
     if base_title and not tvmaze_title_applied:
         final_title = preserve_special_casing(final_title, base_title)
+    
+    # c) apply_title_case_overrides: aplica excepciones manuales (DTF St. Louis, etc.)
     final_title = apply_title_case_overrides(final_title)
     
+    # d) Construir display_title (esto ya estaba bien)
     display_title = final_title
     is_series_final = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
-    
     if final_se:
         display_se = format_season_episode_display(final_se, use_spanish=spanish_season_episode_format)
         display_title += f" | {display_se}"
