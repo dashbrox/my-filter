@@ -194,6 +194,7 @@ def cache_get(key):
     return entry["data"]
 
 def cache_set(key, data):
+    # No cachear null para patrones no indexables
     if data is None and key.startswith("tmdb_best_v2:"):
         match = re.search(r"tmdb_best_v2:([^:]+):", key)
         if match:
@@ -1208,6 +1209,7 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False, se
         return None
     
     expected_type = infer_media_type_from_desc(desc)
+    # CORRECCIÓN: Película sin año = ABORTAR
     if expected_type == "movie" and not year:
         cache_set(cache_key, None)
         return None
@@ -1416,140 +1418,146 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
     preferred_desc = None
     tvmaze_title_applied = False
     
+    # Filtrar contenido no indexable
     NON_INDEXABLE = re.compile(r"\b(alto frontera|cam alert|patrulla policial|noticiero|infomercial|televenta|paid programming|highlights|resumen|hechos|eyewitness|cbs news|nbc4|pix11|fox 5|sportscentre|deportes|nba|nfl|mlb|tennis|formula 1|f1|motogp)\b", re.IGNORECASE)
     if NON_INDEXABLE.search(f"{base_title} {raw_desc}"):
         tmdb_data = None
         tvmaze_data = None
     else:
-        english_title = None
+        # === LÓGICA PARA LATAM/ESPAÑA ===
         if prefer_latam:
+            english_title = None
             for t_elem in elem.findall("title"):
                 if norm_lang(t_elem.get("lang")) in ("en", "en-us", "en-gb"):
                     english_title = (t_elem.text or "").strip()
                     break
 
-        tmdb_data = None
+            tmdb_data = None
 
-        if english_title and prefer_latam:
-            tmdb_data = get_tmdb_data(
-                english_title,
-                desc=raw_desc,
-                subtitle=subtitle_hint,
-                year=final_year,
-                prefer_latam=prefer_latam,
-                search_title_en=english_title
-            )
-
-        elif prefer_latam and not english_title:
-            is_likely_series = final_se or infer_media_type_from_desc(raw_desc) == "tv"
-            if is_likely_series and base_title and len(base_title) > 5:
+            # Caso 1: Hay título en inglés → Búsqueda directa
+            if english_title:
                 tmdb_data = get_tmdb_data(
-                    base_title,
+                    english_title,
                     desc=raw_desc,
                     subtitle=subtitle_hint,
                     year=final_year,
                     prefer_latam=prefer_latam,
-                    search_title_en=None
+                    search_title_en=english_title
                 )
+
+            # Caso 2: NO hay título en inglés, pero ES SERIE → Búsqueda validada
+            elif not english_title:
+                is_likely_series = final_se or infer_media_type_from_desc(raw_desc) == "tv"
+                if is_likely_series and base_title and len(base_title) > 5:
+                    tmdb_data = get_tmdb_data(
+                        base_title,
+                        desc=raw_desc,
+                        subtitle=subtitle_hint,
+                        year=final_year,
+                        prefer_latam=prefer_latam,
+                        search_title_en=None
+                    )
+                    
+                    # Validación estricta para series
+                    if tmdb_data:
+                        match_score = tmdb_data.get("match_score", 0)
+                        is_valid_match = False
+                        
+                        if match_score > 14.0:
+                            is_valid_match = True
+                        elif final_se and tmdb_data.get("type") == "tv":
+                            match = re.match(r"S(\d+)\s*E(\d+)", final_se)
+                            if match:
+                                s_num = int(match.group(1))
+                                e_num = int(match.group(2))
+                                ep_check = get_tmdb_episode_data(tmdb_data["id"], s_num, e_num)
+                                if ep_check is not None:
+                                    is_valid_match = True
+                        elif raw_desc and len(raw_desc) > 20:
+                            from_tmdb = get_tmdb_latam_overview(tmdb_data["id"], "tv") if tmdb_data.get("type") == "tv" else None
+                            if from_tmdb:
+                                desc_sim = overlap_score(raw_desc, from_tmdb)
+                                if desc_sim > 0.40:
+                                    is_valid_match = True
+                        
+                        if not is_valid_match:
+                            tmdb_data = None
+
+            # Aplicar título de TMDB si es válido
+            if tmdb_data and tmdb_data.get("localized_title"):
+                final_title = tmdb_data["localized_title"]
                 
-                if tmdb_data:
-                    match_score = tmdb_data.get("match_score", 0)
-                    is_valid_match = False
-                    
-                    if match_score > 14.0:
-                        is_valid_match = True
-                        print(f"  [SERIE] Match por score alto ({match_score}): '{base_title}' → '{tmdb_data.get('localized_title')}'", flush=True)
-                    elif final_se and tmdb_data.get("type") == "tv":
-                        match = re.match(r"S(\d+)\s*E(\d+)", final_se)
-                        if match:
-                            s_num = int(match.group(1))
-                            e_num = int(match.group(2))
-                            ep_check = get_tmdb_episode_data(tmdb_data["id"], s_num, e_num)
-                            if ep_check is not None:
-                                is_valid_match = True
-                                print(f"  [SERIE] Match por S{s_num}E{e_num} válido: '{base_title}' → '{tmdb_data.get('localized_title')}'", flush=True)
-                    elif raw_desc and len(raw_desc) > 20:
-                        from_tmdb = get_tmdb_latam_overview(tmdb_data["id"], "tv") if tmdb_data.get("type") == "tv" else None
-                        if from_tmdb:
-                            desc_sim = overlap_score(raw_desc, from_tmdb)
-                            if desc_sim > 0.40:
-                                is_valid_match = True
-                                print(f"  [SERIE] Match por descripción ({desc_sim*100:.0f}%): '{base_title}' → '{tmdb_data.get('localized_title')}'", flush=True)
-                    
-                    if not is_valid_match:
-                        print(f"  [SERIE] Match rechazado (score={match_score}): '{base_title}'", flush=True)
-                        tmdb_data = None
+                if tmdb_data.get("type") == "movie":
+                    latam_overview = get_tmdb_latam_overview(tmdb_data["id"], "movie")
+                    if latam_overview:
+                        preferred_desc = latam_overview
+                        
+                elif tmdb_data.get("type") == "tv" and final_se:
+                    match = re.match(r"S(\d+)\s*E(\d+)", final_se)
+                    if match:
+                        s_num, e_num = int(match.group(1)), int(match.group(2))
+                        ep_data = get_tmdb_episode_data(tmdb_data["id"], s_num, e_num)
 
-        if tmdb_data and tmdb_data.get("localized_title"):
-            final_title = tmdb_data["localized_title"]
+                        if ep_data:
+                            ep_title = ep_data.get("episode_title", "").strip()
+                            ep_desc = ep_data.get("overview", "").strip()
+
+                            # Título: Si TMDB lo tiene (ES o EN), lo usamos
+                            if ep_title:
+                                final_title = f"{tmdb_data['localized_title']} | {ep_title}"
+                            
+                            # Sinopsis: Prioridad TMDB (ES > EN) > Guía de Origen
+                            if ep_desc and len(ep_desc) > 15:
+                                preferred_desc = ep_desc
+
+        # === LÓGICA PARA CANALES EN INGLÉS (US, GB, CA, etc.) ===
+        else:
+            # Para canales no-LATAM, TVMaze es autoridad para series
+            air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d") if start_time_str and len(start_time_str) >= 8 else None
+            has_context = air_date or final_se
             
-            if tmdb_data.get("type") == "movie":
-                latam_overview = get_tmdb_latam_overview(tmdb_data["id"], "movie")
-                if latam_overview:
-                    preferred_desc = latam_overview
+            if has_context:
+                query_title = base_title or clean_title
+                tvmaze_data = get_tvmaze_episode(query_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
+                
+                if tvmaze_data:
+                    # TVMaze tiene datos en inglés nativo → usarlos directamente
+                    if tvmaze_data.get("show_name"):
+                        final_title = tvmaze_data["show_name"]
+                    if tvmaze_data.get("name"):
+                        preferred_subtitle = tvmaze_data["name"]
+                    if tvmaze_data.get("summary"):
+                        preferred_desc = strip_html_tags(tvmaze_data["summary"])
                     
-            elif tmdb_data.get("type") == "tv" and final_se:
-                match = re.match(r"S(\d+)\s*E(\d+)", final_se)
-                if match:
-                    s_num, e_num = int(match.group(1)), int(match.group(2))
-                    ep_data = get_tmdb_episode_data(tmdb_data["id"], s_num, e_num)
-
-                    if ep_data:
-                        ep_title = ep_data.get("episode_title", "").strip()
-                        ep_desc = ep_data.get("overview", "").strip()
-                        ep_lang = ep_data.get("_lang", "en")
-
-                        if ep_title:
-                            final_title = f"{tmdb_data['localized_title']} | {ep_title}"
-                            print(f"  [EPISODIO] Título desde TMDB ({ep_lang}): '{ep_title}'", flush=True)
-                        else:
-                            print(f"  [EPISODIO] Sin título en TMDB → Mantiene título de serie", flush=True)
-
-                        if ep_desc and len(ep_desc) > 15:
-                            preferred_desc = ep_desc
-                            print(f"  [EPISODIO] Sinopsis desde TMDB ({ep_lang})", flush=True)
-                        else:
-                            print(f"  [EPISODIO] TMDB sin sinopsis → Se usará la de la guía de origen", flush=True)
+                    # Extraer S/E si no está presente
+                    if not final_se and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
+                        final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
+                else:
+                    # Fallback a TMDB para películas en inglés
+                    if not final_se:
+                        tmdb_data = get_tmdb_data(
+                            base_title,
+                            desc=raw_desc,
+                            subtitle=subtitle_hint,
+                            year=final_year,
+                            prefer_latam=False,
+                            search_title_en=base_title
+                        )
+                        if tmdb_data and tmdb_data.get("localized_title"):
+                            final_title = tmdb_data["localized_title"]
+                            if tmdb_data.get("type") == "movie":
+                                overview = get_tmdb_latam_overview(tmdb_data["id"], "movie")
+                                if overview:
+                                    preferred_desc = overview
 
     if not final_year and tmdb_data:
         final_year = tmdb_data.get("year")
 
-    air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d") if start_time_str and len(start_time_str) >= 8 else None
-    has_context = air_date or final_se
-    should_try_tvmaze = not prefer_latam and has_context and (final_se or (tmdb_data and tmdb_data.get("type") == "tv"))
-
-    if should_try_tvmaze:
-        try:
-            query_title = final_title or base_title or clean_title
-            tvmaze_data = get_tvmaze_episode(query_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
-            if not tvmaze_data and clean_title and clean_title != query_title:
-                fallback_title = strip_se_from_title(clean_title) or clean_title
-                fallback_title = remove_episode_title_from_series_title(fallback_title, subtitle_hint)
-                if fallback_title != query_title:
-                    tvmaze_data = get_tvmaze_episode(fallback_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
-            if not final_se and tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
-                final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
-            if tvmaze_authoritative and tvmaze_data:
-                tvmaze_show_name = (tvmaze_data.get("show_name") or "").strip()
-                tvmaze_episode_name = (tvmaze_data.get("name") or "").strip()
-                tvmaze_episode_summary = strip_html_tags(tvmaze_data.get("summary") or "")
-                if tvmaze_show_name:
-                    final_title = tvmaze_show_name
-                    tvmaze_title_applied = True
-                if tvmaze_episode_name:
-                    preferred_subtitle = tvmaze_episode_name
-                if tvmaze_episode_summary:
-                    preferred_desc = tvmaze_episode_summary
-            elif tvmaze_data and tvmaze_data.get("show_name"):
-                tvmaze_show_name = tvmaze_data["show_name"].strip()
-                if normalize_text(final_title) == normalize_text(tvmaze_show_name):
-                    pass
-        except ValueError:
-            pass
-
+    # Aplicar capitalización y overrides
     if final_title and (prefer_latam or xml_has_spanish_title):
         final_title = spanish_title_case(final_title)
     final_title = apply_title_case_overrides(final_title)
+    
     display_title = final_title
     is_series = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
     if final_se:
