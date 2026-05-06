@@ -20,7 +20,7 @@ ar bo ca co cl cr do ec sv gt
 hn it mx py pe es gb us uy ve 
 """.split()
 
-MITV_BASE = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv "
+MITV_BASE = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv"
 
 EPG_MITV_AR = f"{MITV_BASE}/ar.xml"
 EPG_MITV_CL = f"{MITV_BASE}/cl.xml"
@@ -34,12 +34,12 @@ EPG_MITV_SV = f"{MITV_BASE}/sv.xml"
 
 EPG_URLS = [f"https://iptv-epg.org/files/epg- {code}.xml" for code in EPG_COUNTRY_CODES]
 EPG_URLS += [
-    "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz ",
-    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz ",
-    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz ",
-    "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz ",
-    "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz ",
-    "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz ",
+    "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
+    "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
     EPG_MITV_AR,
     EPG_MITV_CL,
     EPG_MITV_CO,
@@ -112,10 +112,10 @@ CHANNEL_TIME_OFFSETS = {
     "WarnerChannel.gt": -2,
 }
 
-EPG_ES1 = "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz "
-EPG_RAKUTEN = "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz "
-EPG_IT = "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz "
-EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz "
+EPG_ES1 = "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz"
+EPG_RAKUTEN = "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz"
+EPG_IT = "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz"
+EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
 EPG_MITV = EPG_MITV_GT
 
 CHANNEL_SOURCE_RULES = {
