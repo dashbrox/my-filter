@@ -69,7 +69,7 @@ REMOVE_SUBTITLE_ENTIRELY = False
 DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/1.7-Universal"
+USER_AGENT = "xmltv-title-normalizer/1.8-Universal"
 
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
@@ -155,6 +155,8 @@ SESSION = build_session()
 # =========================
 
 api_cache = {}
+SERIES_TITLE_CACHE = {}
+SERIES_EPISODE_CACHE = {}
 
 def now_ts():
     return int(time.time())
@@ -799,7 +801,7 @@ def should_preserve_allcaps_token(word):
     return False
 
 # =========================
-# CAPA 1: DETECCIÓN DE IDIOMA
+# CAPA 1: DETECCION DE IDIOMA
 # =========================
 def detect_title_language(text):
     if not text:
@@ -818,7 +820,7 @@ def detect_title_language(text):
     return "unknown"
 
 # =========================
-# CAPA 2: CAPITALIZACIÓN INTELIGENTE
+# CAPA 2: CAPITALIZACION INTELIGENTE
 # =========================
 
 def looks_clean_title(text):
@@ -829,55 +831,73 @@ def looks_clean_title(text):
         and "  " not in text
     )
 
+def spanish_title_case(text):
+    if not text:
+        return ""
+    if looks_clean_title(text):
+        return text
+    text = re.sub(r':(\S)', r': \1', text).strip()
+    words = text.split()
+    if not words:
+        return ""
+    result = []
+    for idx, word in enumerate(words):
+        if not word:
+            continue
+        if should_preserve_allcaps_token(word) or has_special_uppercase_pattern(word):
+            result.append(word)
+            continue
+        if "-" in word and len(word) > 1:
+            subparts = word.split("-")
+            rebuilt = []
+            for sub in subparts:
+                if should_preserve_allcaps_token(sub):
+                    rebuilt.append(sub)
+                else:
+                    sub_low = sub.lower()
+                    if sub_low in SPANISH_MINOR_WORDS:
+                        rebuilt.append(sub_low)
+                    else:
+                        rebuilt.append(sub[:1].upper() + sub[1:].lower() if len(sub) > 1 else sub.upper())
+            result.append("-".join(rebuilt))
+            continue
+        if re.fullmatch(r"[IVXLCDM]+", word):
+            result.append(word)
+            continue
+        low = word.lower()
+        if idx == 0 or (idx > 0 and words[idx-1].endswith(":")):
+            result.append(low[:1].upper() + low[1:] if len(low) > 1 else low.upper())
+            continue
+        if low in SPANISH_MINOR_WORDS:
+            result.append(low)
+        else:
+            result.append(low[:1].upper() + low[1:] if len(low) > 1 else low.upper())
+    return " ".join(result)
+
 def smart_title_case(text, prefer_latam=False, detected_lang=None):
     if not text:
         return ""
-
-    # Normalizar espacio después de dos puntos
     text = re.sub(r':(\S)', r': \1', text).strip()
-
     if detected_lang is None:
         detected_lang = detect_title_language(text)
-
-    # Si ya se ve bien (especialmente en inglés), no tocar
     if detected_lang == "en" and not prefer_latam and looks_clean_title(text):
         return text
-
-    # =========================
-    # ESPAÑOL → usar lógica del script principal
-    # =========================
     if prefer_latam or detected_lang != "en":
         return spanish_title_case(text)
-
-    # =========================
-    # INGLÉS → Title Case controlado
-    # =========================
     segments = re.split(r"(:|\s-\s|–)", text)
     final_parts = []
-
     for part in segments:
         if part in [":", " - ", "–"]:
             final_parts.append(part)
             continue
-
         words = part.split()
         if not words:
             continue
-
         capitalized_words = []
         for idx, word in enumerate(words):
-
-            # Acrónimos / patrones especiales
             if should_preserve_allcaps_token(word) or has_special_uppercase_pattern(word):
                 capitalized_words.append(word)
                 continue
-
-            # Números romanos
-            if re.fullmatch(r"[IVXLCDM]+", word):
-                capitalized_words.append(word)
-                continue
-
-            # Guiones (Spider-Man)
             if "-" in word:
                 subparts = word.split("-")
                 rebuilt = []
@@ -888,25 +908,20 @@ def smart_title_case(text, prefer_latam=False, detected_lang=None):
                         rebuilt.append(sub[:1].upper() + sub[1:].lower())
                 capitalized_words.append("-".join(rebuilt))
                 continue
-
+            if re.fullmatch(r"[IVXLCDM]+", word):
+                capitalized_words.append(word)
+                continue
             low = word.lower()
-
-            # Primera o última palabra
             if idx == 0 or idx == len(words) - 1:
                 capitalized_words.append(low[:1].upper() + low[1:])
                 continue
-
-            # Palabras menores
             if low in {"a", "an", "and", "the", "of", "in", "to", "for"}:
                 capitalized_words.append(low)
             else:
                 capitalized_words.append(low[:1].upper() + low[1:])
-
         final_parts.append(" ".join(capitalized_words))
-
     result = "".join(final_parts)
     return re.sub(r"\s+", " ", result).strip()
-
 
 def split_episode_title_from_desc(desc_text):
     if not desc_text:
@@ -924,18 +939,15 @@ def split_episode_title_from_desc(desc_text):
         return None, text
     if not sep:
         return None, text
-    # 🔧 límite menos restrictivo
     if len(ep_title) > 120 or len(ep_title.split()) > 18:
         return None, text
     remaining = rest.strip()
     return ep_title, remaining
 
-
 def first_line(text):
     if not text:
         return ""
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n", 1)[0].strip()
-
 
 def strip_html_tags(text):
     if not text:
@@ -943,7 +955,6 @@ def strip_html_tags(text):
     text = re.sub(r"<[^>]+>", " ", text)
     text = text.replace("&nbsp;", " ")
     return " ".join(text.split()).strip()
-
 
 def has_special_uppercase_pattern(token):
     if not token:
@@ -964,7 +975,6 @@ def has_special_uppercase_pattern(token):
     if upper_count >= 2 and stripped != stripped[:1].upper() + stripped[1:].lower():
         return True
     return False
-
 
 def preserve_special_casing(base_title, canonical_title):
     if not base_title or not canonical_title:
@@ -988,7 +998,6 @@ def preserve_special_casing(base_title, canonical_title):
             merged.append(bt)
     return " ".join(merged)
 
-
 def apply_title_case_overrides(title):
     if not title:
         return title
@@ -998,18 +1007,29 @@ def apply_title_case_overrides(title):
         return override
     return title
 
-
 def is_ambiguous_title(title):
     tokens = [t for t in normalize_text(title).split() if len(t) > 2]
-    # 🔧 menos agresivo (no rompe "Dark", "Lost", etc.)
     return len(tokens) <= 1
-
 
 def extract_candidate_year(item):
     date_str = item.get("release_date") or item.get("first_air_date") or ""
     if re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
         return date_str[:4]
     return None
+
+# =========================
+# POLITICA DE IDIOMA POR CANAL
+# =========================
+
+def get_channel_language_policy(channel_id):
+    """Devuelve (target_lang, use_tvmaze_for_series) según país del canal."""
+    country = get_channel_country_code(channel_id) if channel_id else None
+    if country in TVMAZE_AUTHORITATIVE_COUNTRY_CODES:
+        return "en", True
+    elif country in IBERO_SPANISH_CODES:
+        return "es", False
+    else:
+        return "en", False
 
 # =========================
 # AJUSTE HORARIO POR CANAL
@@ -1256,15 +1276,12 @@ def get_tmdb_episode_data(tv_id, season_num, episode_num):
     """Obtiene título y sinopsis de un episodio. Prioridad: ES -> EN -> None."""
     if not TMDB_API_KEY or not tv_id:
         return None
-
     cache_key_es = f"tmdb_ep_data:{tv_id}:{season_num}:{episode_num}:es-MX"
     cached = cache_get(cache_key_es)
     if cached is not None:
         return cached
-
     url = f"https://api.themoviedb.org/3/tv/{tv_id}/season/{season_num}/episode/{episode_num}"
     params_es = {"api_key": TMDB_API_KEY, "language": "es-MX"}
-
     try:
         r = SESSION.get(url, params=params_es, timeout=API_TIMEOUT)
         if r.status_code == 200:
@@ -1277,12 +1294,10 @@ def get_tmdb_episode_data(tv_id, season_num, episode_num):
                 return result
     except Exception as e:
         print(f"Error TMDB episode ES: {e}", flush=True)
-
     cache_key_en = f"tmdb_ep_en:{tv_id}:{season_num}:{episode_num}"
     cached_en = cache_get(cache_key_en)
     if cached_en is not None:
         return cached_en
-
     params_en = {"api_key": TMDB_API_KEY, "language": "en"}
     try:
         r = SESSION.get(url, params=params_en, timeout=API_TIMEOUT)
@@ -1297,7 +1312,6 @@ def get_tmdb_episode_data(tv_id, season_num, episode_num):
             return result
     except Exception as e:
         print(f"Error TMDB episode EN: {e}", flush=True)
-
     cache_set(cache_key_en, None)
     return None
 
@@ -1308,33 +1322,26 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False, se
         return None
     if NON_INDEXABLE.search(f"{title} {desc}"):
         return None
-        
     cache_key = f"tmdb_best_v2:{normalize_text(title)}:{normalize_text(subtitle)}:{normalize_text(desc)[:160]}:{year or ''}:{'latam' if prefer_latam else 'default'}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-    
     clean_query = re.split(r"[:|–—]", title)[0].strip()
     clean_query = re.sub(r"\b(episodio|temporada|capitulo|cap\.)\s*\d+", "", clean_query, flags=re.IGNORECASE).strip()
     clean_query = re.sub(r"\b(s\d{1,2}\s*e\d{1,2}|t\d{1,2}\s*e\d{1,2})\b", "", clean_query, flags=re.IGNORECASE).strip()
-    
     if not clean_query or len(clean_query) < 4:
         cache_set(cache_key, None)
         return None
-    
     expected_type = infer_media_type_from_desc(desc)
     if expected_type == "movie" and not year:
         cache_set(cache_key, None)
         return None
-
-    search_query = search_title_en if search_title_en and prefer_latam else clean_query
-    search_lang = "en" if search_title_en and prefer_latam else ("es-MX" if prefer_latam else "es-ES")
-    data = tmdb_search_multi(search_query, search_lang, year=year if expected_type == "movie" else None)
-    
+    # SIEMPRE buscar en inglés primero
+    search_query = search_title_en if search_title_en else clean_query
+    data = tmdb_search_multi(search_query, "en-US", year=year if expected_type == "movie" else None)
     if not data or not data.get("results"):
         cache_set(cache_key, None)
         return None
-        
     norm_title = normalize_text(title)
     source_sequel = detect_sequel_marker(title)
     ambiguous_title = is_ambiguous_title(title)
@@ -1516,144 +1523,333 @@ def is_tba(text):
     t = text.strip().lower()
     return t in {"tba", "tbd", "unknown", "na", "n/a", ""}
 
-def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False, spanish_season_episode_format=False, tvmaze_authoritative=False):
+def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
+                      spanish_season_episode_format=False, tvmaze_authoritative=False):
+    global SERIES_TITLE_CACHE, SERIES_EPISODE_CACHE
+
+    # ── 1. EXTRACCION DE DATOS CRUDOS DEL EPG ──────────────────────────
     raw_title = pick_best_localized_text(elem, "title", prefer_latam=prefer_latam)
     raw_subtitle = pick_best_localized_text(elem, "sub-title", prefer_latam=prefer_latam)
     raw_desc = pick_best_localized_text(elem, "desc", prefer_latam=prefer_latam)
-    xml_has_spanish_title = has_spanish_variant(elem, "title")
+
+    # ── 2. POLITICA DE IDIOMA Y REGION ─────────────────────────────────
+    target_lang, use_tvmaze_series = get_channel_language_policy(channel_id)
+    prefer_latam = target_lang == "es"
+    spanish_season_episode_format = target_lang == "es"
+
+    # ── 3. LIMPIEZA DE TITULO ──────────────────────────────────────────
     clean_title, has_new = extract_new_marker(raw_title)
     clean_title, year_regex = extract_year_regex(clean_title)
     se_title = extract_se_regex(clean_title)
     se_desc = extract_se_regex(raw_desc)
     se_xml = extract_xmltv_episode_num(elem)
-    final_year = year_regex
     final_se = se_title or se_desc or se_xml
+    final_year = year_regex
+
     desc_episode_title, _ = split_episode_title_from_desc(raw_desc)
     subtitle_hint = strip_leading_se_from_text(raw_subtitle or "").strip() or (desc_episode_title or "")
     base_title = strip_se_from_title(clean_title) or clean_title.strip()
     base_title = remove_episode_title_from_series_title(base_title, subtitle_hint)
-    
-    # Datos base iniciales
+
+    # ── 4. DETERMINAR TIPO: PELICULA O SERIE ───────────────────────────
+    media_type_hint = infer_media_type_from_desc(raw_desc)
+    is_series = bool(final_se) or media_type_hint == "tv"
+    is_movie = media_type_hint == "movie" or (not is_series and final_year)
+
+    norm_base = normalize_text(base_title) if base_title else ""
+    cache_key = (canonical_channel_id(channel_id), norm_base) if channel_id and len(norm_base) > 2 else None
+
+    # VALORES POR DEFECTO (originales del EPG)
     final_title = base_title
     preferred_subtitle = raw_subtitle.strip() if raw_subtitle else ""
     preferred_desc = raw_desc.strip() if raw_desc else ""
-    canonical_title = None
-    tvmaze_title_applied = False
+    api_data_found = False
 
-    # Determinar estrategia de autoridad
-    channel_country = get_channel_country_code(channel_id) if channel_id else None
-    is_us_gb_ca = channel_country in {"us", "gb", "ca"}
-    is_series = bool(final_se) or infer_media_type_from_desc(raw_desc) == "tv"
-    
-    # 1. Autoridad primaria
-    tmdb_data = None
-    tvmaze_data = None
-    use_tmdb = not is_us_gb_ca or not is_series
-    use_tvmaze = (is_us_gb_ca and is_series) or tvmaze_authoritative
+    # ═══════════════════════════════════════════════════════════════════
+    #  MODO PELICULA
+    # ═══════════════════════════════════════════════════════════════════
+    if is_movie and not is_series:
+        search_title = base_title
+        # SIEMPRE buscar en inglés primero
+        tmdb_results = tmdb_search_multi(search_title, "en-US", year=final_year)
 
-    if use_tmdb:
-        tmdb_prefer_latam = prefer_latam and not is_us_gb_ca
-        tmdb_data = get_tmdb_data(
-            base_title, desc=raw_desc, subtitle=subtitle_hint, 
-            year=final_year, prefer_latam=tmdb_prefer_latam,
-            search_title_en=base_title if is_us_gb_ca else None
-        )
-        if tmdb_data:
-            canonical_title = tmdb_data.get("localized_title") or tmdb_data.get("canonical_title") or canonical_title
-            if tmdb_prefer_latam and canonical_title:
-                final_title = canonical_title
-            elif is_us_gb_ca and canonical_title:
-                final_title = canonical_title
+        best_movie = None
+        best_score = -1.0
 
-    if use_tvmaze and not final_se:
-        pass
+        if tmdb_results and tmdb_results.get("results"):
+            for item in tmdb_results["results"][:10]:
+                if item.get("media_type") != "movie":
+                    continue
+                cand_title = (item.get("title") or "").strip()
+                cand_original = (item.get("original_title") or "").strip()
+                cand_year = extract_candidate_year(item)
 
-    # 2. Fallback cruzado para episodios (TV)
-    ep_title_api = None
-    ep_desc_api = None
-    show_title_api = None
+                title_sim = max(text_similarity(base_title, cand_title),
+                                text_similarity(base_title, cand_original))
 
-    if use_tvmaze or is_series:
-        air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d") if start_time_str and len(start_time_str) >= 8 else None
-        query_title = final_title or base_title
-        tvmaze_data = get_tvmaze_episode(query_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
-        
-        if not tvmaze_data and clean_title:
-            fallback = strip_se_from_title(clean_title) or clean_title
-            fallback = remove_episode_title_from_series_title(fallback, subtitle_hint)
-            if fallback != query_title:
-                tvmaze_data = get_tvmaze_episode(fallback, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
+                # REGLA ESTRICTA DE PELICULA:
+                # - Si hay año en el EPG, debe coincidir (±1 año)
+                # - Si NO hay año, el título debe ser match > 0.92 (casi exacto)
+                year_ok = True
+                if final_year and cand_year:
+                    try:
+                        if abs(int(final_year) - int(cand_year)) > 1:
+                            year_ok = False
+                    except Exception:
+                        year_ok = False
+                elif not final_year:
+                    if title_sim < 0.92:
+                        year_ok = False
 
-        if tvmaze_data:
-            show_title_api = (tvmaze_data.get("show_name") or "").strip()
-            ep_title_api = (tvmaze_data.get("name") or "").strip()
-            ep_desc_api = (tvmaze_data.get("summary") or "").strip()
-            
-            if not final_se and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
-                final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
+                if not year_ok:
+                    continue
 
-            if tvmaze_authoritative or (is_us_gb_ca and show_title_api):
-                if show_title_api and normalize_text(show_title_api) != normalize_text(final_title):
-                    final_title = show_title_api
-                    tvmaze_title_applied = True
-            if is_tba(ep_desc_api):
-                ep_desc_api = None
-    elif is_series and not use_tvmaze:
-        se_match = re.match(r"S(\d{2})\s*E(\d{2})", final_se) if final_se else None
-        if se_match and tmdb_data and tmdb_data.get("type") == "tv":
-            ep_data = get_tmdb_episode_data(tmdb_data["id"], int(se_match.group(1)), int(se_match.group(2)))
-            if ep_data:
-                if not is_tba(ep_data.get("episode_title")):
-                    ep_title_api = ep_data["episode_title"].strip()
-                if not is_tba(ep_data.get("overview")):
-                    ep_desc_api = ep_data["overview"].strip()
+                score = title_sim * 10.0
+                if final_year and cand_year and str(final_year) == str(cand_year):
+                    score += 3.0
 
-    # 3. Completado cruzado (TMDB <-> TVMaze)
-    if is_tba(ep_title_api) or is_tba(ep_desc_api):
-        if tmdb_data and tmdb_data.get("type") == "tv" and final_se:
+                if score > best_score:
+                    best_score = score
+                    best_movie = item
+
+        # Aplicar SOLO si encontramos una pelicula valida
+        if best_movie and best_score >= 6.0:
+            movie_id = best_movie.get("id")
+            # Obtener título localizado según region
+            localized = get_tmdb_localized_title(movie_id, "movie", prefer_latam=prefer_latam)
+            canonical = (best_movie.get("title") or "").strip()
+
+            final_title = localized or canonical or base_title
+            api_data_found = True
+
+            # Obtener sinopsis localizada
+            overview = None
+            if prefer_latam:
+                overview = get_tmdb_latam_overview(movie_id, "movie")
+            if not overview:
+                ov_lang = "es-MX" if prefer_latam else "en-US"
+                try:
+                    r = SESSION.get(
+                        f"https://api.themoviedb.org/3/movie/{movie_id}",
+                        params={"api_key": TMDB_API_KEY, "language": ov_lang},
+                        timeout=API_TIMEOUT
+                    )
+                    if r.status_code == 200:
+                        overview = (r.json().get("overview") or "").strip()
+                except Exception:
+                    pass
+
+            if overview and not is_tba(overview):
+                preferred_desc = overview
+
+            # Subtítulo: año de la pelicula si no habia uno util
+            if not preferred_subtitle and final_year:
+                preferred_subtitle = final_year
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  MODO SERIE
+    # ═══════════════════════════════════════════════════════════════════
+    elif is_series:
+        # ── 4.1 TITULO DE LA SERIE (con caché por canal) ──────────────
+        cached_title = SERIES_TITLE_CACHE.get(cache_key) if cache_key else None
+        tmdb_series_data = None
+
+        if cached_title:
+            final_title = cached_title
+            # Aun necesitamos el ID de TMDB para episodios: buscar en inglés primero
+            tmdb_series_data = get_tmdb_data(base_title, desc=raw_desc, prefer_latam=prefer_latam,
+                                             search_title_en=base_title)
+        else:
+            # Buscar titulo canónico de la serie SIEMPRE en inglés primero
+            tmdb_series_data = get_tmdb_data(
+                base_title, desc=raw_desc, subtitle=subtitle_hint,
+                year=None, prefer_latam=prefer_latam,
+                search_title_en=base_title
+            )
+
+            if tmdb_series_data and tmdb_series_data.get("type") == "tv":
+                if target_lang == "es":
+                    series_name = tmdb_series_data.get("localized_title") or tmdb_series_data.get("canonical_title")
+                else:
+                    series_name = tmdb_series_data.get("canonical_title") or tmdb_series_data.get("localized_title")
+
+                if series_name:
+                    final_title = series_name
+                    if cache_key:
+                        SERIES_TITLE_CACHE[cache_key] = series_name
+                    api_data_found = True
+
+        # ── 4.2 DATOS ESPECIFICOS DEL EPISODIO ────────────────────────
+        # SOLO si tenemos SxxExx. Si no, no intentamos adivinar.
+        ep_title_api = None
+        ep_desc_api = None
+
+        if final_se:
             se_match = re.match(r"S(\d{2})\s*E(\d{2})", final_se)
             if se_match:
-                ep_data = get_tmdb_episode_data(tmdb_data["id"], int(se_match.group(1)), int(se_match.group(2)))
-                if ep_data:
-                    if is_tba(ep_title_api) and not is_tba(ep_data.get("episode_title")):
-                        ep_title_api = ep_data["episode_title"].strip()
-                    if is_tba(ep_desc_api) and not is_tba(ep_data.get("overview")):
-                        ep_desc_api = ep_data["overview"].strip()
+                season_num = int(se_match.group(1))
+                episode_num = int(se_match.group(2))
 
-    # 4. Aplicar API data (REGLA ESTRICTA: episodio va al subtítulo, no al título principal)
-    if ep_title_api and not is_tba(ep_title_api):
-        preferred_subtitle = ep_title_api
-        tvmaze_title_applied = True
-        
-    if ep_desc_api and not is_tba(ep_desc_api):
-        preferred_desc = strip_html_tags(ep_desc_api)
-    elif is_tba(preferred_desc):
-        preferred_desc = raw_desc.strip() if raw_desc else ""
+                # --- ESTRATEGIA POR REGION ---
+                if use_tvmaze_series:
+                    # US/GB/CA: TVMaze primero
+                    air_date = None
+                    if start_time_str and len(start_time_str) >= 8:
+                        try:
+                            air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
+                        except Exception:
+                            pass
 
-    if not final_year and tmdb_data:
-        final_year = tmdb_data.get("year")
+                    if air_date:
+                        tvmaze_data = get_tvmaze_episode(
+                            final_title, air_date, desc=raw_desc,
+                            subtitle=subtitle_hint, year=None
+                        )
 
-    # 5. CAPA 3 & 4: Pipeline de capitalización profesional
+                        if tvmaze_data:
+                            # Validacion estricta SxxExx
+                            tvmaze_s = tvmaze_data.get("season")
+                            tvmaze_e = tvmaze_data.get("episode")
+                            if tvmaze_s == season_num and tvmaze_e == episode_num:
+                                ep_title_api = (tvmaze_data.get("name") or "").strip()
+                                ep_summary = strip_html_tags(tvmaze_data.get("summary") or "")
+
+                                # No usar nombre del show como titulo de episodio
+                                show_name = (tvmaze_data.get("show_name") or "").strip()
+                                if ep_title_api and normalize_text(ep_title_api) == normalize_text(show_name):
+                                    ep_title_api = None
+
+                                if not is_tba(ep_summary):
+                                    ep_desc_api = ep_summary
+
+                                # Actualizar caché de titulo de serie si TVMaze lo devuelve diferente
+                                if show_name and normalize_text(show_name) != normalize_text(final_title):
+                                    final_title = show_name
+                                    if cache_key:
+                                        SERIES_TITLE_CACHE[cache_key] = show_name
+
+                                api_data_found = True
+                            else:
+                                # Mismatch SxxExx: descartar TVMaze, intentar TMDB
+                                tvmaze_data = None
+
+                    # Fallback a TMDB si TVMaze fallo o no habia air_date
+                    if not ep_title_api and tmdb_series_data and tmdb_series_data.get("type") == "tv":
+                        ep_data = get_tmdb_episode_data(tmdb_series_data["id"], season_num, episode_num)
+                        if ep_data:
+                            cand_title = (ep_data.get("episode_title") or "").strip()
+                            cand_desc = (ep_data.get("overview") or "").strip()
+                            if cand_title and normalize_text(cand_title) != normalize_text(final_title):
+                                if not is_tba(cand_title):
+                                    ep_title_api = cand_title
+                            if not is_tba(cand_desc):
+                                ep_desc_api = cand_desc
+                            if ep_title_api:
+                                api_data_found = True
+
+                else:
+                    # ES / Latam / Resto del mundo: TMDB primario
+                    if tmdb_series_data and tmdb_series_data.get("type") == "tv":
+                        ep_data = get_tmdb_episode_data(tmdb_series_data["id"], season_num, episode_num)
+                        if ep_data:
+                            cand_title = (ep_data.get("episode_title") or "").strip()
+                            cand_desc = (ep_data.get("overview") or "").strip()
+
+                            # Validar que el titulo de episodio no sea igual al de la serie
+                            if cand_title and normalize_text(cand_title) != normalize_text(final_title):
+                                if not is_tba(cand_title):
+                                    ep_title_api = cand_title
+
+                            if not is_tba(cand_desc):
+                                ep_desc_api = cand_desc
+
+                            if ep_title_api:
+                                api_data_found = True
+
+                    # Fallback a TVMaze para resto del mundo si TMDB fallo
+                    if not ep_title_api and target_lang == "en":
+                        air_date = None
+                        if start_time_str and len(start_time_str) >= 8:
+                            try:
+                                air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
+                            except Exception:
+                                pass
+
+                        if air_date:
+                            tvmaze_data = get_tvmaze_episode(
+                                final_title, air_date, desc=raw_desc,
+                                subtitle=subtitle_hint, year=None
+                            )
+                            if tvmaze_data:
+                                tvmaze_s = tvmaze_data.get("season")
+                                tvmaze_e = tvmaze_data.get("episode")
+                                if tvmaze_s == season_num and tvmaze_e == episode_num:
+                                    ep_title_api = (tvmaze_data.get("name") or "").strip()
+                                    ep_summary = strip_html_tags(tvmaze_data.get("summary") or "")
+                                    show_name = (tvmaze_data.get("show_name") or "").strip()
+
+                                    if ep_title_api and normalize_text(ep_title_api) == normalize_text(show_name):
+                                        ep_title_api = None
+
+                                    if not is_tba(ep_summary):
+                                        ep_desc_api = ep_summary
+
+                                    if show_name and normalize_text(show_name) != normalize_text(final_title):
+                                        final_title = show_name
+                                        if cache_key:
+                                            SERIES_TITLE_CACHE[cache_key] = show_name
+
+                                    if ep_title_api:
+                                        api_data_found = True
+
+        # ── 4.3 APLICAR DATOS DE EPISODIO (solo si son validos) ───────
+        if ep_title_api and not is_tba(ep_title_api):
+            preferred_subtitle = ep_title_api
+        # Si no hay ep_title_api, mantenemos el subtitulo original del EPG
+
+        if ep_desc_api and not is_tba(ep_desc_api):
+            preferred_desc = ep_desc_api
+        # Si no hay ep_desc_api, mantenemos la descripcion original del EPG
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  5. POST-PROCESAMIENTO Y CAPITALIZACION
+    # ═══════════════════════════════════════════════════════════════════
+
+    # Asegurar consistencia con cache antes de capitalizar
+    if cache_key and cache_key in SERIES_TITLE_CACHE:
+        cached = SERIES_TITLE_CACHE[cache_key]
+        if normalize_text(final_title) == normalize_text(cached):
+            final_title = cached
+
+    # Capitalizacion inteligente
     title_lang = detect_title_language(final_title)
-    
     if final_title:
         final_title = smart_title_case(final_title, prefer_latam=prefer_latam, detected_lang=title_lang)
-    
-    if canonical_title:
-        final_title = preserve_special_casing(final_title, canonical_title)
-    if base_title and not tvmaze_title_applied:
+
+    # Preservar casing especial de APIs
+    if api_data_found and base_title:
         final_title = preserve_special_casing(final_title, base_title)
+
     final_title = apply_title_case_overrides(final_title)
-    
+
+    # Re-asegurar cache despues de capitalizacion
+    if cache_key and cache_key in SERIES_TITLE_CACHE:
+        cached = SERIES_TITLE_CACHE[cache_key]
+        if normalize_text(final_title) == normalize_text(cached):
+            final_title = cached
+
+    # Construir titulo de display
     display_title = final_title
-    is_series_final = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
-    
+    is_series_final = bool(final_se) or (is_series and not is_movie)
+
     if final_se:
         display_se = format_season_episode_display(final_se, use_spanish=spanish_season_episode_format)
         display_title += f" | {display_se}"
     if has_new:
         display_title += " ᴺᵉʷ"
-        
+
+    # Si nunca encontramos datos de API y no hay subtitulo original util,
+    # dejamos el subtitulo original del EPG (no lo borramos)
     if not preferred_subtitle or is_tba(preferred_subtitle):
         preferred_subtitle = raw_subtitle.strip() if raw_subtitle else ""
 
@@ -1676,6 +1872,10 @@ def download_xml(url, output_path):
 
 def main():
     print("Iniciando script...", flush=True)
+
+    global SERIES_TITLE_CACHE, SERIES_EPISODE_CACHE
+    SERIES_TITLE_CACHE = {}
+    SERIES_EPISODE_CACHE = {}
 
     if not os.path.exists(CHANNELS_FILE):
         print("Error: No existe channels.txt", flush=True)
