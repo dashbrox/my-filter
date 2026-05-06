@@ -1143,14 +1143,10 @@ def get_tmdb_latam_overview(tmdb_id, media_type):
     return None
 
 def get_tmdb_episode_data(tv_id, season_num, episode_num):
-    """
-    Obtiene título y sinopsis de un episodio específico.
-    Prioridad: Español TMDB -> Inglés TMDB -> None (fallback a fuente original)
-    """
+    """Obtiene título y sinopsis de un episodio. Prioridad: ES -> EN -> None."""
     if not TMDB_API_KEY or not tv_id:
         return None
 
-    # Intento 1: Español
     cache_key_es = f"tmdb_ep_data:{tv_id}:{season_num}:{episode_num}:es-MX"
     cached = cache_get(cache_key_es)
     if cached is not None:
@@ -1172,8 +1168,7 @@ def get_tmdb_episode_data(tv_id, season_num, episode_num):
     except Exception as e:
         print(f"Error TMDB episode ES: {e}", flush=True)
 
-    # Intento 2: Inglés (Fallback)
-    cache_key_en = f"tmdb_ep_data:{tv_id}:{season_num}:{episode_num}:en"
+    cache_key_en = f"tmdb_ep_en:{tv_id}:{season_num}:{episode_num}"
     cached_en = cache_get(cache_key_en)
     if cached_en is not None:
         return cached_en
@@ -1457,7 +1452,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
                     search_title_en=None
                 )
                 
-                if tmdb_
+                if tmdb_data:
                     match_score = tmdb_data.get("match_score", 0)
                     is_valid_match = False
                     
@@ -1499,26 +1494,24 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
                     s_num, e_num = int(match.group(1)), int(match.group(2))
                     ep_data = get_tmdb_episode_data(tmdb_data["id"], s_num, e_num)
 
-                    if ep_
+                    if ep_data:
                         ep_title = ep_data.get("episode_title", "").strip()
                         ep_desc = ep_data.get("overview", "").strip()
                         ep_lang = ep_data.get("_lang", "en")
 
-                        # TÍTULO: Si TMDB lo tiene (ES o EN), lo usamos.
                         if ep_title:
                             final_title = f"{tmdb_data['localized_title']} | {ep_title}"
                             print(f"  [EPISODIO] Título desde TMDB ({ep_lang}): '{ep_title}'", flush=True)
                         else:
                             print(f"  [EPISODIO] Sin título en TMDB → Mantiene título de serie", flush=True)
 
-                        # SINOPSIS: Prioridad: TMDB (ES > EN) > Guía de Origen
                         if ep_desc and len(ep_desc) > 15:
                             preferred_desc = ep_desc
                             print(f"  [EPISODIO] Sinopsis desde TMDB ({ep_lang})", flush=True)
                         else:
                             print(f"  [EPISODIO] TMDB sin sinopsis → Se usará la de la guía de origen", flush=True)
 
-    if not final_year and tmdb_
+    if not final_year and tmdb_data:
         final_year = tmdb_data.get("year")
 
     air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d") if start_time_str and len(start_time_str) >= 8 else None
@@ -1536,7 +1529,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
                     tvmaze_data = get_tvmaze_episode(fallback_title, air_date, desc=raw_desc, subtitle=subtitle_hint, year=final_year)
             if not final_se and tvmaze_data and tvmaze_data.get("season") is not None and tvmaze_data.get("episode") is not None:
                 final_se = normalize_season_ep_from_numbers(tvmaze_data["season"], tvmaze_data["episode"])
-            if tvmaze_authoritative and tvmaze_
+            if tvmaze_authoritative and tvmaze_data:
                 tvmaze_show_name = (tvmaze_data.get("show_name") or "").strip()
                 tvmaze_episode_name = (tvmaze_data.get("name") or "").strip()
                 tvmaze_episode_summary = strip_html_tags(tvmaze_data.get("summary") or "")
