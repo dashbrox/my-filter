@@ -32,7 +32,8 @@ EPG_MITV_PE = f"{MITV_BASE}/pe.xml"
 EPG_MITV_PY = f"{MITV_BASE}/py.xml"
 EPG_MITV_SV = f"{MITV_BASE}/sv.xml"
 
-EPG_URLS = [f"https://iptv-epg.org/files/epg- {code}.xml" for code in EPG_COUNTRY_CODES]
+# CORRECCIÓN: sin espacio entre "epg-" y {code}
+EPG_URLS = [f"https://iptv-epg.org/files/epg-{code}.xml" for code in EPG_COUNTRY_CODES]
 EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
@@ -163,7 +164,6 @@ def purge_old_cache():
     global api_cache
     cutoff = now_ts() - CACHE_MAX_AGE_SECONDS
     cleaned = {}
-
     for key, value in api_cache.items():
         if isinstance(value, dict) and "ts" in value and "data" in value:
             try:
@@ -171,10 +171,8 @@ def purge_old_cache():
                     cleaned[key] = value
             except Exception:
                 pass
-
     removed = len(api_cache) - len(cleaned)
     api_cache = cleaned
-
     if removed:
         print(f"Caché limpiado: {removed} entradas expiradas.", flush=True)
 
@@ -222,19 +220,13 @@ CHANNEL_EQUIVALENCE = {}
 def normalize_mitv_channel_id(ch_id):
     if not ch_id:
         return ch_id
-
     ch_id = ch_id.strip()
-
-    # CAMBIO:
-    # mi.tv usa ids como gt#hbo-plus-mexico
-    # se deben normalizar a gt.hboplusmexico
     match = re.match(r"^([a-z]{2})#(.+)$", ch_id, re.IGNORECASE)
     if match:
         country = match.group(1).lower()
         rest = match.group(2).strip()
         rest = rest.replace("-", "")
         return f"{country}.{rest}"
-
     return ch_id
 
 def build_channel_alias_map():
@@ -270,52 +262,39 @@ def normalize_text(text):
 def get_channel_country_code(ch_id):
     if not ch_id:
         return None
-
     s = normalize_mitv_channel_id(ch_id).lower().strip()
-
     match = re.match(r"^([a-z]{2})\.", s)
     if match:
         return match.group(1)
-
     match = re.search(r'\.([a-z]{2})(?:\.|$|hd|sd|\d)', s)
     if match:
         return match.group(1)
-
     return None
 
 def tokenize_channel_id(ch_id):
     if not ch_id:
         return set()
-
     ch_id = normalize_mitv_channel_id(ch_id)
     country = get_channel_country_code(ch_id)
-
     s = ch_id.lower()
     s = re.sub(r'\([^)]*\)', ' ', s)
-
     if country:
         s = re.sub(rf'^{country}\.', ' ', s)
         s = re.sub(rf'\.{country}(?:\.|$)', ' ', s)
-
     s = s.replace('.', ' ').replace('_', ' ').replace('-', ' ')
     tokens = s.split()
-
     noise = {'hd', 'sd', 'fhd', '4k', '1080p', '720p'}
     tokens = [t for t in tokens if t not in noise]
-
     if country:
         tokens.append(country)
-
     return set(tokens)
 
 def normalize_channel_id_for_matching(ch_id):
     if not ch_id:
         return ""
-
     canonical = canonical_channel_id(ch_id)
     if canonical != ch_id:
         return canonical.lower().strip()
-
     country = get_channel_country_code(ch_id) or ""
     generic_words = {'channel', 'tv', 'television', 'network', 'cable', 'satelital'}
     tokens = tokenize_channel_id(ch_id)
@@ -333,53 +312,41 @@ def is_same_channel(id1, id2):
     c2 = canonical_channel_id(id2)
     if c1 and c2 and c1 == c2:
         return True, 1.0
-
     tokens1 = tokenize_channel_id(id1)
     tokens2 = tokenize_channel_id(id2)
-
     if not tokens1 or not tokens2:
         return False, 0.0
-
     country1 = get_channel_country_code(id1)
     country2 = get_channel_country_code(id2)
-
     if country1 and country2:
         if country1 != country2:
             return False, 0.0
     else:
         return False, 0.0
-
     nums1 = {t for t in tokens1 if t.isdigit()}
     nums2 = {t for t in tokens2 if t.isdigit()}
-
     if nums1 and nums2:
         if nums1 != nums2:
             return False, 0.0
     elif nums1 or nums2:
         return False, 0.0
-
     generic_words = {'channel', 'tv', 'television', 'network', 'cable', 'satelital'}
     core1 = tokens1 - generic_words - nums1 - {country1}
     core2 = tokens2 - generic_words - nums2 - {country2}
-
     if not core1 or not core2:
         return False, 0.0
-
     if core1 == core2:
         return True, 1.0
-
     allowed_extra_tokens = {'bros', 'brothers', 'intl', 'international'}
     extras = (core1 - core2) | (core2 - core1)
     if (core1.issubset(core2) or core2.issubset(core1)) and extras <= allowed_extra_tokens:
         return True, 0.95
-
     return False, 0.0
 
 def calculate_channel_similarity(id1, id2):
     match, score = is_same_channel(id1, id2)
     if match:
         return score
-
     norm1 = normalize_channel_id_for_matching(id1)
     norm2 = normalize_channel_id_for_matching(id2)
     if not norm1 or not norm2:
@@ -389,17 +356,13 @@ def calculate_channel_similarity(id1, id2):
 def text_similarity(a, b):
     na = normalize_text(a)
     nb = normalize_text(b)
-
     if not na or not nb:
         return 0.0
     if na == nb:
         return 1.0
-
     ratio = SequenceMatcher(None, na, nb).ratio()
-
     if na in nb or nb in na:
         ratio = max(ratio, min(len(na), len(nb)) / max(len(na), len(nb)))
-
     return ratio
 
 TITLE_CASE_OVERRIDES = {
@@ -834,7 +797,7 @@ def spanish_title_case(text):
         return low[:1].upper() + low[1:]
 
     def transform_token(token, force_capitalize=False):
-        m = re.match(r'^([\"“”¿¡(\[]*)(.*?)([\"”?!:;.,)\]]*)$', token)
+        m = re.match(r'^([\"""¿¡(\[]*)(.*?)([\""?!:;.,)\]]*)$', token)
         if not m:
             return token, False
         prefix, core, suffix = m.groups()
@@ -888,7 +851,7 @@ def strip_html_tags(text):
 def has_special_uppercase_pattern(token):
     if not token:
         return False
-    stripped = re.sub(r'^[\"“”¿¡(\[]+|[\"”?!:;.,)\]]+$', "", token)
+    stripped = re.sub(r'^[\"""¿¡(\[]+|[\""?!:;.,)\]]+$', "", token)
     if not stripped:
         return False
     if is_dotted_acronym(stripped):
@@ -1077,13 +1040,15 @@ def normalize_episode_num_elements(elem):
 # =========================
 
 def tmdb_search_multi(title, language, year=None):
+    """Busca en TMDB. Primero en inglés para mayor precisión, con fallback al idioma local."""
     if not TMDB_API_KEY:
         return None
     cache_key = f"tmdb_search:{normalize_text(title)}:{language}:{year or ''}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-    url = "https://api.themoviedb.org/3/search/multi "
+    # CORRECCIÓN: sin espacios en la URL
+    url = "https://api.themoviedb.org/3/search/multi"
     params = {"api_key": TMDB_API_KEY, "query": title, "language": language}
     if year:
         params["year"] = year
@@ -1105,7 +1070,8 @@ def tmdb_find_by_external_id(imdb_id, source="imdb_id"):
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-    url = f"https://api.themoviedb.org/3/find/ {imdb_id}"
+    # CORRECCIÓN: sin espacios en la URL
+    url = f"https://api.themoviedb.org/3/find/{imdb_id}"
     params = {"api_key": TMDB_API_KEY, "external_source": source}
     try:
         r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
@@ -1119,6 +1085,7 @@ def tmdb_find_by_external_id(imdb_id, source="imdb_id"):
     return None
 
 def get_tmdb_localized_details(tmdb_id, media_type, prefer_latam=False):
+    """Obtiene título y sinopsis localizados de TMDB según la región del canal."""
     if not TMDB_API_KEY or not tmdb_id or media_type not in ("movie", "tv"):
         return None, None
     if prefer_latam:
@@ -1132,7 +1099,8 @@ def get_tmdb_localized_details(tmdb_id, media_type, prefer_latam=False):
             if cached:
                 return cached.get("title"), cached.get("overview")
             continue
-        url = f"https://api.themoviedb.org/3/ {media_type}/{tmdb_id}"
+        # CORRECCIÓN: sin espacios en la URL
+        url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}"
         params = {"api_key": TMDB_API_KEY, "language": lang}
         try:
             r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
@@ -1150,6 +1118,7 @@ def get_tmdb_localized_details(tmdb_id, media_type, prefer_latam=False):
     return None, None
 
 def get_tmdb_tv_episode_details(tmdb_id, season, episode, prefer_latam=False):
+    """Obtiene nombre y sinopsis del episodio específico de una serie en TMDB."""
     if not TMDB_API_KEY or not tmdb_id or season is None or episode is None:
         return None, None
     if prefer_latam:
@@ -1163,7 +1132,8 @@ def get_tmdb_tv_episode_details(tmdb_id, season, episode, prefer_latam=False):
             if cached:
                 return cached.get("name"), cached.get("overview")
             continue
-        url = f"https://api.themoviedb.org/3/tv/ {tmdb_id}/season/{season}/episode/{episode}"
+        # CORRECCIÓN: sin espacios en la URL
+        url = f"https://api.themoviedb.org/3/tv/{tmdb_id}/season/{season}/episode/{episode}"
         params = {"api_key": TMDB_API_KEY, "language": lang}
         try:
             r = SESSION.get(url, params=params, timeout=API_TIMEOUT)
@@ -1188,11 +1158,11 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False, se
     if cached is not None:
         return cached
 
-    # Buscar primero en ingles para obtener match correcto del contenido
+    # Buscar primero en inglés para obtener match correcto del contenido
     search_lang = "en-US"
     data = tmdb_search_multi(title, search_lang, year=year)
 
-    # Fallback: si no hay resultados en ingles, buscar en el idioma local
+    # Fallback: si no hay resultados en inglés, buscar en el idioma local
     if not data or not data.get("results"):
         fallback_lang = "es-MX" if prefer_latam else "en-US"
         if fallback_lang != search_lang:
@@ -1288,7 +1258,7 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False, se
         "match_score": round(best_score, 3),
     }
 
-    # Obtener titulo y sinopsis localizados segun el idioma del canal
+    # Obtener título y sinopsis localizados según el idioma del canal
     loc_title, loc_overview = get_tmdb_localized_details(result["id"], result["type"], prefer_latam=prefer_latam)
     if loc_title:
         result["localized_title"] = loc_title
@@ -1315,7 +1285,8 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
     if cached is not None:
         return cached
     try:
-        r_show = SESSION.get("https://api.tvmaze.com/search/shows ", params={"q": show_name}, timeout=API_TIMEOUT)
+        # CORRECCIÓN: sin espacio al final de la URL
+        r_show = SESSION.get("https://api.tvmaze.com/search/shows", params={"q": show_name}, timeout=API_TIMEOUT)
         if r_show.status_code != 200:
             cache_set(cache_key, None)
             return None
@@ -1361,7 +1332,8 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None):
             show_id = show.get("id")
             if not show_id:
                 continue
-            r_ep = SESSION.get(f"https://api.tvmaze.com/shows/ {show_id}/episodesbydate", params={"date": air_date}, timeout=API_TIMEOUT)
+            # CORRECCIÓN: sin espacio en la URL
+            r_ep = SESSION.get(f"https://api.tvmaze.com/shows/{show_id}/episodesbydate", params={"date": air_date}, timeout=API_TIMEOUT)
             if r_ep.status_code != 200:
                 continue
             episodes = r_ep.json() or []
@@ -1420,8 +1392,6 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
     base_title = remove_episode_title_from_series_title(base_title, subtitle_hint)
     final_title = base_title
     should_translate = prefer_latam and not xml_has_spanish_title
-    need_tmdb = (not final_year) or should_translate or prefer_latam or True
-    need_tv = not final_se
     tmdb_data = None
     canonical_title = None
     tvmaze_data = None
@@ -1430,7 +1400,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
     preferred_desc = None
     tvmaze_title_applied = False
 
-    # Parsear season/episode para busqueda TMDB de series
+    # Parsear season/episode para búsqueda TMDB de series
     tmdb_season = None
     tmdb_episode = None
     if final_se:
@@ -1439,44 +1409,41 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
             tmdb_season = int(m.group(1))
             tmdb_episode = int(m.group(2))
 
-    # Buscar en TMDB siempre para obtener informacion correcta
-    tmdb_data = get_tmdb_data(
-        final_title,
-        desc=raw_desc,
-        subtitle=subtitle_hint,
-        year=final_year,
-        prefer_latam=prefer_latam,
-        season=tmdb_season,
-        episode=tmdb_episode,
-    )
+    # CORRECCIÓN: solo llamar TMDB cuando realmente se necesita
+    # (igual que el script anterior, pero con soporte de season/episode y localized_overview)
+    need_tmdb = (not final_year) or should_translate or prefer_latam
+    need_tv = not final_se
+
+    if need_tmdb or need_tv:
+        tmdb_data = get_tmdb_data(
+            final_title,
+            desc=raw_desc,
+            subtitle=subtitle_hint,
+            year=final_year,
+            prefer_latam=prefer_latam,
+            season=tmdb_season,
+            episode=tmdb_episode,
+        )
 
     if tmdb_data:
         localized_title = (tmdb_data.get("localized_title") or "").strip()
         canonical_from_tmdb = (tmdb_data.get("canonical_title") or "").strip()
 
-        # Para canales LATAM/Espana: usar titulo en espanol latino
-        # Para canales NO LATAM: usar titulo en ingles (canonical/en)
-        if prefer_latam and localized_title:
-            canonical_title = localized_title
-            if should_translate or should_replace_with_localized_title(final_title, localized_title):
-                final_title = localized_title
-        elif not prefer_latam and canonical_from_tmdb:
-            # Canales no LATAM: mantener en ingles
-            canonical_title = canonical_from_tmdb
-            final_title = canonical_from_tmdb
-        elif localized_title:
+        # CORRECCIÓN: lógica de título idéntica al script anterior
+        # Solo reemplazar título si hay traducción o corrección de acentos
+        if localized_title:
             canonical_title = localized_title
             if should_translate or should_replace_with_localized_title(final_title, localized_title):
                 final_title = localized_title
         elif canonical_from_tmdb:
             canonical_title = canonical_from_tmdb
 
-        # Usar sinopsis de TMDB si esta disponible
+        # Usar sinopsis de TMDB si está disponible (mejora del script nuevo)
         if prefer_latam:
             tmdb_overview = (tmdb_data.get("localized_overview") or "").strip()
             ep_overview = (tmdb_data.get("episode_overview") or "").strip()
         else:
-            tmdb_overview = (tmdb_data.get("localized_overview") or tmdb_data.get("overview") or "").strip()
+            tmdb_overview = (tmdb_data.get("localized_overview") or "").strip()
             ep_overview = (tmdb_data.get("episode_overview") or "").strip()
 
         if ep_overview:
@@ -1484,7 +1451,7 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
         elif tmdb_overview:
             preferred_desc = tmdb_overview
 
-        # Para series, usar nombre del episodio localizado como subtitle
+        # Para series, usar nombre del episodio localizado como subtitle (mejora del script nuevo)
         if tmdb_data.get("type") == "tv":
             ep_name = (tmdb_data.get("episode_name") or "").strip()
             if ep_name and not preferred_subtitle:
@@ -1532,13 +1499,13 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
         except ValueError:
             pass
 
-    # Si no hay datos de TMDB ni TVMaze, mantener exactamente lo que viene de la guia original
+    # Si no hay datos de TMDB ni TVMaze, mantener exactamente lo que viene de la guía original
     if not tmdb_data and not tvmaze_data:
         final_title = base_title or clean_title or raw_title
         preferred_subtitle = raw_subtitle if raw_subtitle else None
         preferred_desc = raw_desc if raw_desc else None
 
-    # Aplicar capitalizacion solo si hay cambios o es LATAM
+    # Aplicar capitalización solo si hay cambios o es LATAM/español
     if final_title and (prefer_latam or xml_has_spanish_title):
         final_title = spanish_title_case(final_title)
     if canonical_title:
@@ -1546,13 +1513,17 @@ def process_programme(elem, start_time_str, prefer_latam=False, spanish_season_e
     if source_canonical_title and not tvmaze_title_applied:
         final_title = preserve_special_casing(final_title, source_canonical_title)
     final_title = apply_title_case_overrides(final_title)
+
     display_title = final_title
     is_series = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
+
     if final_se:
+        # CORRECCIÓN: spanish_season_episode_format se pasa correctamente desde main()
         display_se = format_season_episode_display(final_se, use_spanish=spanish_season_episode_format)
         display_title += f" | {display_se}"
     if has_new:
         display_title += " ᴺᵉʷ"
+
     return display_title, is_series, preferred_subtitle, preferred_desc
 
 def download_xml(url, output_path):
@@ -1601,8 +1572,6 @@ def main():
         try:
             download_xml(url, TEMP_INPUT)
 
-            # CAMBIO:
-            # evitar elem.clear() global porque vacía hijos antes de procesar el padre
             context = ET.iterparse(TEMP_INPUT, events=("start", "end"))
             _, root = next(context)
 
@@ -1649,8 +1618,6 @@ def main():
                     print(f"[{idx}/{len(EPG_URLS)}] Fuente: {url}", flush=True)
                     download_xml(url, TEMP_INPUT)
 
-                    # CAMBIO:
-                    # evitar elem.clear() global porque vacía title/desc/display-name/url
                     context = ET.iterparse(TEMP_INPUT, events=("start", "end"))
                     _, root = next(context)
 
@@ -1686,7 +1653,7 @@ def main():
                             is_ch_allowed = canonical_ch_id in allowed_canonical and is_source_allowed_for_channel(ch_id, url)
 
                             if is_ch_allowed:
-                                start = elem.get("start")
+                                start = elem.get("start", "")
                                 tvmaze_authoritative = should_use_tvmaze_authoritative(url, ch_id)
                                 new_title, is_series, preferred_subtitle, preferred_desc = process_programme(
                                     elem,
