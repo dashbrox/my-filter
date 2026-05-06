@@ -387,6 +387,20 @@ TITLE_CASE_OVERRIDES = {
     normalize_text("georgie y mandy - su primer matrimonio"): "Georgie y Mandy: Primer matrimonio",
     normalize_text("georgie y mandy: su primer matrimonio"): "Georgie y Mandy: Primer matrimonio",
     normalize_text("georgie and mandy's first marriage"): "Georgie y Mandy: Primer matrimonio",
+    normalize_text("the big bang theory"): "The Big Bang Theory",
+    normalize_text("la teoría del big bang"): "La Teoría del Big Bang",
+    normalize_text("dos hombres y medio"): "Dos Hombres y Medio",
+    normalize_text("cobra kai"): "Cobra Kai",
+    normalize_text("karate kid:leyendas"): "Karate Kid: Leyendas",
+    normalize_text("karate kid"): "Karate Kid",
+    normalize_text("los juegos del hambre:sinsajo"): "Los Juegos del Hambre: Sinsajo",
+    normalize_text("los juegos del hambre"): "Los Juegos del Hambre",
+    normalize_text("el hombre araña"): "El Hombre Araña",
+    normalize_text("jurassic world:el reino caído"): "Jurassic World: El Reino Caído",
+    normalize_text("hombre a medias"): "Hombre a Medias",
+    normalize_text("el regreso"): "El Regreso",
+    normalize_text("cumbres borrascosas"): "Cumbres Borrascosas",
+    normalize_text("tierra de zombies"): "Tierra de Zombies",
 }
 
 def strip_accents(text):
@@ -784,9 +798,43 @@ def should_preserve_allcaps_token(word):
         return True
     return False
 
-def spanish_title_case(text):
+# =========================
+# CAPA 1: DETECCIÓN DE IDIOMA
+# =========================
+def detect_title_language(text):
+    if not text:
+        return "unknown"
+    english_indicators = {"the", "and", "of", "in", "to", "for", "with", "on", "at", "by"}
+    spanish_indicators = {"el", "la", "los", "las", "de", "del", "y", "en", "por", "para", "con"}
+    tokens = normalize_text(text).split()
+    if not tokens:
+        return "unknown"
+    en_score = sum(1 for t in tokens if t in english_indicators)
+    es_score = sum(1 for t in tokens if t in spanish_indicators)
+    if en_score > es_score:
+        return "en"
+    elif es_score > en_score:
+        return "es"
+    return "unknown"
+
+# =========================
+# CAPA 2: CAPITALIZACIÓN INTELIGENTE
+# =========================
+def smart_title_case(text, prefer_latam=False, detected_lang=None):
     if not text:
         return ""
+    # Normalizar espacio después de dos puntos
+    text = re.sub(r':(\S)', r': \1', text)
+    
+    if detected_lang is None:
+        detected_lang = detect_title_language(text)
+    
+    # Preservar capitalización original si es inglés y parece correcto
+    if detected_lang == "en" and not prefer_latam:
+        words = text.split()
+        if words and words[0][0].isupper() and any(w[0].isupper() for w in words[1:4] if len(w) > 3):
+            return text.strip()
+    
     segments = re.split(r"(:|\s-\s|–)", text)
     final_parts = []
     for part in segments:
@@ -794,15 +842,33 @@ def spanish_title_case(text):
             final_parts.append(part)
             continue
         words = part.split()
+        if not words:
+            continue
         capitalized_words = []
         for idx, word in enumerate(words):
+            if should_preserve_allcaps_token(word) or has_special_uppercase_pattern(word):
+                capitalized_words.append(word)
+                continue
+            if re.fullmatch(r"[IVXLCDM]+", word):
+                capitalized_words.append(word)
+                continue
+            if "-" in word:
+                subparts = word.split("-")
+                rebuilt = [smart_title_case(sub, prefer_latam, detected_lang) for sub in subparts]
+                capitalized_words.append("-".join(rebuilt))
+                continue
             if idx == 0:
                 capitalized_words.append(word[:1].upper() + word[1:].lower())
+                continue
+            if idx == len(words) - 1 and len(word) > 2:
+                capitalized_words.append(word[:1].upper() + word[1:].lower())
+                continue
+            low = word.lower()
+            minor_set = SPANISH_MINOR_WORDS if detected_lang != "en" else {"a", "an", "and", "the", "of", "in", "to", "for"}
+            if low in minor_set:
+                capitalized_words.append(low)
             else:
-                if word.isupper() or (word[0].isupper() and word[1:].islower() and len(word) > 3):
-                    capitalized_words.append(word)
-                else:
-                    capitalized_words.append(word.lower())
+                capitalized_words.append(word[:1].upper() + word[1:].lower())
         final_parts.append(" ".join(capitalized_words))
     result = "".join(final_parts)
     return re.sub(r"\s+", " ", result).strip()
@@ -1008,7 +1074,7 @@ def normalize_subtitle_and_desc(elem, prefer_latam=False, is_series=False, prefe
     chosen_subtitle = strip_leading_se_from_text(chosen_subtitle).strip()
     should_spanish_case_subtitle = bool(chosen_subtitle) and (prefer_latam or has_spanish_variant(elem, "sub-title") or extracted_ep_title is not None)
     if chosen_subtitle and should_spanish_case_subtitle:
-        chosen_subtitle = spanish_title_case(chosen_subtitle)
+        chosen_subtitle = smart_title_case(chosen_subtitle, prefer_latam=prefer_latam)
     set_or_replace_subtitle(elem, chosen_subtitle, prefer_latam=prefer_latam)
     final_desc = cleaned_desc
     if is_series and chosen_subtitle:
@@ -1442,7 +1508,6 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
     use_tvmaze = (is_us_gb_ca and is_series) or tvmaze_authoritative
 
     if use_tmdb:
-        # US/GB/CA películas: sin traducción. LATAM/ES: con traducción.
         tmdb_prefer_latam = prefer_latam and not is_us_gb_ca
         tmdb_data = get_tmdb_data(
             base_title, desc=raw_desc, subtitle=subtitle_hint, 
@@ -1454,10 +1519,9 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
             if tmdb_prefer_latam and canonical_title:
                 final_title = canonical_title
             elif is_us_gb_ca and canonical_title:
-                final_title = canonical_title # Sin traducción explícita
+                final_title = canonical_title
 
     if use_tvmaze and not final_se:
-        # Intentar S/E desde TVMaze si no hay en XML
         pass
 
     # 2. Fallback cruzado para episodios (TV)
@@ -1488,12 +1552,9 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
                 if show_title_api and normalize_text(show_title_api) != normalize_text(final_title):
                     final_title = show_title_api
                     tvmaze_title_applied = True
-            if ep_title_api:
-                final_title = f"{final_title} | {ep_title_api}" if final_se else ep_title_api
             if is_tba(ep_desc_api):
                 ep_desc_api = None
     elif is_series and not use_tvmaze:
-        # TMDB para episodios en LATAM
         se_match = re.match(r"S(\d{2})\s*E(\d{2})", final_se) if final_se else None
         if se_match and tmdb_data and tmdb_data.get("type") == "tv":
             ep_data = get_tmdb_episode_data(tmdb_data["id"], int(se_match.group(1)), int(se_match.group(2)))
@@ -1514,55 +1575,42 @@ def process_programme(elem, start_time_str, channel_id=None, prefer_latam=False,
                         ep_title_api = ep_data["episode_title"].strip()
                     if is_tba(ep_desc_api) and not is_tba(ep_data.get("overview")):
                         ep_desc_api = ep_data["overview"].strip()
-        elif not tmdb_data or tmdb_data.get("type") != "tv":
-            # Buscar en TVMaze si TMDB no es válido para TV
-            pass # Ya consultado arriba
 
-        # 4. Aplicar API data si está completa
+    # 4. Aplicar API data (REGLA ESTRICTA: episodio va al subtítulo, no al título principal)
     if ep_title_api and not is_tba(ep_title_api):
-        # REGLA: El título del episodio va en preferred_subtitle, NUNCA en final_title
         preferred_subtitle = ep_title_api
         tvmaze_title_applied = True
-    # final_title ya contiene el nombre de la serie (show_title_api o base_title)
         
     if ep_desc_api and not is_tba(ep_desc_api):
         preferred_desc = strip_html_tags(ep_desc_api)
     elif is_tba(preferred_desc):
-        preferred_desc = raw_desc.strip() if raw_desc else "" # Mantener original
+        preferred_desc = raw_desc.strip() if raw_desc else ""
 
     if not final_year and tmdb_data:
         final_year = tmdb_data.get("year")
 
-        # 5. Pipeline de formato: REGLAS DEL USUARIO SIEMPRE APLICAN
-    # a) spanish_title_case: normaliza mayúsculas/minúsculas según reglas en español
-    if final_title and (prefer_latam or xml_has_spanish_title):
-        final_title = spanish_title_case(final_title)
+    # 5. CAPA 3 & 4: Pipeline de capitalización profesional
+    title_lang = detect_title_language(final_title)
     
-    # b) preserve_special_casing: protege acrónimos y patrones (CSI, HBO, E.T., etc.)
+    if final_title:
+        final_title = smart_title_case(final_title, prefer_latam=prefer_latam, detected_lang=title_lang)
+    
     if canonical_title:
         final_title = preserve_special_casing(final_title, canonical_title)
     if base_title and not tvmaze_title_applied:
         final_title = preserve_special_casing(final_title, base_title)
-    
-    # c) apply_title_case_overrides: aplica excepciones manuales (DTF St. Louis, etc.)
     final_title = apply_title_case_overrides(final_title)
     
-    # d) Construir display_title (esto ya estaba bien)
     display_title = final_title
     is_series_final = bool(final_se) or bool(tmdb_data and tmdb_data.get("type") == "tv")
+    
     if final_se:
         display_se = format_season_episode_display(final_se, use_spanish=spanish_season_episode_format)
         display_title += f" | {display_se}"
     if has_new:
         display_title += " ᴺᵉʷ"
         
-    # Preparar subtítulo/descripción para inyección XML
-    if preferred_subtitle and not is_tba(preferred_subtitle):
-        # Mantener formato base
-        pass
-    elif ep_title_api and final_se:
-        preferred_subtitle = ep_title_api
-    else:
+    if not preferred_subtitle or is_tba(preferred_subtitle):
         preferred_subtitle = raw_subtitle.strip() if raw_subtitle else ""
 
     return display_title, is_series_final, preferred_subtitle, preferred_desc
