@@ -820,58 +820,93 @@ def detect_title_language(text):
 # =========================
 # CAPA 2: CAPITALIZACIÓN INTELIGENTE
 # =========================
+
+def looks_clean_title(text):
+    return (
+        text
+        and text[:1].isupper()
+        and not text.isupper()
+        and "  " not in text
+    )
+
 def smart_title_case(text, prefer_latam=False, detected_lang=None):
     if not text:
         return ""
+
     # Normalizar espacio después de dos puntos
-    text = re.sub(r':(\S)', r': \1', text)
-    
+    text = re.sub(r':(\S)', r': \1', text).strip()
+
     if detected_lang is None:
         detected_lang = detect_title_language(text)
-    
-    # Preservar capitalización original si es inglés y parece correcto
-    if detected_lang == "en" and not prefer_latam:
-        words = text.split()
-        if words and words[0][0].isupper() and any(w[0].isupper() for w in words[1:4] if len(w) > 3):
-            return text.strip()
-    
+
+    # Si ya se ve bien (especialmente en inglés), no tocar
+    if detected_lang == "en" and not prefer_latam and looks_clean_title(text):
+        return text
+
+    # =========================
+    # ESPAÑOL → usar lógica del script principal
+    # =========================
+    if prefer_latam or detected_lang != "en":
+        return spanish_title_case(text)
+
+    # =========================
+    # INGLÉS → Title Case controlado
+    # =========================
     segments = re.split(r"(:|\s-\s|–)", text)
     final_parts = []
+
     for part in segments:
         if part in [":", " - ", "–"]:
             final_parts.append(part)
             continue
+
         words = part.split()
         if not words:
             continue
+
         capitalized_words = []
         for idx, word in enumerate(words):
+
+            # Acrónimos / patrones especiales
             if should_preserve_allcaps_token(word) or has_special_uppercase_pattern(word):
                 capitalized_words.append(word)
                 continue
+
+            # Números romanos
             if re.fullmatch(r"[IVXLCDM]+", word):
                 capitalized_words.append(word)
                 continue
+
+            # Guiones (Spider-Man)
             if "-" in word:
                 subparts = word.split("-")
-                rebuilt = [smart_title_case(sub, prefer_latam, detected_lang) for sub in subparts]
+                rebuilt = []
+                for sub in subparts:
+                    if should_preserve_allcaps_token(sub):
+                        rebuilt.append(sub)
+                    else:
+                        rebuilt.append(sub[:1].upper() + sub[1:].lower())
                 capitalized_words.append("-".join(rebuilt))
                 continue
-            if idx == 0:
-                capitalized_words.append(word[:1].upper() + word[1:].lower())
-                continue
-            if idx == len(words) - 1 and len(word) > 2:
-                capitalized_words.append(word[:1].upper() + word[1:].lower())
-                continue
+
             low = word.lower()
-            minor_set = SPANISH_MINOR_WORDS if detected_lang != "en" else {"a", "an", "and", "the", "of", "in", "to", "for"}
-            if low in minor_set:
+
+            # Primera o última palabra
+            if idx == 0 or idx == len(words) - 1:
+                capitalized_words.append(low[:1].upper() + low[1:])
+                continue
+
+            # Palabras menores
+            if low in {"a", "an", "and", "the", "of", "in", "to", "for"}:
                 capitalized_words.append(low)
             else:
-                capitalized_words.append(word[:1].upper() + word[1:].lower())
+                capitalized_words.append(low[:1].upper() + low[1:])
+
         final_parts.append(" ".join(capitalized_words))
+
     result = "".join(final_parts)
     return re.sub(r"\s+", " ", result).strip()
+
 
 def split_episode_title_from_desc(desc_text):
     if not desc_text:
@@ -889,15 +924,18 @@ def split_episode_title_from_desc(desc_text):
         return None, text
     if not sep:
         return None, text
-    if len(ep_title) > 100 or len(ep_title.split()) > 12:
+    # 🔧 límite menos restrictivo
+    if len(ep_title) > 120 or len(ep_title.split()) > 18:
         return None, text
     remaining = rest.strip()
     return ep_title, remaining
+
 
 def first_line(text):
     if not text:
         return ""
     return text.replace("\r\n", "\n").replace("\r", "\n").split("\n", 1)[0].strip()
+
 
 def strip_html_tags(text):
     if not text:
@@ -905,6 +943,7 @@ def strip_html_tags(text):
     text = re.sub(r"<[^>]+>", " ", text)
     text = text.replace("&nbsp;", " ")
     return " ".join(text.split()).strip()
+
 
 def has_special_uppercase_pattern(token):
     if not token:
@@ -925,6 +964,7 @@ def has_special_uppercase_pattern(token):
     if upper_count >= 2 and stripped != stripped[:1].upper() + stripped[1:].lower():
         return True
     return False
+
 
 def preserve_special_casing(base_title, canonical_title):
     if not base_title or not canonical_title:
@@ -948,6 +988,7 @@ def preserve_special_casing(base_title, canonical_title):
             merged.append(bt)
     return " ".join(merged)
 
+
 def apply_title_case_overrides(title):
     if not title:
         return title
@@ -957,9 +998,12 @@ def apply_title_case_overrides(title):
         return override
     return title
 
+
 def is_ambiguous_title(title):
     tokens = [t for t in normalize_text(title).split() if len(t) > 2]
-    return len(tokens) <= 2
+    # 🔧 menos agresivo (no rompe "Dark", "Lost", etc.)
+    return len(tokens) <= 1
+
 
 def extract_candidate_year(item):
     date_str = item.get("release_date") or item.get("first_air_date") or ""
