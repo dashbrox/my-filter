@@ -82,4 +82,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add guia.xml.gz api_cache.json || true
           git diff --cached --quiet || git commit -m "Actualizar guía EPG"
+          git pull --rebase origin main
           git push
