@@ -80,7 +80,23 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Añadir los archivos generados
           git add guia.xml.gz api_cache.json || true
+          
+          # Hacer commit de los cambios (solo si los hay)
           git diff --cached --quiet || git commit -m "Actualizar guía EPG"
-          git pull --rebase origin main
-          git push
+          
+          # Traer la información del repositorio remoto
+          git fetch origin main
+          
+          # Forzar nuestros archivos locales en caso de conflicto con el remoto
+          git checkout --ours guia.xml.gz
+          git checkout --ours api_cache.json
+          git add guia.xml.gz api_cache.json
+          
+          # Hacer un commit de fusión (merge commit) para unir el historial
+          git merge origin/main --strategy-option ours --no-edit
+          
+          # Empujar nuestros cambios de forma segura
+          git push origin main
