@@ -69,7 +69,7 @@ REMOVE_SUBTITLE_ENTIRELY = False
 DOWNLOAD_TIMEOUT = (20, 120)
 API_TIMEOUT = (5, 10)
 MAX_RETRIES = 2
-USER_AGENT = "xmltv-title-normalizer/2.0-Universal"
+USER_AGENT = "xmltv-title-normalizer/3.1-Universal"
 
 LATAM_FEED_CODES = {
     "ar", "bo", "br", "cl", "co", "cr", "do", "ec", "sv",
@@ -244,7 +244,8 @@ def canonical_channel_id(ch_id):
     if not ch_id:
         return ch_id
     ch_id = normalize_mitv_channel_id(ch_id)
-    return CHANNEL_ALIAS_MAP.get(ch_id, ch_id)
+    ch_id = CHANNEL_ALIAS_MAP.get(ch_id, ch_id)
+    return ch_id.lower()
 
 # =========================
 # UTILS TEXTO Y SIMILITUD
@@ -257,6 +258,15 @@ def normalize_text(text):
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
     text = re.sub(r"[^a-z0-9\s]", " ", text)
     return " ".join(text.split())
+
+def clean_punctuation_spacing(text):
+    if not text:
+        return text
+    text = re.sub(r'\s+([!¡?¿])', r'\1', text)
+    text = re.sub(r'([!¡?¿])\s+', r'\1', text)
+    text = re.sub(r"\b'\s+", "'", text)
+    text = re.sub(r'\s{2,}', ' ', text)
+    return text.strip()
 
 def get_channel_country_code(ch_id):
     if not ch_id:
@@ -473,6 +483,16 @@ def extract_year_regex(text):
         return " ".join(clean.split()), year
     return text, None
 
+def extract_year_from_image(elem):
+    """Extrae el año de la URL de la imagen, si está presente."""
+    for img in elem.findall("image"):
+        url = img.text or ""
+        # Busca un patrón _YYYY_ o -YYYY- en la URL
+        m = re.search(r'[_-](\d{4})[_-]', url)
+        if m:
+            return m.group(1)
+    return None
+
 def normalize_season_ep_from_numbers(season, episode):
     try:
         season_num = int(season)
@@ -520,7 +540,6 @@ def extract_xmltv_episode_num(elem):
     return None
 
 def infer_media_type_from_desc(desc, categories=None):
-    """Determina si es serie o película analizando descripción y categorías."""
     d = normalize_text(desc)
     tv_hints = ["temporada", "episodio", "capitulo", "serie", "novela", "reality", "miniserie"]
     movie_hints = ["pelicula", "film", "largometraje", "cine", "documental"]
@@ -601,30 +620,26 @@ def strip_se_from_title(text):
 def spanish_title_case(text):
     if not text:
         return ""
-    # Separamos en palabras conservando signos de puntuación
+    text = clean_punctuation_spacing(text)
     tokens = re.findall(r"[\w\.]+|[^\w\s]", text, re.UNICODE)
     result = []
     capitalize_next = True
     i = 0
     while i < len(tokens):
         token = tokens[i]
-        # Si es signo de puntuación (incluyendo dos puntos)
         if re.fullmatch(r"[^\w\s]+", token):
             result.append(token)
-            if token in ":":
-                capitalize_next = True  # Después de dos puntos, mayúscula
+            if token in ":¡!¿?":
+                capitalize_next = True
             else:
                 capitalize_next = False
             i += 1
             continue
-        # Token de palabra
         low = token.lower()
-        # Si el token es un acrónimo con puntos (ej. "EE.UU.") lo pasamos tal cual
         if re.fullmatch(r"(?:\w\.)+\w?", token):
             result.append(token)
             i += 1
             continue
-        # Si el token es enteramente mayúsculas y no es palabra menor, lo dejamos
         if token.isupper() and low not in SPANISH_MINOR_WORDS:
             result.append(token)
             i += 1
@@ -638,7 +653,6 @@ def spanish_title_case(text):
     return " ".join(result).replace(" .", ".").replace(" ,", ",").replace(" :", ":").replace("( ", "(").replace(" )", ")")
 
 def preserve_special_casing(base_title, canonical_title):
-    """Mantiene mayúsculas especiales del título canónico."""
     if not base_title or not canonical_title:
         return base_title
     if normalize_text(base_title) != normalize_text(canonical_title):
@@ -650,13 +664,12 @@ def preserve_special_casing(base_title, canonical_title):
     merged = []
     for bw, cw in zip(base_words, canon_words):
         if bw.upper() == cw.upper():
-            merged.append(cw)  # Usar casing canónico
+            merged.append(cw)
         else:
             merged.append(bw)
     return " ".join(merged)
 
 def extract_english_title(elem):
-    """Devuelve el título en inglés si es válido (no genérico)."""
     invalid = {"comedia", "drama", "terror", "acción", "accion", "suspenso",
                "romance", "aventura", "ciencia ficción", "serie", "película",
                "pelicula", "documental"}
@@ -834,7 +847,6 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False,
                   season=None, episode=None, english_title=None):
     if not TMDB_API_KEY or not title:
         return None
-    # Clave de caché ampliada con english_title
     cache_key = f"tmdb_v4:{normalize_text(title)}:{normalize_text(english_title or '')}:{year or ''}:{season or ''}:{episode or ''}:{'latam' if prefer_latam else 'eng'}"
     cached = cache_get(cache_key)
     if cached is not None:
@@ -886,7 +898,7 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False,
     return None
 
 # =========================
-# TVMAZE (se usa con título en inglés si existe)
+# TVMAZE
 # =========================
 
 def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None, english_title=None):
@@ -904,7 +916,6 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None, eng
         if not results:
             cache_set(cache_key, None)
             return None
-        # puntuar y elegir el mejor show (simplificado, ya que es respaldo)
         best_episode = None
         best_score = -999.0
         for entry in results[:5]:
@@ -966,16 +977,19 @@ def strip_leading_se_from_text(text):
     if not text:
         return ""
     text = text.strip()
-    # Elimina marcadores S/E al inicio
     return re.sub(r"^[SsTt]\d{1,2}\s*[Ee]\d{1,2}\s*[-:]\s*", "", text).strip()
 
 def strip_leading_se_from_desc(desc_text):
     if not desc_text:
         return ""
-    lines = desc_text.splitlines()
+    text = desc_text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = text.splitlines()
     if lines:
-        lines[0] = strip_leading_se_from_text(lines[0])
-    return "\n".join(lines).strip()
+        first_line = lines[0].strip()
+        se_pattern = r'^\s*(?:S\d{1,2}\s*E\d{1,2}|T\d{1,2}\s*E\d{1,2}|Temp\.\s*\d+\s*Ep\.\s*\d+|Temporada\s*\d+\s*Episodio\s*\d+|Season\s*\d+\s*Episode\s*\d+)\s*[-–—:]\s*'
+        if re.search(se_pattern, first_line, re.IGNORECASE):
+            return "\n".join(lines[1:]).strip()
+    return text
 
 def first_line(text):
     if not text:
@@ -1016,7 +1030,6 @@ def remove_episode_title_from_series_title(title_text, subtitle_text=""):
     subtitle = " ".join((subtitle_text or "").strip().split())
     if not subtitle:
         return base
-    # Si el título base contiene el subtítulo al final tras un separador
     norm_sub = normalize_text(subtitle)
     separators = [":", "|", "-", "–", "—"]
     for sep in separators:
@@ -1028,8 +1041,7 @@ def remove_episode_title_from_series_title(title_text, subtitle_text=""):
 
 def process_programme(elem, start_time_str, prefer_latam=False,
                       spanish_season_episode_format=False, tvmaze_authoritative=False):
-    # Extraer títulos
-    spanish_title = pick_best_localized_text(elem, "title", prefer_latam=True)  # título principal
+    spanish_title = pick_best_localized_text(elem, "title", prefer_latam=True)
     english_title = extract_english_title(elem)
 
     raw_title = spanish_title if spanish_title else pick_best_localized_text(elem, "title", prefer_latam=False)
@@ -1046,15 +1058,15 @@ def process_programme(elem, start_time_str, prefer_latam=False,
     se_xml = extract_xmltv_episode_num(elem)
     final_se = se_title or se_desc or se_xml
 
-    # Limpiar título base
     base_title = strip_se_from_title(clean_title)
     subtitle_hint = strip_leading_se_from_text(raw_subtitle or "").strip()
     base_title = remove_episode_title_from_series_title(base_title, subtitle_hint)
 
-    final_year = year_regex
+    # Año: primero del título, si no, de la imagen
+    image_year = extract_year_from_image(elem)
+    final_year = year_regex or image_year
     final_title = base_title
 
-    # Parámetros para búsqueda de episodio
     tmdb_season = None
     tmdb_episode = None
     if final_se:
@@ -1065,7 +1077,6 @@ def process_programme(elem, start_time_str, prefer_latam=False,
 
     should_translate = prefer_latam and not xml_has_spanish_title
 
-    # Consultar TMDB
     tmdb_data = get_tmdb_data(
         final_title if final_title else raw_title,
         desc=raw_desc,
@@ -1087,14 +1098,16 @@ def process_programme(elem, start_time_str, prefer_latam=False,
         loc_title = (tmdb_data.get("localized_title") or "").strip()
         canon_from_tmdb = (tmdb_data.get("canonical_title") or "").strip()
 
-        # Siempre que estemos en LATAM/ES, usamos el título localizado de TMDB para unificar
         if loc_title and (should_translate or prefer_latam):
             final_title = loc_title
             canonical_title = loc_title
+        elif canon_from_tmdb and (should_translate or prefer_latam):
+            if text_similarity(final_title, canon_from_tmdb) > 0.4:
+                final_title = canon_from_tmdb
+                canonical_title = canon_from_tmdb
         elif canon_from_tmdb:
             canonical_title = canon_from_tmdb
 
-        # Descripciones
         ep_overview = tmdb_data.get("episode_overview") or ""
         loc_overview = tmdb_data.get("localized_overview") or ""
         if ep_overview:
@@ -1102,17 +1115,14 @@ def process_programme(elem, start_time_str, prefer_latam=False,
         elif loc_overview:
             preferred_desc = loc_overview
 
-        # Episodio: nombre localizado
         if tmdb_data.get("type") == "tv":
             ep_name = tmdb_data.get("episode_name") or ""
             if ep_name and not preferred_subtitle:
                 preferred_subtitle = ep_name
 
-    # Si no tenemos año, tomar de TMDB
     if not final_year and tmdb_data and tmdb_data.get("year"):
         final_year = tmdb_data.get("year")
 
-    # TVMaze como respaldo
     should_try_tvmaze = (tmdb_data and tmdb_data.get("type") == "tv") or final_se
     if should_try_tvmaze:
         try:
@@ -1123,7 +1133,6 @@ def process_programme(elem, start_time_str, prefer_latam=False,
                 desc=raw_desc, subtitle=subtitle_hint, year=final_year,
                 english_title=english_title
             )
-            # Si TVMaze encuentra season/episode y no teníamos, lo adoptamos
             if not final_se and tvmaze_data and tvmaze_data.get("season") is not None:
                 final_se = normalize_season_ep_from_numbers(
                     tvmaze_data["season"], tvmaze_data["episode"]
@@ -1143,22 +1152,20 @@ def process_programme(elem, start_time_str, prefer_latam=False,
         except ValueError:
             pass
 
-    # Si no hay datos enriquecidos, mantener original
     if not tmdb_data and not tvmaze_data:
         final_title = base_title or clean_title or raw_title
         preferred_subtitle = raw_subtitle or None
         preferred_desc = raw_desc or None
 
-    # Capitalización final: para LATAM/ES aplicamos siempre spanish_title_case tras enriquecer
+    final_title = clean_punctuation_spacing(final_title)
+
     if prefer_latam or xml_has_spanish_title:
         final_title = spanish_title_case(final_title)
     else:
-        # Para inglés solo preservamos casing especial
         if canonical_title:
             final_title = preserve_special_casing(final_title, canonical_title)
     final_title = apply_title_case_overrides(final_title)
 
-    # Añadir temporada/episodio al título
     display_title = final_title
     is_series = bool(final_se) or (tmdb_data and tmdb_data.get("type") == "tv")
     if final_se:
@@ -1194,7 +1201,6 @@ def set_or_replace_subtitle(elem, subtitle_text, prefer_latam=False):
     new_sub.text = subtitle_text
     if prefer_latam:
         new_sub.set("lang", "es")
-    # Insertar después del título
     title_index = 0
     for i, child in enumerate(list(elem)):
         if child.tag == "title":
@@ -1236,7 +1242,6 @@ def normalize_subtitle_and_desc(elem, prefer_latam, is_series, preferred_subtitl
     if chosen_subtitle and prefer_latam:
         chosen_subtitle = spanish_title_case(chosen_subtitle)
     set_or_replace_subtitle(elem, chosen_subtitle, prefer_latam)
-    # Si es serie y hay subtítulo, lo fusionamos con la descripción de forma coherente
     if is_series and chosen_subtitle:
         first = first_line(cleaned_desc)
         if normalize_text(first) != normalize_text(chosen_subtitle):
@@ -1268,7 +1273,7 @@ def download_xml(url, output_path):
                         f.write(chunk)
 
 def main():
-    print("Iniciando script enriquecido v2.0...", flush=True)
+    print("Iniciando script enriquecido v3.1...", flush=True)
     if not os.path.exists(CHANNELS_FILE):
         print("Error: No existe channels.txt", flush=True)
         return
