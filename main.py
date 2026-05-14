@@ -685,6 +685,13 @@ def extract_english_title(elem):
 # TMDB
 # =========================
 
+def extract_candidate_year(item):
+    """Extrae el año de un resultado de TMDB (película o serie)."""
+    date_str = item.get("release_date") or item.get("first_air_date") or ""
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+        return date_str[:4]
+    return None
+
 def tmdb_search_multi(query, language, year=None):
     if not TMDB_API_KEY:
         return None
