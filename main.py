@@ -637,6 +637,13 @@ def spanish_title_case(text):
             result.append(token)
             i += 1
             continue
+
+        # Preservar letras mayúsculas sueltas (ej. "O" en Hawaii-Five-O)
+        if token.isupper() and len(token) == 1 and token.isalpha():
+            result.append(token)
+            i += 1
+            continue
+
         if token.isupper() and low not in SPANISH_MINOR_WORDS:
             result.append(token)
             i += 1
@@ -647,7 +654,25 @@ def spanish_title_case(text):
             result.append(low)
         capitalize_next = False
         i += 1
-    return " ".join(result).replace(" .", ".").replace(" ,", ",").replace(" :", ":").replace("( ", "(").replace(" )", ")")
+
+    title = " ".join(result)
+
+    # Signos de exclamación e interrogación
+    title = re.sub(r'\s+([!¡?¿])', r'\1', title)
+    title = re.sub(r'([!¡?¿])\s+', r'\1', title)
+
+    # Apóstrofos
+    title = re.sub(r"\b'\s+", "'", title)
+    title = re.sub(r"\s+'\b", "'", title)
+
+    # Colapsar guiones sin espacios
+    title = re.sub(r'\s*-\s*', '-', title)
+
+    title = title.replace(" .", ".").replace(" ,", ",").replace(" :", ":")
+    title = title.replace("( ", "(").replace(" )", ")")
+    title = title.replace("¡ ", "¡").replace("¿ ", "¿")
+
+    return title
 
 def preserve_special_casing(base_title, canonical_title):
     if not base_title or not canonical_title:
@@ -895,11 +920,32 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False,
             cache_set(cache_key, result)
             return result
 
+    # 🔄 FALLBACK: búsqueda sin signos de puntuación (ej. "Hawaii-Five-O" -> "Hawaii Five O")
+    fallback_query = re.sub(r'[^\w\s]', ' ', title)   # quita puntuación, deja espacios
+    fallback_query = re.sub(r'\s+', ' ', fallback_query).strip()
+    if fallback_query and normalize_text(fallback_query) != normalize_text(title):
+        data = tmdb_search_multi(fallback_query, search_lang, year=year)
+        if data and data.get("results"):
+            best_item = None
+            best_score = -999.0
+            for item in data["results"][:10]:
+                if item.get("media_type") not in ("movie", "tv"):
+                    continue
+                sc = _score_tmdb_item(item, title, desc, year, expected_type, source_sequel, ambiguous_title)
+                if sc is not None and sc > best_score:
+                    best_score = sc
+                    best_item = item
+            if best_item and best_score >= 5.5:
+                result = _build_tmdb_result(best_item, prefer_latam, season, episode)
+                result["match_score"] = round(best_score, 3)
+                cache_set(cache_key, result)
+                return result
+
     cache_set(cache_key, None)
     return None
 
 # =========================
-# TVMAZE (MEJORADO: búsqueda ±1 día, pero solo para canales autoritativos)
+# TVMAZE (solo canales autoritativos)
 # =========================
 
 def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None, english_title=None):
@@ -934,7 +980,7 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None, eng
                 dates_to_try.append((d + timedelta(days=1)).strftime("%Y-%m-%d"))
             except Exception:
                 pass
-            dates_to_try = list(dict.fromkeys(dates_to_try))  # elimina duplicados
+            dates_to_try = list(dict.fromkeys(dates_to_try))
             
             episodes = []
             for candidate_date in dates_to_try:
@@ -1138,8 +1184,7 @@ def process_programme(elem, start_time_str, prefer_latam=False,
     if not final_year and tmdb_data and tmdb_data.get("year"):
         final_year = tmdb_data.get("year")
 
-    # --- CAMBIO SENIOR: solo consultar TVMaze si es canal autoritativo ---
-    # Así evitamos las 3 peticiones por programa en miles de canales LATAM/ES
+    # TVMaze solo para canales autoritativos (us, gb, ca)
     should_try_tvmaze = tvmaze_authoritative and ((tmdb_data and tmdb_data.get("type") == "tv") or final_se)
     if should_try_tvmaze:
         try:
