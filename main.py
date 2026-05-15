@@ -252,12 +252,19 @@ def normalize_text(text):
     text = re.sub(r"[^a-z0-9\s]", " ", text)
     return " ".join(text.split())
 
+# --- MEJORA: limpieza de espacios en guiones y signos ---
 def clean_punctuation_spacing(text):
     if not text:
         return text
+    # Elimina espacios alrededor de guiones (convierte " - " en "-")
+    text = re.sub(r'\s*-\s*', '-', text)
+    # Espacios antes/después de signos de exclamación e interrogación
     text = re.sub(r'\s+([!¡?¿])', r'\1', text)
     text = re.sub(r'([!¡?¿])\s+', r'\1', text)
+    # Apóstrofos pegados
     text = re.sub(r"\b'\s+", "'", text)
+    text = re.sub(r"\s+'\b", "'", text)
+    # Unifica espacios múltiples
     text = re.sub(r'\s{2,}', ' ', text)
     return text.strip()
 
@@ -893,7 +900,7 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False,
     return None
 
 # =========================
-# TVMAZE
+# TVMAZE (MEJORADO: búsqueda ±1 día)
 # =========================
 
 def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None, english_title=None):
@@ -919,10 +926,25 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None, eng
             if not show_title:
                 continue
             show_id = show.get("id")
-            r_ep = SESSION.get(f"https://api.tvmaze.com/shows/{show_id}/episodesbydate", params={"date": air_date}, timeout=API_TIMEOUT)
-            if r_ep.status_code != 200:
-                continue
-            episodes = r_ep.json() or []
+            
+            # --- MEJORA: probar fecha original, un día antes y un día después ---
+            dates_to_try = [air_date]
+            try:
+                d = datetime.strptime(air_date, "%Y-%m-%d")
+                dates_to_try.append((d - timedelta(days=1)).strftime("%Y-%m-%d"))
+                dates_to_try.append((d + timedelta(days=1)).strftime("%Y-%m-%d"))
+            except Exception:
+                pass
+            dates_to_try = list(dict.fromkeys(dates_to_try))  # elimina duplicados
+            
+            episodes = []
+            for candidate_date in dates_to_try:
+                r_ep = SESSION.get(f"https://api.tvmaze.com/shows/{show_id}/episodesbydate", params={"date": candidate_date}, timeout=API_TIMEOUT)
+                if r_ep.status_code == 200:
+                    episodes = r_ep.json() or []
+                    if episodes:
+                        break
+            
             for ep in episodes:
                 ep_name = (ep.get("name") or "").strip()
                 ep_summary = strip_html_tags(ep.get("summary") or "")
