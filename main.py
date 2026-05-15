@@ -252,7 +252,6 @@ def normalize_text(text):
     text = re.sub(r"[^a-z0-9\s]", " ", text)
     return " ".join(text.split())
 
-# --- MEJORA: limpieza de espacios en guiones y signos ---
 def clean_punctuation_spacing(text):
     if not text:
         return text
@@ -900,7 +899,7 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False,
     return None
 
 # =========================
-# TVMAZE (MEJORADO: búsqueda ±1 día)
+# TVMAZE (MEJORADO: búsqueda ±1 día, pero solo para canales autoritativos)
 # =========================
 
 def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None, english_title=None):
@@ -927,7 +926,7 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None, eng
                 continue
             show_id = show.get("id")
             
-            # --- MEJORA: probar fecha original, un día antes y un día después ---
+            # Probar fecha original, un día antes y un día después
             dates_to_try = [air_date]
             try:
                 d = datetime.strptime(air_date, "%Y-%m-%d")
@@ -1139,7 +1138,9 @@ def process_programme(elem, start_time_str, prefer_latam=False,
     if not final_year and tmdb_data and tmdb_data.get("year"):
         final_year = tmdb_data.get("year")
 
-    should_try_tvmaze = (tmdb_data and tmdb_data.get("type") == "tv") or final_se
+    # --- CAMBIO SENIOR: solo consultar TVMaze si es canal autoritativo ---
+    # Así evitamos las 3 peticiones por programa en miles de canales LATAM/ES
+    should_try_tvmaze = tvmaze_authoritative and ((tmdb_data and tmdb_data.get("type") == "tv") or final_se)
     if should_try_tvmaze:
         try:
             air_date = datetime.strptime(start_time_str[:8], "%Y%m%d").strftime("%Y-%m-%d")
@@ -1300,7 +1301,6 @@ def main():
         return
     allowed_canonical = {canonical_channel_id(ch) for ch in allowed_channels}
 
-    # --- NUEVO: para controlar la primera fuente que provee cada canal ---
     channel_source_assigned = {}
 
     good_sources = set()
@@ -1361,10 +1361,8 @@ def main():
                             if (canonical_ch_id in allowed_canonical
                                     and is_source_allowed_for_channel(ch_id, url)
                                     and canonical_ch_id not in written_channels):
-                                # Asignar la primera fuente para este canal (solo si aún no tiene)
                                 if canonical_ch_id not in channel_source_assigned:
                                     channel_source_assigned[canonical_ch_id] = url
-                                # Si ya tiene una fuente asignada y es diferente a la actual, saltar
                                 if channel_source_assigned[canonical_ch_id] != url:
                                     root.remove(elem)
                                     continue
@@ -1381,13 +1379,11 @@ def main():
                             ch_id = elem.get("channel")
                             canonical_ch_id = canonical_channel_id(ch_id)
                             if canonical_ch_id in allowed_canonical and is_source_allowed_for_channel(ch_id, url):
-                                # --- NUEVO: filtrar por primera fuente asignada ---
                                 if canonical_ch_id not in channel_source_assigned:
                                     channel_source_assigned[canonical_ch_id] = url
                                 if channel_source_assigned[canonical_ch_id] != url:
                                     root.remove(elem)
                                     continue
-                                # --- fin de la adición ---
                                 start = elem.get("start", "")
                                 tvmaze_auth = should_use_tvmaze_authoritative(url, ch_id)
                                 new_title, is_series, pref_sub, pref_desc = process_programme(
