@@ -118,14 +118,7 @@ EPG_IT = "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz"
 EPG_RAKUTEN2 = "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz"
 EPG_MITV = EPG_MITV_GT
 
-CHANNEL_SOURCE_RULES = {
-    "M+.Estrenos.es": [EPG_ES1],
-    "DAZN.F1.es": [EPG_ES1],
-    "tennis-plus": [EPG_RAKUTEN],
-    "fashion-tv": [EPG_RAKUTEN],
-    "SuperTennis.HD.it": [EPG_IT],
-    "UK:.Tennis.Channel.be": [EPG_RAKUTEN2],
-}
+CHANNEL_SOURCE_RULES = {}
 
 # =========================
 # SESIÓN HTTP
@@ -484,10 +477,8 @@ def extract_year_regex(text):
     return text, None
 
 def extract_year_from_image(elem):
-    """Extrae el año de la URL de la imagen, si está presente."""
     for img in elem.findall("image"):
         url = img.text or ""
-        # Busca un patrón _YYYY_ o -YYYY- en la URL
         m = re.search(r'[_-](\d{4})[_-]', url)
         if m:
             return m.group(1)
@@ -686,7 +677,6 @@ def extract_english_title(elem):
 # =========================
 
 def extract_candidate_year(item):
-    """Extrae el año de un resultado de TMDB (película o serie)."""
     date_str = item.get("release_date") or item.get("first_air_date") or ""
     if re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
         return date_str[:4]
@@ -863,7 +853,6 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False,
     source_sequel = detect_sequel_marker(title)
     ambiguous_title = is_ambiguous_title(title)
 
-    # Primer intento: título en inglés si está disponible
     if english_title:
         data = tmdb_search_multi(english_title, "en-US", year=year)
         if data and data.get("results"):
@@ -882,7 +871,6 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False,
                 cache_set(cache_key, result)
                 return result
 
-    # Segundo intento: título local
     search_lang = "es-MX" if prefer_latam else "en-US"
     data = tmdb_search_multi(title, search_lang, year=year)
     if data and data.get("results"):
@@ -1069,7 +1057,6 @@ def process_programme(elem, start_time_str, prefer_latam=False,
     subtitle_hint = strip_leading_se_from_text(raw_subtitle or "").strip()
     base_title = remove_episode_title_from_series_title(base_title, subtitle_hint)
 
-    # Año: primero del título, si no, de la imagen
     image_year = extract_year_from_image(elem)
     final_year = year_regex or image_year
     final_title = base_title
@@ -1291,6 +1278,9 @@ def main():
         return
     allowed_canonical = {canonical_channel_id(ch) for ch in allowed_channels}
 
+    # --- NUEVO: para controlar la primera fuente que provee cada canal ---
+    channel_source_assigned = {}
+
     good_sources = set()
     for sources in CHANNEL_SOURCE_RULES.values():
         for s in sources:
@@ -1349,6 +1339,13 @@ def main():
                             if (canonical_ch_id in allowed_canonical
                                     and is_source_allowed_for_channel(ch_id, url)
                                     and canonical_ch_id not in written_channels):
+                                # Asignar la primera fuente para este canal (solo si aún no tiene)
+                                if canonical_ch_id not in channel_source_assigned:
+                                    channel_source_assigned[canonical_ch_id] = url
+                                # Si ya tiene una fuente asignada y es diferente a la actual, saltar
+                                if channel_source_assigned[canonical_ch_id] != url:
+                                    root.remove(elem)
+                                    continue
                                 channel_elem = clone_element(elem)
                                 channel_elem.set("id", canonical_ch_id)
                                 out_f.write(ET.tostring(channel_elem, encoding="utf-8"))
@@ -1362,6 +1359,13 @@ def main():
                             ch_id = elem.get("channel")
                             canonical_ch_id = canonical_channel_id(ch_id)
                             if canonical_ch_id in allowed_canonical and is_source_allowed_for_channel(ch_id, url):
+                                # --- NUEVO: filtrar por primera fuente asignada ---
+                                if canonical_ch_id not in channel_source_assigned:
+                                    channel_source_assigned[canonical_ch_id] = url
+                                if channel_source_assigned[canonical_ch_id] != url:
+                                    root.remove(elem)
+                                    continue
+                                # --- fin de la adición ---
                                 start = elem.get("start", "")
                                 tvmaze_auth = should_use_tvmaze_authoritative(url, ch_id)
                                 new_title, is_series, pref_sub, pref_desc = process_programme(
