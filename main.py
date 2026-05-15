@@ -253,10 +253,9 @@ def normalize_text(text):
     return " ".join(text.split())
 
 def clean_punctuation_spacing(text):
+    """Limpia espacios alrededor de signos de puntuación sin colapsar guiones."""
     if not text:
         return text
-    # Elimina espacios alrededor de guiones (convierte " - " en "-")
-    text = re.sub(r'\s*-\s*', '-', text)
     # Espacios antes/después de signos de exclamación e interrogación
     text = re.sub(r'\s+([!¡?¿])', r'\1', text)
     text = re.sub(r'([!¡?¿])\s+', r'\1', text)
@@ -615,6 +614,11 @@ def strip_se_from_title(text):
     return out
 
 def spanish_title_case(text):
+    """
+    Capitalización estilo español que NO colapsa guiones.
+    Mantiene los espacios alrededor de guiones y otros signos tal cual están en el texto original,
+    excepto para signos de exclamación/interrogación que se pegan sin espacio.
+    """
     if not text:
         return ""
     text = clean_punctuation_spacing(text)
@@ -665,14 +669,46 @@ def spanish_title_case(text):
     title = re.sub(r"\b'\s+", "'", title)
     title = re.sub(r"\s+'\b", "'", title)
 
-    # Colapsar guiones sin espacios
-    title = re.sub(r'\s*-\s*', '-', title)
-
+    # Puntos, comas, dos puntos, paréntesis, signos de apertura
     title = title.replace(" .", ".").replace(" ,", ",").replace(" :", ":")
     title = title.replace("( ", "(").replace(" )", ")")
     title = title.replace("¡ ", "¡").replace("¿ ", "¿")
 
     return title
+
+def apply_title_case_preserve_spacing(text, use_spanish=False):
+    """
+    Capitaliza palabras (opcionalmente con reglas españolas) pero conserva EXACTAMENTE
+    la puntuación y los espacios originales. Ideal para títulos procedentes de TMDB.
+    """
+    if not text:
+        return text
+    # Tokeniza en palabras (incluyendo apóstrofes) y bloques de no-palabras
+    tokens = re.findall(r"[\w']+|[^\w']+", text)
+    result_tokens = []
+    capitalize_next = True
+    for token in tokens:
+        if re.match(r'[\w\']+', token):
+            # Es una palabra
+            low = token.lower()
+            if token.isupper() and low not in SPANISH_MINOR_WORDS:
+                result_tokens.append(token)
+            elif capitalize_next or (use_spanish and low not in SPANISH_MINOR_WORDS):
+                result_tokens.append(low[0].upper() + low[1:] if len(low) > 1 else low.upper())
+            else:
+                result_tokens.append(low)
+            capitalize_next = False
+        else:
+            # Bloque de puntuación / espacios
+            result_tokens.append(token)
+            # Si el bloque contiene un signo que dispara mayúscula (como :, ¡, ¿, ?, !)
+            if any(c in token for c in ':¡!¿?'):
+                # Activamos mayúscula para la siguiente palabra
+                capitalize_next = True
+            else:
+                # En caso de punto, no activamos para no romper abreviaturas (asumimos seguridad)
+                capitalize_next = False
+    return ''.join(result_tokens)
 
 def preserve_special_casing(base_title, canonical_title):
     if not base_title or not canonical_title:
@@ -920,8 +956,8 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False,
             cache_set(cache_key, result)
             return result
 
-    # 🔄 FALLBACK: búsqueda sin signos de puntuación (ej. "Hawaii-Five-O" -> "Hawaii Five O")
-    fallback_query = re.sub(r'[^\w\s]', ' ', title)   # quita puntuación, deja espacios
+    # FALLBACK: búsqueda sin signos de puntuación (ej. "Hawaii-Five-O" -> "Hawaii Five O")
+    fallback_query = re.sub(r'[^\w\s]', ' ', title)
     fallback_query = re.sub(r'\s+', ' ', fallback_query).strip()
     if fallback_query and normalize_text(fallback_query) != normalize_text(title):
         data = tmdb_search_multi(fallback_query, search_lang, year=year)
@@ -972,7 +1008,6 @@ def get_tvmaze_episode(show_name, air_date, desc="", subtitle="", year=None, eng
                 continue
             show_id = show.get("id")
             
-            # Probar fecha original, un día antes y un día después
             dates_to_try = [air_date]
             try:
                 d = datetime.strptime(air_date, "%Y-%m-%d")
@@ -1093,12 +1128,21 @@ def remove_episode_title_from_series_title(title_text, subtitle_text=""):
     if not subtitle:
         return base
     norm_sub = normalize_text(subtitle)
+
+    # Separadores clásicos: dos puntos, barra vertical, guiones largos y cortos
     separators = [":", "|", "-", "–", "—"]
     for sep in separators:
         if sep in base:
             left, right = base.rsplit(sep, 1)
             if normalize_text(right.strip()) == norm_sub and len(left.strip()) > 0:
                 return left.strip()
+
+    # Intento extra con el último guion simple (por si el texto original ya estaba pegado)
+    if "-" in base:
+        left, right = base.rsplit("-", 1)
+        if normalize_text(right.strip()) == norm_sub and len(left.strip()) > 0:
+            return left.strip()
+
     return base
 
 def process_programme(elem, start_time_str, prefer_latam=False,
@@ -1219,13 +1263,17 @@ def process_programme(elem, start_time_str, prefer_latam=False,
         preferred_subtitle = raw_subtitle or None
         preferred_desc = raw_desc or None
 
-    final_title = clean_punctuation_spacing(final_title)
-
-    if prefer_latam or xml_has_spanish_title:
-        final_title = spanish_title_case(final_title)
+    # --- CAPITALIZACIÓN FINAL (RESPETANDO SIGNOS SEGÚN ORIGEN) ---
+    if tmdb_data and (canonical_title or final_title != base_title):
+        # Título procedente de TMDB: aplicar capitalización que preserva la puntuación exacta
+        final_title = apply_title_case_preserve_spacing(final_title, use_spanish=(prefer_latam or xml_has_spanish_title))
     else:
-        if canonical_title:
-            final_title = preserve_special_casing(final_title, canonical_title)
+        # Título original del XML: capitalización normal (no colapsa guiones)
+        if prefer_latam or xml_has_spanish_title:
+            final_title = spanish_title_case(final_title)
+        else:
+            # Si no hay que forzar español, dejamos solo limpieza de espacios básicos
+            final_title = clean_punctuation_spacing(final_title).strip()
     final_title = apply_title_case_overrides(final_title)
 
     display_title = final_title
