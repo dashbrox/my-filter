@@ -261,18 +261,72 @@ def normalize_text(text):
     return " ".join(text.split())
 
 def clean_punctuation_spacing(text):
-    """Limpia espacios alrededor de signos de puntuación sin colapsar guiones."""
+    """Limpia espacios alrededor de signos de puntuación, sin colapsar guiones."""
     if not text:
         return text
-    # Espacios antes/después de signos de exclamación e interrogación
-    text = re.sub(r'\s+([!¡?¿])', r'\1', text)
-    text = re.sub(r'([!¡?¿])\s+', r'\1', text)
+    # Espacio antes de ! y ? se pega a la palabra anterior: "Hola !" → "Hola!"
+    text = re.sub(r'\s+([!?])', r'\1', text)
+    # Espacio después de ¡ y ¿ se pega a la palabra siguiente: "¡ Hola" → "¡Hola"
+    text = re.sub(r'([¡¿])\s+', r'\1', text)
     # Apóstrofos pegados
     text = re.sub(r"\b'\s+", "'", text)
     text = re.sub(r"\s+'\b", "'", text)
     # Unifica espacios múltiples
     text = re.sub(r'\s{2,}', ' ', text)
     return text.strip()
+
+def smart_title_case(text, use_spanish=False, force_all=False, clean_spacing=True):
+    """
+    Capitaliza un título preservando EXACTAMENTE los espacios y la puntuación.
+    - Si force_all=True: todas las palabras se capitalizan según reglas (para títulos originales).
+    - Si force_all=False: se respetan las mayúsculas internas y acrónimos; solo se capitalizan
+      palabras que no estén ya correctamente capitalizadas (para títulos de TMDB/TVMaze).
+    - clean_spacing: si es True, primero se aplica clean_punctuation_spacing.
+    """
+    if not text:
+        return text
+    if clean_spacing:
+        text = clean_punctuation_spacing(text)
+    # Tokenizamos palabras (incluyendo apóstrofe y punto) y bloques de no-palabra
+    tokens = re.findall(r"[\w'.]+|[^\w'.]+", text)
+    result = []
+    capitalize_next = True
+    minor_words = SPANISH_MINOR_WORDS if use_spanish else ENGLISH_MINOR_WORDS
+
+    for token in tokens:
+        if re.match(r'[\w\'.]+', token):
+            # Palabras con puntos o apóstrofes (acrónimos, contracciones): se dejan intactas
+            if '.' in token or "'" in token:
+                result.append(token)
+                capitalize_next = False
+                continue
+
+            low = token.lower()
+            # Si ya tiene mayúsculas internas (no solo la primera) y no es force_all, se respeta
+            if not force_all and token != low and token != token.capitalize():
+                result.append(token)
+                capitalize_next = False
+                continue
+            # Palabras completamente en mayúsculas (posibles acrónimos) se mantienen
+            if token.isupper() and low not in minor_words:
+                result.append(token)
+                capitalize_next = False
+                continue
+            # Aplicar mayúscula según la posición y si no es palabra menor
+            if capitalize_next or low not in minor_words:
+                result.append(low[0].upper() + low[1:] if len(low) > 1 else low.upper())
+            else:
+                result.append(low)
+            capitalize_next = False
+        else:
+            # Bloque de puntuación / espacios
+            result.append(token)
+            # Solo : ¡ ¿ ! ? activan la siguiente mayúscula
+            if any(c in token for c in ':¡!¿?!'):
+                capitalize_next = True
+            else:
+                capitalize_next = False
+    return ''.join(result)
 
 def get_channel_country_code(ch_id):
     if not ch_id:
@@ -621,195 +675,6 @@ def strip_se_from_title(text):
         out = re.sub(pat, "", out, flags=re.IGNORECASE).strip()
     return out
 
-def spanish_title_case(text):
-    """
-    Capitalización estilo español que NO colapsa guiones.
-    Mantiene los espacios alrededor de guiones y otros signos tal cual están en el texto original,
-    excepto para signos de exclamación/interrogación que se pegan sin espacio.
-    """
-    if not text:
-        return ""
-    text = clean_punctuation_spacing(text)
-    tokens = re.findall(r"[\w\.]+|[^\w\s]", text, re.UNICODE)
-    result = []
-    capitalize_next = True
-    i = 0
-    while i < len(tokens):
-        token = tokens[i]
-        if re.fullmatch(r"[^\w\s]+", token):
-            result.append(token)
-            if token in ":¡!¿?":
-                capitalize_next = True
-            else:
-                capitalize_next = False
-            i += 1
-            continue
-        low = token.lower()
-        if re.fullmatch(r"(?:\w\.)+\w?", token):
-            result.append(token)
-            i += 1
-            continue
-
-        # Preservar letras mayúsculas sueltas (ej. "O" en Hawaii-Five-O)
-        if token.isupper() and len(token) == 1 and token.isalpha():
-            result.append(token)
-            i += 1
-            continue
-
-        if token.isupper() and low not in SPANISH_MINOR_WORDS:
-            result.append(token)
-            i += 1
-            continue
-        if capitalize_next or low not in SPANISH_MINOR_WORDS:
-            result.append(low[0].upper() + low[1:] if len(low) > 1 else low.upper())
-        else:
-            result.append(low)
-        capitalize_next = False
-        i += 1
-
-    title = " ".join(result)
-
-    # Signos de exclamación e interrogación
-    title = re.sub(r'\s+([!¡?¿])', r'\1', title)
-    title = re.sub(r'([!¡?¿])\s+', r'\1', title)
-
-    # Apóstrofos
-    title = re.sub(r"\b'\s+", "'", title)
-    title = re.sub(r"\s+'\b", "'", title)
-
-    # Puntos, comas, dos puntos, paréntesis, signos de apertura
-    title = title.replace(" .", ".").replace(" ,", ",").replace(" :", ":")
-    title = title.replace("( ", "(").replace(" )", ")")
-    title = title.replace("¡ ", "¡").replace("¿ ", "¿")
-
-    return title
-
-def english_title_case(text):
-    """
-    Capitalización estilo inglés que NO colapsa guiones.
-    Similar a spanish_title_case pero con lista de palabras menores en inglés.
-    """
-    if not text:
-        return ""
-    text = clean_punctuation_spacing(text)
-    tokens = re.findall(r"[\w\.]+|[^\w\s]", text)
-    result = []
-    capitalize_next = True
-    i = 0
-    while i < len(tokens):
-        token = tokens[i]
-        if re.fullmatch(r"[^\w\s]+", token):
-            result.append(token)
-            if token in ":!?":
-                capitalize_next = True
-            else:
-                capitalize_next = False
-            i += 1
-            continue
-        low = token.lower()
-        if re.fullmatch(r"(?:\w\.)+\w?", token):
-            result.append(token)
-            i += 1
-            continue
-
-        # Preservar letras mayúsculas sueltas
-        if token.isupper() and len(token) == 1 and token.isalpha():
-            result.append(token)
-            i += 1
-            continue
-
-        if token.isupper() and low not in ENGLISH_MINOR_WORDS:
-            result.append(token)
-            i += 1
-            continue
-        if capitalize_next or low not in ENGLISH_MINOR_WORDS:
-            result.append(low[0].upper() + low[1:] if len(low) > 1 else low.upper())
-        else:
-            result.append(low)
-        capitalize_next = False
-        i += 1
-
-    title = " ".join(result)
-
-    # Signos de exclamación e interrogación (inglés no tiene ¡ ni ¿)
-    title = re.sub(r'\s+([!?])', r'\1', title)
-    title = re.sub(r'([!?])\s+', r'\1', title)
-
-    # Apóstrofos
-    title = re.sub(r"\b'\s+", "'", title)
-    title = re.sub(r"\s+'\b", "'", title)
-
-    # Puntos, comas, dos puntos, paréntesis
-    title = title.replace(" .", ".").replace(" ,", ",").replace(" :", ":")
-    title = title.replace("( ", "(").replace(" )", ")")
-
-    return title
-
-def smart_title_case(text, use_spanish=False):
-    """
-    Capitaliza el título respetando las mayúsculas ya existentes.
-    - Si una palabra ya contiene alguna mayúscula (no solo al inicio), se deja intacta.
-    - Si está completamente en minúsculas, se capitaliza según el idioma.
-    Mantiene la puntuación y espacios originales.
-    """
-    if not text:
-        return text
-    # Limpiar solo espacios básicos, sin alterar guiones ni puntuación
-    text = clean_punctuation_spacing(text)
-    # Tokenizamos en palabras (incluyendo apóstrofes) y bloques de no-palabras
-    tokens = re.findall(r"[\w']+|[^\w']+", text)
-    result_tokens = []
-    capitalize_next = True
-    minor_words = SPANISH_MINOR_WORDS if use_spanish else ENGLISH_MINOR_WORDS
-
-    for token in tokens:
-        if re.match(r'[\w\']+', token):
-            # Es una palabra
-            low = token.lower()
-            # Si ya contiene alguna mayúscula (por ejemplo acrónimos o letras sueltas mayúsculas), se deja tal cual
-            if token != low and token != token.capitalize():
-                result_tokens.append(token)
-                capitalize_next = False
-                continue
-            # Si es completamente mayúscula y no es palabra menor, se deja (podría ser acrónimo)
-            if token.isupper() and low not in minor_words:
-                result_tokens.append(token)
-                capitalize_next = False
-                continue
-            # Si es completamente minúscula o capitalizada solo primera letra, aplicamos regla
-            if capitalize_next or low not in minor_words:
-                result_tokens.append(low[0].upper() + low[1:] if len(low) > 1 else low.upper())
-            else:
-                result_tokens.append(low)
-            capitalize_next = False
-        else:
-            # Bloque de puntuación/espacios
-            result_tokens.append(token)
-            # Si contiene un signo que dispara mayúscula (:, ¡, ¿, !, ?)
-            if any(c in token for c in ':¡!¿?!'):
-                capitalize_next = True
-            else:
-                # Si es un punto, no activamos mayúscula para evitar problemas con abreviaturas
-                capitalize_next = False
-    return ''.join(result_tokens)
-
-def preserve_special_casing(base_title, canonical_title):
-    if not base_title or not canonical_title:
-        return base_title
-    if normalize_text(base_title) != normalize_text(canonical_title):
-        return base_title
-    base_words = base_title.split()
-    canon_words = canonical_title.split()
-    if len(base_words) != len(canon_words):
-        return base_title
-    merged = []
-    for bw, cw in zip(base_words, canon_words):
-        if bw.upper() == cw.upper():
-            merged.append(cw)
-        else:
-            merged.append(bw)
-    return " ".join(merged)
-
 def extract_english_title(elem):
     invalid = {"comedia", "drama", "terror", "acción", "accion", "suspenso",
                "romance", "aventura", "ciencia ficción", "serie", "película",
@@ -1039,7 +904,7 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False,
             cache_set(cache_key, result)
             return result
 
-    # FALLBACK: búsqueda sin signos de puntuación (ej. "Hawaii-Five-O" -> "Hawaii Five O")
+    # FALLBACK: búsqueda sin signos de puntuación
     fallback_query = re.sub(r'[^\w\s]', ' ', title)
     fallback_query = re.sub(r'\s+', ' ', fallback_query).strip()
     if fallback_query and normalize_text(fallback_query) != normalize_text(title):
@@ -1212,7 +1077,6 @@ def remove_episode_title_from_series_title(title_text, subtitle_text=""):
         return base
     norm_sub = normalize_text(subtitle)
 
-    # Separadores clásicos: dos puntos, barra vertical, guiones largos y cortos
     separators = [":", "|", "-", "–", "—"]
     for sep in separators:
         if sep in base:
@@ -1220,7 +1084,6 @@ def remove_episode_title_from_series_title(title_text, subtitle_text=""):
             if normalize_text(right.strip()) == norm_sub and len(left.strip()) > 0:
                 return left.strip()
 
-    # Intento extra con el último guion simple (por si el texto original ya estaba pegado)
     if "-" in base:
         left, right = base.rsplit("-", 1)
         if normalize_text(right.strip()) == norm_sub and len(left.strip()) > 0:
@@ -1311,7 +1174,7 @@ def process_programme(elem, start_time_str, prefer_latam=False,
     if not final_year and tmdb_data and tmdb_data.get("year"):
         final_year = tmdb_data.get("year")
 
-    # TVMaze solo para canales autoritativos (us, gb, ca)
+    # TVMaze solo para canales autoritativos
     should_try_tvmaze = tvmaze_authoritative and ((tmdb_data and tmdb_data.get("type") == "tv") or final_se)
     if should_try_tvmaze:
         try:
@@ -1347,18 +1210,14 @@ def process_programme(elem, start_time_str, prefer_latam=False,
         preferred_desc = raw_desc or None
 
     # --- CAPITALIZACIÓN FINAL ---
-    # Determinar si usamos reglas de español
     use_spanish = prefer_latam or xml_has_spanish_title
 
     if tmdb_data or tvmaze_data:
-        # Título enriquecido: aplicar capitalización inteligente que preserva mayúsculas existentes
-        final_title = smart_title_case(final_title, use_spanish=use_spanish)
+        # Título enriquecido: NO limpiar espacios, solo capitalización inteligente
+        final_title = smart_title_case(final_title, use_spanish=use_spanish, force_all=False, clean_spacing=False)
     else:
-        # Título original del XML: capitalización completa según idioma
-        if use_spanish:
-            final_title = spanish_title_case(final_title)
-        else:
-            final_title = english_title_case(final_title)
+        # Título original: limpiar espacios y capitalizar completamente
+        final_title = smart_title_case(final_title, use_spanish=use_spanish, force_all=True, clean_spacing=True)
 
     final_title = apply_title_case_overrides(final_title)
 
@@ -1436,7 +1295,7 @@ def normalize_subtitle_and_desc(elem, prefer_latam, is_series, preferred_subtitl
         chosen_subtitle = extracted_ep_title
     chosen_subtitle = strip_leading_se_from_text(chosen_subtitle).strip()
     if chosen_subtitle and prefer_latam:
-        chosen_subtitle = spanish_title_case(chosen_subtitle)
+        chosen_subtitle = smart_title_case(chosen_subtitle, use_spanish=True, force_all=True, clean_spacing=True)
     set_or_replace_subtitle(elem, chosen_subtitle, prefer_latam)
     if is_series and chosen_subtitle:
         first = first_line(cleaned_desc)
