@@ -228,3 +228,4 @@ mx#max
 mx#max-prime-mexico
 mx#cinemax
 sv#studio-universal
+UniversalTVLatinAmerica.us@Panregional
