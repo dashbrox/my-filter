@@ -10,7 +10,6 @@ from difflib import SequenceMatcher
 from datetime import datetime, timedelta
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-
 # =========================
 # CONFIGURACIÓN
 # =========================
@@ -19,6 +18,9 @@ EPG_COUNTRY_CODES = """
 ar bo ca co cl cr do ec sv gt
 hn it mx py pe es gb us uy ve 
 """.split()
+
+# Países que ya tienen cobertura con mi.tv (no necesitamos iptv-epg.org para ellos)
+MITV_COUNTRIES = {'ar', 'cl', 'co', 'gt', 'hn', 'mx', 'pe', 'py', 'sv'}
 
 MITV_BASE = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv"
 
@@ -32,7 +34,11 @@ EPG_MITV_PE = f"{MITV_BASE}/pe.xml"
 EPG_MITV_PY = f"{MITV_BASE}/py.xml"
 EPG_MITV_SV = f"{MITV_BASE}/sv.xml"
 
-EPG_URLS = [f"https://iptv-epg.org/files/epg-{code}.xml" for code in EPG_COUNTRY_CODES]
+EPG_URLS = [
+    f"https://iptv-epg.org/files/epg-{code}.xml"
+    for code in EPG_COUNTRY_CODES
+    if code not in MITV_COUNTRIES
+]
 EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
