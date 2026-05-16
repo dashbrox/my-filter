@@ -10,6 +10,7 @@ from difflib import SequenceMatcher
 from datetime import datetime, timedelta
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
 # =========================
 # CONFIGURACIÓN
 # =========================
