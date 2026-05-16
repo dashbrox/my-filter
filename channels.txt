@@ -225,3 +225,4 @@ mx#hbo-family
 co#discovery-id
 AMCLatinAmerica.us@SD
 mx#max
+mx#max-prime-mexico
