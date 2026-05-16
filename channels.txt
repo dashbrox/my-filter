@@ -224,3 +224,4 @@ gt#max-prime-mexico
 mx#hbo-family
 co#discovery-id
 AMCLatinAmerica.us@SD
+mx#max
