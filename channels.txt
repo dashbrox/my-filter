@@ -232,3 +232,4 @@ UniversalTVLatinAmerica.us@Panregional
 co#dhe
 mx#golden-edge
 mx#golden
+AELatinAmerica.us@South
