@@ -65,8 +65,7 @@ HallmarkChannel.us
 CNN.us
 FoxEast_WNYW.us
 CBSEast_WCBS.us
-MovistarEstrenos.es
-MovistarPlus+.es
+Movistar Plus
 Sony.pe
 SonyMovieChannel.ec
 EuropaEuropa.mx
