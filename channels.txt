@@ -228,3 +228,4 @@ co#dhe
 mx#golden-edge
 mx#golden
 AELatinAmerica.us@South
+LasEstrellas.mx@SD
