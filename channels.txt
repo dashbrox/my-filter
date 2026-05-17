@@ -91,8 +91,8 @@ CWWPIX.us
 DisneyChannel.mx
 plex.tv.Tennis.Channel.2.plex
 plex.tv.Tennis+.plex
-M+.Estrenos.es
-DAZN.F1.es
+M+ Estrenos
+DAZN F1
 Sony.hn
 StudioUniversal.hn
 UniversalTV.hn
