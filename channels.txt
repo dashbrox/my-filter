@@ -35,9 +35,6 @@ EEntertainmentTelevision.us
 USANetwork.cr
 DHE.co
 FX.pe
-AztecaUno.mx
-LasEstrellas.mx
-Canal5.mx
 UniversalTV.cl
 UNIVERSALPREMIERE.uy
 UniversalPremiereOeste.ec
@@ -122,8 +119,6 @@ EEntertainmentTelevision.us
 SONYMOVIES.uy
 ANIMALPLANET.uy
 ENTERTAINMENTTELEVISION.uy
-Golden.mx
-GoldenEdge.mx
 GoldenPremier.mx
 GoldenPremier2.mx
 gt#max
