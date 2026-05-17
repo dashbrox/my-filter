@@ -90,7 +90,7 @@ DisneyChannel.mx
 plex.tv.Tennis.Channel.2.plex
 plex.tv.Tennis+.plex
 M+ Estrenos
-DAZN F1
+mvf1
 Sony.hn
 StudioUniversal.hn
 UniversalTV.hn
