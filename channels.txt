@@ -23,13 +23,13 @@ NBCEast_WNBC.us
 NBCKNBC.us
 BBCOne.uk@LondonHD
 BBCTwo.uk@HD
-M+ Deportes
-M+ Deportes2
-M+ Deportes3
-M+ Deportes4
-M+ Deportes5
-M+ Deportes6
-M+ Deportes7
+cpdep
+arthur
+usop2
+usop3
+usop11
+multi8
+multi6
 EEntertainmentTelevision.us
 USANetwork.cr
 DHE.co
