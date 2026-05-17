@@ -143,8 +143,6 @@ gt#cinema
 gt#cinecanal-hd
 Cinecanal.us@Panregional
 CartoonNetworkLatinAmerica.us@NorthAtlantic
-gt#canal-de-las-estrellas
-gt#azteca-13
 gt#axn
 gt#animal-planet
 gt#amc-hd
@@ -229,3 +227,4 @@ mx#golden-edge
 mx#golden
 AELatinAmerica.us@South
 LasEstrellas.mx@SD
+mx.azteca13
