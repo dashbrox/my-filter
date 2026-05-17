@@ -23,14 +23,13 @@ NBCEast_WNBC.us
 NBCKNBC.us
 BBCOne.uk
 BBCTwo.uk
-M+Deportes.es
-M+Deportes1.es
-M+Deportes2.es
-M+Deportes3.es
-M+Deportes4.es
-M+Deportes5.es
-M+Deportes6.es
-M+Deportes7.es
+M+ Deportes
+M+ Deportes2
+M+ Deportes3
+M+ Deportes4
+M+ Deportes5
+M+ Deportes6
+M+ Deportes7
 EEntertainmentTelevision.us
 USANetwork.cr
 DHE.co
