@@ -97,9 +97,9 @@ UniversalTV.hn
 DiscoveryChannel.hn
 AnimalPlanet.hn
 DiscoveryChannel.pe
-SkySpMainEvHD
-SkySp+ HD
-SkySp F1 HD
+SkySportsMainEvent.uk@HD
+SkySportsArena.uk@HD
+SkySportsF1.uk@HD
 fashion-tv
 SuperTennis.HD.it
 UK:.Tennis.Channel.be
