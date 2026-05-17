@@ -20,8 +20,12 @@ ar bo ca co cl cr do ec sv gt
 hn it mx py pe es gb us uy ve 
 """.split()
 
-# Países que ya tienen cobertura con mi.tv (no necesitamos iptv-epg.org para ellos)
 MITV_COUNTRIES = {'ar', 'cl', 'co', 'gt', 'hn', 'mx', 'pe', 'py', 'sv'}
+
+SPECIAL_EPG = {
+    'gb': "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/sky.com/guide.xml",
+    'es': "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/guia_limpia.xml",
+}
 
 MITV_BASE = "https://github.com/dashbrox/otherepg/raw/refs/heads/master/guides/mi.tv"
 
@@ -35,18 +39,24 @@ EPG_MITV_PE = f"{MITV_BASE}/pe.xml"
 EPG_MITV_PY = f"{MITV_BASE}/py.xml"
 EPG_MITV_SV = f"{MITV_BASE}/sv.xml"
 
-EPG_URLS = [
-    f"https://iptv-epg.org/files/epg-{code}.xml"
-    for code in EPG_COUNTRY_CODES
-    if code not in MITV_COUNTRIES
-]
+EPG_URLS = []
+
+for code in EPG_COUNTRY_CODES:
+    if code in MITV_COUNTRIES:
+        continue
+    if code in SPECIAL_EPG:
+        EPG_URLS.append(SPECIAL_EPG[code])
+    else:
+        EPG_URLS.append(f"https://iptv-epg.org/files/epg-{code}.xml")
+
 EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_PLEX1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz",
     "https://helmerluzo.github.io/RakutenTV_HL/epg/RakutenTV.xml.gz",
     "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
+]
+
+EPG_URLS += [
     EPG_MITV_AR,
     EPG_MITV_CL,
     EPG_MITV_CO,
@@ -57,6 +67,7 @@ EPG_URLS += [
     EPG_MITV_PY,
     EPG_MITV_SV,
 ]
+
 EPG_URLS = list(dict.fromkeys(EPG_URLS))
 
 CHANNELS_FILE = "channels.txt"
