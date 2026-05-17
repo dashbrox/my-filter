@@ -58,8 +58,8 @@ AMC.ar
 Sony.sv
 TennisChannel.us
 SkySp Tennis HD
-Eurosport2.es
-Eurosport1.es
+Eurosport 1
+Eurosport 2
 HallmarkMystery.us
 HallmarkChannel.us
 CNN.us
