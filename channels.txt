@@ -21,8 +21,8 @@ ABCEast_WABC.us
 ABCKABC.us
 NBCEast_WNBC.us
 NBCKNBC.us
-BBCOne.uk
-BBCTwo.uk
+BBCOne.uk@LondonHD
+BBC Two HD
 M+ Deportes
 M+ Deportes2
 M+ Deportes3
