@@ -68,6 +68,9 @@ EPG_URLS += [
     EPG_MITV_SV,
 ]
 
+# Nueva fuente EPG de tvpassport.com
+EPG_URLS.append("https://raw.githubusercontent.com/dashbrox/otherepg/refs/heads/master/guides/tvpassport.com/guide.xml")
+
 EPG_URLS = list(dict.fromkeys(EPG_URLS))
 
 CHANNELS_FILE = "channels.txt"
