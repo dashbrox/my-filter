@@ -257,6 +257,6 @@ starz-encore-suspense-hd--eastern/11437
 mtv-usa-hd--eastern/4525
 tnt-hd--east-feed/3037
 trutv-usa--east-hd/6996
-plex.tv.XITE.90s.Throwback.plex
-plex.tv.XITE.Hits.plex
+XITE90sThrowback.us
+XITEHits.us
 TelemundoWSCV.us
