@@ -259,3 +259,4 @@ tnt-hd--east-feed/3037
 trutv-usa--east-hd/6996
 plex.tv.XITE.90s.Throwback.plex
 plex.tv.XITE.Hits.plex
+TelemundoWSCV.us
