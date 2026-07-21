@@ -204,28 +204,6 @@ def parse_epg_time_to_utc(start_str):
     except Exception:
         return None
 
-def deduplicate_programmes(prog_list):
-    """Elimina duplicados cuando un mismo título se actualiza a un horario más nuevo."""
-    if not prog_list:
-        return []
-    keep = []
-    for i in range(len(prog_list)):
-        dt_i, elem_i = prog_list[i]
-        title_i = elem_i.find("title").text if elem_i.find("title") is not None else ""
-        is_duplicate = False
-        for j in range(i+1, len(prog_list)):
-            dt_j, elem_j = prog_list[j]
-            title_j = elem_j.find("title").text if elem_j.find("title") is not None else ""
-            sim = text_similarity(title_i, title_j)
-            if sim > 0.8:
-                time_diff = (dt_j - dt_i).total_seconds() / 60.0
-                if time_diff < 120:
-                    is_duplicate = True
-                    break
-        if not is_duplicate:
-            keep.append((dt_i, elem_i))
-    return keep
-
 def purge_old_cache():
     global api_cache
     cutoff = now_ts() - CACHE_MAX_AGE_SECONDS
@@ -330,18 +308,30 @@ def clean_punctuation_spacing(text):
     """Limpia espacios alrededor de signos de puntuación, sin colapsar guiones."""
     if not text:
         return text
+    # Espacio antes de ! y ? se pega a la palabra anterior: "Hola !" → "Hola!"
     text = re.sub(r'\s+([!?])', r'\1', text)
+    # Espacio después de ¡ y ¿ se pega a la palabra siguiente: "¡ Hola" → "¡Hola"
     text = re.sub(r'([¡¿])\s+', r'\1', text)
+    # Apóstrofos pegados
     text = re.sub(r"\b'\s+", "'", text)
     text = re.sub(r"\s+'\b", "'", text)
+    # Unifica espacios múltiples
     text = re.sub(r'\s{2,}', ' ', text)
     return text.strip()
 
 def smart_title_case(text, use_spanish=False, force_all=False, clean_spacing=True):
+    """
+    Capitaliza un título preservando EXACTAMENTE los espacios y la puntuación.
+    - Si force_all=True: todas las palabras se capitalizan según reglas (para títulos originales).
+    - Si force_all=False: se respetan las mayúsculas internas y acrónimos; solo se capitalizan
+      palabras que no estén ya correctamente capitalizadas (para títulos de TMDB/TVMaze).
+    - clean_spacing: si es True, primero se aplica clean_punctuation_spacing.
+    """
     if not text:
         return text
     if clean_spacing:
         text = clean_punctuation_spacing(text)
+    # Tokenizamos palabras (incluyendo apóstrofe y punto) y bloques de no-palabra
     tokens = re.findall(r"[\w'.]+|[^\w'.]+", text)
     result = []
     capitalize_next = True
@@ -349,26 +339,33 @@ def smart_title_case(text, use_spanish=False, force_all=False, clean_spacing=Tru
 
     for token in tokens:
         if re.match(r'[\w\'.]+', token):
+            # Palabras con puntos o apóstrofes (acrónimos, contracciones): se dejan intactas
             if '.' in token or "'" in token:
                 result.append(token)
                 capitalize_next = False
                 continue
+
             low = token.lower()
+            # Si ya tiene mayúsculas internas (no solo la primera) y no es force_all, se respeta
             if not force_all and token != low and token != token.capitalize():
                 result.append(token)
                 capitalize_next = False
                 continue
+            # Palabras completamente en mayúsculas (posibles acrónimos) se mantienen
             if token.isupper() and low not in minor_words:
                 result.append(token)
                 capitalize_next = False
                 continue
+            # Aplicar mayúscula según la posición y si no es palabra menor
             if capitalize_next or low not in minor_words:
                 result.append(low[0].upper() + low[1:] if len(low) > 1 else low.upper())
             else:
                 result.append(low)
             capitalize_next = False
         else:
+            # Bloque de puntuación / espacios
             result.append(token)
+            # Solo : ¡ ¿ ! ? activan la siguiente mayúscula
             if any(c in token for c in ':¡!¿?!'):
                 capitalize_next = True
             else:
@@ -658,7 +655,7 @@ def infer_media_type_from_desc(desc, categories=None):
     movie_score = sum(1 for w in movie_hints if w in d)
     if tv_score > movie_score:
         return "tv"
-    if movie_score > movie_score:
+    if movie_score > tv_score:
         return "movie"
     return None
 
@@ -951,6 +948,7 @@ def get_tmdb_data(title, desc="", subtitle="", year=None, prefer_latam=False,
             cache_set(cache_key, result)
             return result
 
+    # FALLBACK: búsqueda sin signos de puntuación
     fallback_query = re.sub(r'[^\w\s]', ' ', title)
     fallback_query = re.sub(r'\s+', ' ', fallback_query).strip()
     if fallback_query and normalize_text(fallback_query) != normalize_text(title):
@@ -1259,8 +1257,10 @@ def process_programme(elem, start_time_str, prefer_latam=False,
     use_spanish = prefer_latam or xml_has_spanish_title
 
     if tmdb_data or tvmaze_data:
+        # Título enriquecido: NO limpiar espacios, solo capitalización inteligente
         final_title = smart_title_case(final_title, use_spanish=use_spanish, force_all=False, clean_spacing=False)
     else:
+        # Título original: limpiar espacios y capitalizar completamente
         final_title = smart_title_case(final_title, use_spanish=use_spanish, force_all=True, clean_spacing=True)
 
     final_title = apply_title_case_overrides(final_title)
@@ -1272,18 +1272,6 @@ def process_programme(elem, start_time_str, prefer_latam=False,
         display_title += f" | {display_se}"
     if has_new:
         display_title += " ᴺᵉʷ"
-
-    # --- PONER LA HORA AL PRINCIPIO DEL TÍTULO (para la app de escritorio) ---
-    if start_time_str:
-        try:
-            base = start_time_str[:14]
-            dt = datetime.strptime(base, "%Y%m%d%H%M%S")
-            hora = dt.strftime("%I:%M %p").lstrip("0").lower()
-            hora = hora.replace("am", "a.m.").replace("pm", "p.m.")
-            display_title = f"{hora} {display_title}"
-        except Exception:
-            pass
-    # --- FIN ---
 
     return display_title, is_series, preferred_subtitle, preferred_desc
 
@@ -1437,7 +1425,6 @@ def main():
     try:
         with open(TEMP_OUTPUT, "wb") as out_f:
             out_f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
-            buffered_progs = {}
             for idx, url in enumerate(EPG_URLS, start=1):
                 processed_programmes = 0
                 prefer_latam = is_latam_feed(url)
@@ -1479,7 +1466,6 @@ def main():
                             dt_utc = parse_epg_time_to_utc(start_str)
                             if dt_utc:
                                 now_utc = datetime.utcnow()
-                                # Solo guarda programas que empiecen entre 1 hora antes y 3 días después
                                 if dt_utc < now_utc - timedelta(hours=1) or dt_utc > now_utc + timedelta(days=3):
                                     root.remove(elem)
                                     continue
@@ -1505,12 +1491,11 @@ def main():
                                 apply_channel_offset(elem)
                                 cloned = clone_element(elem)
                                 cloned.set("channel", canonical_ch_id)
-
-                                # --- GUARDAR EN MEMORIA ---
-                                dt_utc = parse_epg_time_to_utc(cloned.get("start", ""))
-                                if dt_utc is None:
-                                    dt_utc = datetime.utcnow()
-                                buffered_progs.setdefault(canonical_ch_id, []).append((dt_utc, cloned))
+                                prog_key = (canonical_ch_id, cloned.get("start"), cloned.get("stop"))
+                                if prog_key not in written_programmes:
+                                    out_f.write(ET.tostring(cloned, encoding="utf-8"))
+                                    out_f.write(b"\n")
+                                    written_programmes.add(prog_key)
                             root.remove(elem)
                     del context
                     print(f"Fuente terminada: {url.split('/')[-1]}", flush=True)
@@ -1519,16 +1504,6 @@ def main():
                 finally:
                     if os.path.exists(TEMP_INPUT):
                         os.remove(TEMP_INPUT)
-            # --- ESCRIBIR LOS PROGRAMAS YA DEDUPLICADOS ---
-            total_written = 0
-            for ch_id, prog_list in buffered_progs.items():
-                prog_list.sort(key=lambda x: x[0])
-                deduped = deduplicate_programmes(prog_list)
-                for dt, elem in deduped:
-                    out_f.write(ET.tostring(elem, encoding="utf-8"))
-                    out_f.write(b"\n")
-                    total_written += 1
-            print(f"Programas escritos después de deduplicar: {total_written}", flush=True)
             out_f.write(b"</tv>\n")
     finally:
         save_cache()
