@@ -1454,12 +1454,24 @@ def main():
                                 out_f.write(b"\n")
                                 written_channels.add(canonical_ch_id)
                             root.remove(elem)
-                        elif elem.tag == "programme":
+                                                elif elem.tag == "programme":
                             processed_programmes += 1
                             if processed_programmes % 5000 == 0:
                                 print(f"Procesando... {processed_programmes} programas", flush=True)
                             ch_id = elem.get("channel")
                             canonical_ch_id = canonical_channel_id(ch_id)
+
+                            # --- FILTRO DE 72 HORAS (3 DÍAS) ---
+                            start_str = elem.get("start", "")
+                            dt_utc = parse_epg_time_to_utc(start_str)
+                            if dt_utc:
+                                now_utc = datetime.utcnow()
+                                # Solo guarda programas que empiecen entre 1 hora antes y 3 días después
+                                if dt_utc < now_utc - timedelta(hours=1) or dt_utc > now_utc + timedelta(days=3):
+                                    root.remove(elem)
+                                    continue
+                            # --- FIN FILTRO ---
+
                             if canonical_ch_id in allowed_canonical and is_source_allowed_for_channel(ch_id, url):
                                 if canonical_ch_id not in channel_source_assigned:
                                     channel_source_assigned[canonical_ch_id] = url
