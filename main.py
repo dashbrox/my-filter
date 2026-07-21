@@ -1285,7 +1285,7 @@ def process_programme(elem, start_time_str, prefer_latam=False,
         # Título original: limpiar espacios y capitalizar completamente
         final_title = smart_title_case(final_title, use_spanish=use_spanish, force_all=True, clean_spacing=True)
 
-       final_title = apply_title_case_overrides(final_title)
+    final_title = apply_title_case_overrides(final_title)
 
     display_title = final_title
     is_series = bool(final_se) or (tmdb_data and tmdb_data.get("type") == "tv")
