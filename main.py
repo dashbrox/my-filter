@@ -1286,30 +1286,30 @@ def process_programme(elem, start_time_str, prefer_latam=False,
         # Título original: limpiar espacios y capitalizar completamente
         final_title = smart_title_case(final_title, use_spanish=use_spanish, force_all=True, clean_spacing=True)
 
-    final_title = apply_title_case_overrides(final_title)
+       final_title = apply_title_case_overrides(final_title)
 
-            display_title = final_title
-        is_series = bool(final_se) or (tmdb_data and tmdb_data.get("type") == "tv")
-        if final_se:
-            display_se = format_season_episode_display(final_se, use_spanish=spanish_season_episode_format)
-            display_title += f" | {display_se}"
-        if has_new:
-            display_title += " ᴺᵉʷ"
+    display_title = final_title
+    is_series = bool(final_se) or (tmdb_data and tmdb_data.get("type") == "tv")
+    if final_se:
+        display_se = format_season_episode_display(final_se, use_spanish=spanish_season_episode_format)
+        display_title += f" | {display_se}"
+    if has_new:
+        display_title += " ᴺᵉʷ"
 
-        # --- PONER LA HORA AL PRINCIPIO DEL TÍTULO (para la app de escritorio) ---
-        if start_time_str:
-            try:
-                base = start_time_str[:14]
-                dt = datetime.strptime(base, "%Y%m%d%H%M%S")
-                # Formato: 06:11 a.m. (igual que tu TV)
-                hora = dt.strftime("%I:%M %p").lstrip("0").lower()
-                hora = hora.replace("am", "a.m.").replace("pm", "p.m.")
-                display_title = f"{hora} {display_title}"
-            except Exception:
-                pass
-        # --- FIN ---
+    # --- PONER LA HORA AL PRINCIPIO DEL TÍTULO (para la app de escritorio) ---
+    if start_time_str:
+        try:
+            base = start_time_str[:14]
+            dt = datetime.strptime(base, "%Y%m%d%H%M%S")
+            # Formato: 06:11 a.m. (igual que tu TV)
+            hora = dt.strftime("%I:%M %p").lstrip("0").lower()
+            hora = hora.replace("am", "a.m.").replace("pm", "p.m.")
+            display_title = f"{hora} {display_title}"
+        except Exception:
+            pass
+    # --- FIN ---
 
-        return display_title, is_series, preferred_subtitle, preferred_desc
+    return display_title, is_series, preferred_subtitle, preferred_desc
 # =========================
 # Funciones de XML auxiliares
 # =========================
