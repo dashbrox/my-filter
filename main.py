@@ -1543,6 +1543,18 @@ def main():
                 finally:
                     if os.path.exists(TEMP_INPUT):
                         os.remove(TEMP_INPUT)
+            # --- ESCRIBIR LOS PROGRAMAS YA DEDUPLICADOS ---
+            total_written = 0
+            for ch_id, prog_list in buffered_progs.items():
+                # Ordenar por hora (más antiguo a más nuevo)
+                prog_list.sort(key=lambda x: x[0])
+                # Aplicar deduplicación (se queda con el más nuevo)
+                deduped = deduplicate_programmes(prog_list)
+                for dt, elem in deduped:
+                    out_f.write(ET.tostring(elem, encoding="utf-8"))
+                    out_f.write(b"\n")
+                    total_written += 1
+            print(f"Programas escritos después de deduplicar: {total_written}", flush=True)
             out_f.write(b"</tv>\n")
     finally:
         save_cache()
