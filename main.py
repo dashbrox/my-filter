@@ -1460,6 +1460,7 @@ def main():
     try:
         with open(TEMP_OUTPUT, "wb") as out_f:
             out_f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n<tv>\n')
+            buffered_progs = {}
             for idx, url in enumerate(EPG_URLS, start=1):
                 processed_programmes = 0
                 prefer_latam = is_latam_feed(url)
