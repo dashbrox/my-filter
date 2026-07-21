@@ -200,9 +200,32 @@ def parse_epg_time_to_utc(start_str):
                     dt = dt + delta
                 else:
                     dt = dt - delta
-        return dt
-    except Exception:
-        return None
+def deduplicate_programmes(prog_list):
+    """Elimina duplicados cuando un mismo título se actualiza a un horario más nuevo."""
+    if not prog_list:
+        return []
+    # prog_list ya viene ordenado por hora (más antiguo a más nuevo)
+    keep = []
+    for i in range(len(prog_list)):
+        dt_i, elem_i = prog_list[i]
+        title_i = elem_i.find("title").text if elem_i.find("title") is not None else ""
+        is_duplicate = False
+        # Buscar hacia adelante (programas más nuevos)
+        for j in range(i+1, len(prog_list)):
+            dt_j, elem_j = prog_list[j]
+            title_j = elem_j.find("title").text if elem_j.find("title") is not None else ""
+            # Calculamos qué tan parecidos son los títulos
+            sim = text_similarity(title_i, title_j)
+            # Si son muy similares (>80%) y empiezan en menos de 2 horas
+            if sim > 0.8:
+                time_diff = (dt_j - dt_i).total_seconds() / 60.0
+                if time_diff < 120:  # 2 horas
+                    # El más nuevo (dt_j) reemplaza al viejo (dt_i)
+                    is_duplicate = True
+                    break
+        if not is_duplicate:
+            keep.append((dt_i, elem_i))
+    return keep
 
 def purge_old_cache():
     global api_cache
