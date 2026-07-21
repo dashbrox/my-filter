@@ -181,6 +181,29 @@ api_cache = {}
 def now_ts():
     return int(time.time())
 
+def parse_epg_time_to_utc(start_str):
+    """Convierte YYYYMMDDHHMMSS +-HHMM a datetime UTC."""
+    if not start_str:
+        return None
+    try:
+        base = start_str[:14]
+        off = start_str[14:].strip()
+        dt = datetime.strptime(base, "%Y%m%d%H%M%S")
+        if off:
+            match = re.match(r"([+-])(\d{2})(\d{2})", off)
+            if match:
+                sign = match.group(1)
+                hours = int(match.group(2))
+                mins = int(match.group(3))
+                delta = timedelta(hours=hours, minutes=mins)
+                if sign == '-':
+                    dt = dt + delta
+                else:
+                    dt = dt - delta
+        return dt
+    except Exception:
+        return None
+
 def purge_old_cache():
     global api_cache
     cutoff = now_ts() - CACHE_MAX_AGE_SECONDS
