@@ -181,29 +181,6 @@ api_cache = {}
 def now_ts():
     return int(time.time())
 
-def parse_epg_time_to_utc(start_str):
-    """Convierte YYYYMMDDHHMMSS +-HHMM a datetime UTC."""
-    if not start_str:
-        return None
-    try:
-        base = start_str[:14]
-        off = start_str[14:].strip()
-        dt = datetime.strptime(base, "%Y%m%d%H%M%S")
-        if off:
-            match = re.match(r"([+-])(\d{2})(\d{2})", off)
-            if match:
-                sign = match.group(1)
-                hours = int(match.group(2))
-                mins = int(match.group(3))
-                delta = timedelta(hours=hours, minutes=mins)
-                if sign == '-':
-                    dt = dt + delta
-                else:
-                    dt = dt - delta
-        return dt
-    except Exception:
-        return None
-
 def purge_old_cache():
     global api_cache
     cutoff = now_ts() - CACHE_MAX_AGE_SECONDS
@@ -1460,17 +1437,6 @@ def main():
                                 print(f"Procesando... {processed_programmes} programas", flush=True)
                             ch_id = elem.get("channel")
                             canonical_ch_id = canonical_channel_id(ch_id)
-
-                            # --- FILTRO DE 72 HORAS (3 DÍAS) ---
-                            start_str = elem.get("start", "")
-                            dt_utc = parse_epg_time_to_utc(start_str)
-                            if dt_utc:
-                                now_utc = datetime.utcnow()
-                                if dt_utc < now_utc - timedelta(hours=1) or dt_utc > now_utc + timedelta(days=3):
-                                    root.remove(elem)
-                                    continue
-                            # --- FIN FILTRO ---
-
                             if canonical_ch_id in allowed_canonical and is_source_allowed_for_channel(ch_id, url):
                                 if canonical_ch_id not in channel_source_assigned:
                                     channel_source_assigned[canonical_ch_id] = url
