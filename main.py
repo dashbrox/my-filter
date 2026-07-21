@@ -1527,11 +1527,13 @@ def main():
                                 apply_channel_offset(elem)
                                 cloned = clone_element(elem)
                                 cloned.set("channel", canonical_ch_id)
-                                prog_key = (canonical_ch_id, cloned.get("start"), cloned.get("stop"))
-                                if prog_key not in written_programmes:
-                                    out_f.write(ET.tostring(cloned, encoding="utf-8"))
-                                    out_f.write(b"\n")
-                                    written_programmes.add(prog_key)
+
+                                # --- GUARDAR EN MEMORIA (en lugar de escribir directo) ---
+                                dt_utc = parse_epg_time_to_utc(cloned.get("start", ""))
+                                if dt_utc is None:
+                                    dt_utc = datetime.utcnow()
+                                # Guardamos en un diccionario separado por canal
+                                buffered_progs.setdefault(canonical_ch_id, []).append((dt_utc, cloned))
                             root.remove(elem)
                     del context
                     print(f"Fuente terminada: {url.split('/')[-1]}", flush=True)
