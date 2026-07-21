@@ -1489,7 +1489,17 @@ def main():
                                 out_f.write(b"\n")
                                 written_channels.add(canonical_ch_id)
                             root.remove(elem)
-                                                elif elem.tag == "programme":
+                            channel_source_assigned[canonical_ch_id] = url
+                                if channel_source_assigned[canonical_ch_id] != url:
+                                    root.remove(elem)
+                                    continue
+                                channel_elem = clone_element(elem)
+                                channel_elem.set("id", canonical_ch_id)
+                                out_f.write(ET.tostring(channel_elem, encoding="utf-8"))
+                                out_f.write(b"\n")
+                                written_channels.add(canonical_ch_id)
+                            root.remove(elem)
+                        elif elem.tag == "programme":
                             processed_programmes += 1
                             if processed_programmes % 5000 == 0:
                                 print(f"Procesando... {processed_programmes} programas", flush=True)
