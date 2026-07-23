@@ -10,6 +10,7 @@ from difflib import SequenceMatcher
 from datetime import datetime, timedelta
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from collections import defaultdict  # NUEVO: para almacenar por canal
 
 # =========================
 # CONFIGURACIÓN
@@ -1330,6 +1331,89 @@ def normalize_episode_num_elements(elem):
             elem.remove(ep)
 
 # =========================
+# FUNCIÓN DE DEDUPLICACIÓN (NUEVA)
+# =========================
+
+def parse_datetime_from_xmltv(ts_str):
+    """Intenta convertir un string XMLTV (formato YYYYMMDDHHMMSS) a datetime.
+       Retorna (datetime, None) si éxito, o (None, fallback_string) si falla."""
+    if not ts_str:
+        return None, ts_str
+    # Extraer los primeros 14 dígitos
+    m = re.match(r"^(\d{14})", ts_str)
+    if not m:
+        return None, ts_str
+    try:
+        dt = datetime.strptime(m.group(1), "%Y%m%d%H%M%S")
+        return dt, None
+    except ValueError:
+        return None, ts_str
+
+def is_duplicate_programme(channel_id, start_str, stop_str, title, written_by_channel):
+    """
+    Determina si un programa ya existe para el mismo canal considerando:
+    - Título muy similar (normalize_text exacto o overlap_score >= 0.95)
+    - Solapamiento temporal >= 80% del programa más corto.
+    Si no se puede calcular solapamiento (fechas inválidas), se cae a comparación exacta de start/stop strings.
+    """
+    stored_list = written_by_channel.get(channel_id)
+    if not stored_list:
+        return False
+
+    # Normalizar título del nuevo programa una sola vez
+    new_norm = normalize_text(title)
+
+    # Parsear fechas del nuevo programa
+    new_start_dt, new_start_fallback = parse_datetime_from_xmltv(start_str)
+    new_stop_dt, new_stop_fallback = parse_datetime_from_xmltv(stop_str)
+    new_has_dt = (new_start_dt is not None and new_stop_dt is not None)
+
+    for stored in stored_list:
+        stored_start_dt, stored_stop_dt, stored_raw_title, stored_norm_title, stored_start_str, stored_stop_str = stored
+
+        # 1. Comparación de títulos
+        if new_norm == stored_norm_title:
+            # títulos exactamente iguales (normalizados)
+            pass  # continuar a verificación temporal
+        else:
+            # Calcular overlap_score
+            if overlap_score(title, stored_raw_title) < 0.95:
+                continue  # no es duplicado por título
+
+        # 2. Verificación temporal
+        if new_has_dt and stored_start_dt is not None and stored_stop_dt is not None:
+            # Calcular solapamiento real
+            overlap_start = max(new_start_dt, stored_start_dt)
+            overlap_end = min(new_stop_dt, stored_stop_dt)
+            if overlap_end > overlap_start:
+                overlap_duration = (overlap_end - overlap_start).total_seconds()
+                dur1 = (new_stop_dt - new_start_dt).total_seconds()
+                dur2 = (stored_stop_dt - stored_start_dt).total_seconds()
+                min_duration = min(dur1, dur2)
+                if min_duration > 0:
+                    overlap_ratio = overlap_duration / min_duration
+                    if overlap_ratio >= 0.80:
+                        return True
+                    else:
+                        continue  # no hay suficiente solapamiento
+                else:
+                    # duración cero, considerar duplicado solo si títulos iguales y fechas iguales?
+                    # En este caso, si títulos iguales y fechas iguales, es duplicado.
+                    if new_norm == stored_norm_title and new_start_str == stored_start_str and new_stop_str == stored_stop_str:
+                        return True
+                    continue
+            else:
+                # sin solapamiento, no es duplicado
+                continue
+        else:
+            # Fallback: comparación exacta de strings de start/stop
+            if new_start_str == stored_start_str and new_stop_str == stored_stop_str:
+                return True
+            continue
+
+    return False
+
+# =========================
 # MAIN
 # =========================
 
@@ -1396,7 +1480,8 @@ def main():
         except Exception as e:
             print(f"Error escaneando fuente {url}: {e}", flush=True)
 
-    written_programmes = set()
+    # NUEVO: estructura por canal para deduplicación
+    written_programmes_by_channel = defaultdict(list)  # canal -> lista de tuplas (start_dt, stop_dt, raw_title, norm_title, start_str, stop_str)
     written_channels = set()
 
     try:
@@ -1444,6 +1529,7 @@ def main():
                                     root.remove(elem)
                                     continue
                                 start = elem.get("start", "")
+                                stop = elem.get("stop", "")
                                 tvmaze_auth = should_use_tvmaze_authoritative(url, ch_id)
                                 new_title, is_series, pref_sub, pref_desc = process_programme(
                                     elem, start,
@@ -1457,11 +1543,22 @@ def main():
                                 apply_channel_offset(elem)
                                 cloned = clone_element(elem)
                                 cloned.set("channel", canonical_ch_id)
-                                prog_key = (canonical_ch_id, cloned.get("start"), cloned.get("stop"))
-                                if prog_key not in written_programmes:
+
+                                # --- NUEVA LÓGICA DE DEDUPLICACIÓN ---
+                                # Parsear fechas y almacenar en la estructura
+                                start_dt, _ = parse_datetime_from_xmltv(start)
+                                stop_dt, _ = parse_datetime_from_xmltv(stop)
+
+                                # Verificar duplicado
+                                if not is_duplicate_programme(canonical_ch_id, start, stop, new_title, written_programmes_by_channel):
+                                    # No duplicado: almacenar y escribir
+                                    new_norm = normalize_text(new_title)
+                                    written_programmes_by_channel[canonical_ch_id].append(
+                                        (start_dt, stop_dt, new_title, new_norm, start, stop)
+                                    )
                                     out_f.write(ET.tostring(cloned, encoding="utf-8"))
                                     out_f.write(b"\n")
-                                    written_programmes.add(prog_key)
+                                # else: duplicado, se omite
                             root.remove(elem)
                     del context
                     print(f"Fuente terminada: {url.split('/')[-1]}", flush=True)
@@ -1480,7 +1577,9 @@ def main():
             f_out.writelines(f_in)
     if os.path.exists(TEMP_OUTPUT):
         os.remove(TEMP_OUTPUT)
-    print(f"Proceso completado: {OUTPUT_FILE} | canales: {len(written_channels)} | programas: {len(written_programmes)}", flush=True)
+    # Contar programas escritos (para estadística)
+    total_written = sum(len(lst) for lst in written_programmes_by_channel.values())
+    print(f"Proceso completado: {OUTPUT_FILE} | canales: {len(written_channels)} | programas: {total_written}", flush=True)
 
 def apply_channel_offset(elem):
     ch_id = canonical_channel_id(elem.get("channel"))
