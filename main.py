@@ -18,7 +18,7 @@ from collections import defaultdict  # NUEVO: para almacenar por canal
 
 EPG_COUNTRY_CODES = """
 ar bo ca co cl cr do ec sv gt
-hn it mx py pe es gb uy ve
+hn it mx py pe es gb us uy ve 
 """.split()
 
 MITV_COUNTRIES = {'ar', 'cl', 'co', 'gt', 'hn', 'mx', 'pe', 'py', 'sv'}
