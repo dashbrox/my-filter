@@ -1,3 +1,4 @@
+python
 import requests
 import gzip
 import xml.etree.ElementTree as ET
@@ -40,15 +41,40 @@ EPG_MITV_PE = f"{MITV_BASE}/pe.xml"
 EPG_MITV_PY = f"{MITV_BASE}/py.xml"
 EPG_MITV_SV = f"{MITV_BASE}/sv.xml"
 
+# =========================
+# EPG US PERSONALIZADO
+# =========================
+#
+# Guía filtrada desde iptv-epg.org/files/epg-us.xml
+# y publicada por GitHub Actions en:
+#
+# guides/epg-us-custom.xml.gz
+#
+# IMPORTANTE:
+# El archivo es .xml.gz, no .gza
+#
+
+EPG_US_CUSTOM = (
+    "https://github.com/dashbrox/otherepg/raw/"
+    "refs/heads/master/guides/epg-us-custom.xml.gz"
+)
+
+# =========================
+# CONSTRUCCIÓN DE FUENTES EPG
+# =========================
+
 EPG_URLS = []
 
 for code in EPG_COUNTRY_CODES:
     if code in MITV_COUNTRIES:
         continue
+
     if code in SPECIAL_EPG:
         EPG_URLS.append(SPECIAL_EPG[code])
     else:
-        EPG_URLS.append(f"https://iptv-epg.org/files/epg-{code}.xml")
+        EPG_URLS.append(
+            f"https://iptv-epg.org/files/epg-{code}.xml"
+        )
 
 EPG_URLS += [
     "https://epgshare01.online/epgshare01/epg_ripper_RAKUTEN1.xml.gz",
@@ -70,7 +96,20 @@ EPG_URLS += [
 ]
 
 # Nueva fuente EPG de tvpassport.com
-EPG_URLS.append("https://raw.githubusercontent.com/dashbrox/otherepg/refs/heads/master/guides/tvpassport.com/guide.xml")
+EPG_URLS.append(
+    "https://raw.githubusercontent.com/dashbrox/otherepg/"
+    "refs/heads/master/guides/tvpassport.com/guide.xml"
+)
+
+# =========================
+# NUEVA FUENTE: EPG US FILTRADO
+# =========================
+#
+# Se añade como una fuente más y el deduplicador posterior
+# evita que una misma URL aparezca dos veces.
+#
+
+EPG_URLS.append(EPG_US_CUSTOM)
 
 EPG_URLS = list(dict.fromkeys(EPG_URLS))
 
@@ -106,6 +145,7 @@ STOPWORDS = {
     "y", "o", "en", "por", "para", "con", "sin", "del", "al",
     "que", "se", "su", "sus", "the", "a", "an", "and", "of", "to", "in"
 }
+
 SPANISH_MINOR_WORDS = {
     "a", "al", "ante", "bajo", "cabe", "con", "contra", "de", "del",
     "desde", "durante", "en", "entre", "hacia", "hasta", "mediante",
@@ -125,7 +165,8 @@ ENGLISH_MINOR_WORDS = {
 }
 
 SPANISH_TITLE_LANGS = {
-    "es", "es-419", "es-mx", "es-ar", "es-co", "es-cl", "es-pe", "es-us", "es-es"
+    "es", "es-419", "es-mx", "es-ar", "es-co", "es-cl",
+    "es-pe", "es-us", "es-es"
 }
 
 KNOWN_ACRONYMS = {
@@ -165,11 +206,16 @@ def build_session():
         allowed_methods=frozenset(["GET"]),
         raise_on_status=False,
     )
-    adapter = HTTPAdapter(max_retries=retry, pool_connections=20, pool_maxsize=20)
+    adapter = HTTPAdapter(
+        max_retries=retry,
+        pool_connections=20,
+        pool_maxsize=20
+    )
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     session.headers.update({"User-Agent": USER_AGENT})
     return session
+
 
 SESSION = build_session()
 
@@ -179,39 +225,60 @@ SESSION = build_session()
 
 api_cache = {}
 
+
 def now_ts():
     return int(time.time())
 
+
 def purge_old_cache():
     global api_cache
+
     cutoff = now_ts() - CACHE_MAX_AGE_SECONDS
     cleaned = {}
+
     for key, value in api_cache.items():
-        if isinstance(value, dict) and "ts" in value and "data" in value:
+        if (
+            isinstance(value, dict)
+            and "ts" in value
+            and "data" in value
+        ):
             try:
                 if int(value["ts"]) >= cutoff:
                     cleaned[key] = value
             except Exception:
                 pass
+
     removed = len(api_cache) - len(cleaned)
     api_cache = cleaned
+
     if removed:
-        print(f"Caché limpiado: {removed} entradas expiradas.", flush=True)
+        print(
+            f"Caché limpiado: {removed} entradas expiradas.",
+            flush=True
+        )
+
 
 def cache_get(key):
     entry = api_cache.get(key)
+
     if not isinstance(entry, dict):
         return None
+
     if "ts" not in entry or "data" not in entry:
         return None
+
     try:
-        if int(entry["ts"]) < now_ts() - CACHE_MAX_AGE_SECONDS:
+        if int(entry["ts"]) < (
+            now_ts() - CACHE_MAX_AGE_SECONDS
+        ):
             api_cache.pop(key, None)
             return None
     except Exception:
         api_cache.pop(key, None)
         return None
+
     return entry["data"]
+
 
 def cache_set(key, data):
     api_cache[key] = {
@@ -219,19 +286,42 @@ def cache_set(key, data):
         "data": data
     }
 
+
 if os.path.exists(CACHE_FILE):
     try:
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+        with open(
+            CACHE_FILE,
+            "r",
+            encoding="utf-8"
+        ) as f:
             api_cache = json.load(f)
+
         purge_old_cache()
-        print(f"Caché cargado: {len(api_cache)} entradas vigentes.", flush=True)
+
+        print(
+            f"Caché cargado: {len(api_cache)} entradas vigentes.",
+            flush=True
+        )
+
     except Exception:
         api_cache = {}
 
+
 def save_cache():
     purge_old_cache()
-    with open(CACHE_FILE, "w", encoding="utf-8") as f:
-        json.dump(api_cache, f, ensure_ascii=False, indent=2)
+
+    with open(
+        CACHE_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+        json.dump(
+            api_cache,
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
+
 
 # =========================
 # ALIAS MANUALES DE CANALES
