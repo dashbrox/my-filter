@@ -57,6 +57,7 @@ AXNWhite.es
 AMC.ar
 Sony.sv
 TennisChannel.us
+TennisChannel2.us
 SkySportsTennis.uk@SD
 Eurosport 1
 Eurosport 2
