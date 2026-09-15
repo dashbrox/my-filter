@@ -1,4 +1,3 @@
-python
 import requests
 import gzip
 import xml.etree.ElementTree as ET
