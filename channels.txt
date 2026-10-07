@@ -265,3 +265,4 @@ TennisTV247.us
 HBOPopLatinAmerica.us@SD
 mx#sony-hd
 Space.ar@Mexico
+StudioUniversalLatinAmerica.us@Mexico
