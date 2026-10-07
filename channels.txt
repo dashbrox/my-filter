@@ -61,7 +61,6 @@ mplus
 Sony.pe
 SonyMovieChannel.ec
 InvestigationDiscovery.co
-DiscoveryWorld.mx
 DiscoveryChannel.cl
 MTV.mx
 MTV.us
@@ -163,9 +162,6 @@ Cinema+.gt
 Cinemax.gt
 CNNenEspanol.gt
 DHE.gt
-DiscoveryChannel.gt
-DiscoveryWorld.gt
-DisneyChannel.gt
 ESPN.gt
 ESPN+.gt
 ESPN3.gt
@@ -253,3 +249,5 @@ StudioUniversalLatinAmerica.us@Mexico
 mx#cinecanal-hd
 mx#fx
 mx#entertainment
+mx#discovery-world-hd
+DiscoveryChannelLatinAmerica.us@Mexico
