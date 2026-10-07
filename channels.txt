@@ -23,17 +23,9 @@ NBCEast_WNBC.us
 NBCKNBC.us
 BBCOne.uk@LondonHD
 BBCTwo.uk@HD
-cpdep
-arthur
-usop2
-usop3
-usop11
-multi8
-multi6
 EEntertainmentTelevision.us
 USANetwork.cr
 DHE.co
-FX.pe
 UniversalTV.cl
 UNIVERSALPREMIERE.uy
 UniversalPremiereOeste.ec
@@ -41,7 +33,6 @@ UNIVERSALCRIME.uy
 UNIVERSALCOMEDY.uy
 UNIVERSALCINEMA.uy
 UniversalCrimeOeste.ec
-StudioUniversal.sv
 HBOPop.co
 HBOMundi.co
 HBOSignature.co
@@ -82,8 +73,6 @@ Lifetime.ar
 filmAndarts.ar
 NationalGeographic.ar
 E!EntertainmentTelevisionAndes.ec
-FX.ar
-Cinecanal.co
 AandE.ar
 FashionTV.uk
 CWWPIX.us
@@ -93,7 +82,6 @@ plex.tv.Tennis+.plex
 mv1
 mvf1
 Sony.hn
-StudioUniversal.hn
 UniversalTV.hn
 DiscoveryChannel.hn
 AnimalPlanet.hn
@@ -153,7 +141,6 @@ UniversalCrime.us@East
 UniversalComedy.us@SD
 UniversalCinema.us@SD
 sv#sony
-co#studio-universal
 mx#europa-europa
 mx#espn
 mx#espn-2
@@ -173,7 +160,6 @@ AnimalPlanet.gt
 AXN.gt
 Azteca13.gt
 CartoonNetwork.gt
-Cinecanal.gt
 Cinema+.gt
 Cinemax.gt
 CNNenEspanol.gt
@@ -263,3 +249,8 @@ XITEHits.us
 TelemundoWSCV.us
 TennisTV247.us
 HBOPopLatinAmerica.us@SD
+mx#sony-hd
+Space.ar@Mexico
+StudioUniversalLatinAmerica.us@Mexico
+mx#cinecanal-hd
+mx#fx
