@@ -26,7 +26,6 @@ BBCTwo.uk@HD
 EEntertainmentTelevision.us
 USANetwork.cr
 DHE.co
-FX.pe
 UniversalTV.cl
 UNIVERSALPREMIERE.uy
 UniversalPremiereOeste.ec
@@ -74,7 +73,6 @@ Lifetime.ar
 filmAndarts.ar
 NationalGeographic.ar
 E!EntertainmentTelevisionAndes.ec
-FX.ar
 AandE.ar
 FashionTV.uk
 CWWPIX.us
@@ -255,3 +253,4 @@ mx#sony-hd
 Space.ar@Mexico
 StudioUniversalLatinAmerica.us@Mexico
 mx#cinecanal-hd
+mx#fx
