@@ -72,7 +72,6 @@ ESPN.mx
 Lifetime.ar
 filmAndarts.ar
 NationalGeographic.ar
-E!EntertainmentTelevisionAndes.ec
 AandE.ar
 FashionTV.uk
 CWWPIX.us
@@ -167,7 +166,6 @@ DHE.gt
 DiscoveryChannel.gt
 DiscoveryWorld.gt
 DisneyChannel.gt
-E!.gt
 ESPN.gt
 ESPN+.gt
 ESPN3.gt
@@ -254,3 +252,4 @@ Space.ar@Mexico
 StudioUniversalLatinAmerica.us@Mexico
 mx#cinecanal-hd
 mx#fx
+mx#entertainment
