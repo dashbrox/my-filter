@@ -75,7 +75,6 @@ filmAndarts.ar
 NationalGeographic.ar
 E!EntertainmentTelevisionAndes.ec
 FX.ar
-Cinecanal.co
 AandE.ar
 FashionTV.uk
 CWWPIX.us
@@ -85,7 +84,6 @@ plex.tv.Tennis+.plex
 mv1
 mvf1
 Sony.hn
-StudioUniversal.hn
 UniversalTV.hn
 DiscoveryChannel.hn
 AnimalPlanet.hn
@@ -164,7 +162,6 @@ AnimalPlanet.gt
 AXN.gt
 Azteca13.gt
 CartoonNetwork.gt
-Cinecanal.gt
 Cinema+.gt
 Cinemax.gt
 CNNenEspanol.gt
@@ -257,3 +254,4 @@ HBOPopLatinAmerica.us@SD
 mx#sony-hd
 Space.ar@Mexico
 StudioUniversalLatinAmerica.us@Mexico
+mx#cinecanal-hd
