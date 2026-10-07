@@ -23,13 +23,6 @@ NBCEast_WNBC.us
 NBCKNBC.us
 BBCOne.uk@LondonHD
 BBCTwo.uk@HD
-cpdep
-arthur
-usop2
-usop3
-usop11
-multi8
-multi6
 EEntertainmentTelevision.us
 USANetwork.cr
 DHE.co
@@ -41,7 +34,6 @@ UNIVERSALCRIME.uy
 UNIVERSALCOMEDY.uy
 UNIVERSALCINEMA.uy
 UniversalCrimeOeste.ec
-StudioUniversal.sv
 HBOPop.co
 HBOMundi.co
 HBOSignature.co
@@ -153,7 +145,6 @@ UniversalCrime.us@East
 UniversalComedy.us@SD
 UniversalCinema.us@SD
 sv#sony
-co#studio-universal
 mx#europa-europa
 mx#espn
 mx#espn-2
