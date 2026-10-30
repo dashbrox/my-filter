@@ -251,3 +251,4 @@ mx#fx
 mx#entertainment
 mx#discovery-world-hd
 DiscoveryChannelLatinAmerica.us@Mexico
+Showtime2.us
