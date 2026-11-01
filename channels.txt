@@ -10,7 +10,7 @@ StarzEncoreAction.us
 StarzCinema.us
 StarzComedy.us
 StarzEncoreSuspense.us
-StarzEncoreFamilyPacific.us
+StarzKids.us
 HBO.us
 HBOLatino.us
 HBOHits.us
