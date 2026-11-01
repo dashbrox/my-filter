@@ -259,3 +259,9 @@ ShowtimeNext.us
 ShowtimeShowcase.us
 esp
 esp2
+usop11
+usop3
+usop2
+multi8
+arthur
+cpdep
